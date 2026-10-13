@@ -1,0 +1,145 @@
+﻿도시,기준일,집단,바꾼 것,값,후보 수,Level 2 이상,Level 3,Top-10 겹침률
+강남,추석 D-7,고령층,structure.top_share,0.2,6,5,0,0.7142857142857143
+강남,추석 D-7,고령층,structure.top_share,0.3,8,7,0,1.0
+강남,추석 D-7,고령층,structure.top_share,0.4,10,9,0,0.7777777777777778
+강남,추석 D-7,고령층,structure.abs_min,0.3,8,7,0,1.0
+강남,추석 D-7,고령층,structure.abs_min,0.35,8,7,0,1.0
+강남,추석 D-7,고령층,structure.abs_min,0.4,8,7,0,1.0
+강남,추석 D-7,고령층,access.far_km,3.0,8,7,0,1.0
+강남,추석 D-7,고령층,access.far_km,5.0,8,7,0,1.0
+강남,추석 D-7,고령층,access.far_km,8.0,8,7,0,1.0
+강남,추석 D-7,고령층,deviation.min_drop,0.05,8,7,0,1.0
+강남,추석 D-7,고령층,deviation.min_drop,0.1,8,7,0,1.0
+강남,추석 D-7,고령층,deviation.min_drop,0.15,8,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,structure.top_share,0.2,5,5,0,0.7142857142857143
+강남,추석 D-7,중장년 남성 1인가구,structure.top_share,0.3,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,structure.top_share,0.4,9,9,0,0.7777777777777778
+강남,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.3,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.35,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.4,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,access.far_km,3.0,11,11,0,0.7
+강남,추석 D-7,중장년 남성 1인가구,access.far_km,5.0,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,access.far_km,8.0,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.05,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.1,7,7,0,1.0
+강남,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.15,7,7,0,1.0
+강남,추석 뒤,고령층,structure.top_share,0.2,6,0,0,
+강남,추석 뒤,고령층,structure.top_share,0.3,6,0,0,
+강남,추석 뒤,고령층,structure.top_share,0.4,6,0,0,
+강남,추석 뒤,고령층,structure.abs_min,0.3,6,0,0,
+강남,추석 뒤,고령층,structure.abs_min,0.35,6,0,0,
+강남,추석 뒤,고령층,structure.abs_min,0.4,6,0,0,
+강남,추석 뒤,고령층,access.far_km,3.0,6,0,0,
+강남,추석 뒤,고령층,access.far_km,5.0,6,0,0,
+강남,추석 뒤,고령층,access.far_km,8.0,6,0,0,
+강남,추석 뒤,고령층,deviation.min_drop,0.05,6,0,0,
+강남,추석 뒤,고령층,deviation.min_drop,0.1,6,0,0,
+강남,추석 뒤,고령층,deviation.min_drop,0.15,6,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.top_share,0.2,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.top_share,0.3,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.top_share,0.4,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.3,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.35,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.4,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,access.far_km,3.0,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,access.far_km,5.0,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,access.far_km,8.0,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.05,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.1,2,0,0,
+강남,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.15,2,0,0,
+강남,동절기,고령층,structure.top_share,0.2,0,0,0,
+강남,동절기,고령층,structure.top_share,0.3,0,0,0,
+강남,동절기,고령층,structure.top_share,0.4,0,0,0,
+강남,동절기,고령층,structure.abs_min,0.3,0,0,0,
+강남,동절기,고령층,structure.abs_min,0.35,0,0,0,
+강남,동절기,고령층,structure.abs_min,0.4,0,0,0,
+강남,동절기,고령층,access.far_km,3.0,0,0,0,
+강남,동절기,고령층,access.far_km,5.0,0,0,0,
+강남,동절기,고령층,access.far_km,8.0,0,0,0,
+강남,동절기,고령층,deviation.min_drop,0.05,0,0,0,
+강남,동절기,고령층,deviation.min_drop,0.1,0,0,0,
+강남,동절기,고령층,deviation.min_drop,0.15,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.top_share,0.2,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.top_share,0.3,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.top_share,0.4,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.abs_min,0.3,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.abs_min,0.35,0,0,0,
+강남,동절기,중장년 남성 1인가구,structure.abs_min,0.4,0,0,0,
+강남,동절기,중장년 남성 1인가구,access.far_km,3.0,0,0,0,
+강남,동절기,중장년 남성 1인가구,access.far_km,5.0,0,0,0,
+강남,동절기,중장년 남성 1인가구,access.far_km,8.0,0,0,0,
+강남,동절기,중장년 남성 1인가구,deviation.min_drop,0.05,0,0,0,
+강남,동절기,중장년 남성 1인가구,deviation.min_drop,0.1,0,0,0,
+강남,동절기,중장년 남성 1인가구,deviation.min_drop,0.15,0,0,0,
+춘천,추석 D-7,고령층,structure.top_share,0.2,13,12,1,0.8181818181818182
+춘천,추석 D-7,고령층,structure.top_share,0.3,14,13,3,1.0
+춘천,추석 D-7,고령층,structure.top_share,0.4,14,13,5,1.0
+춘천,추석 D-7,고령층,structure.abs_min,0.3,14,13,3,1.0
+춘천,추석 D-7,고령층,structure.abs_min,0.35,14,13,3,1.0
+춘천,추석 D-7,고령층,structure.abs_min,0.4,14,13,3,1.0
+춘천,추석 D-7,고령층,access.far_km,3.0,15,14,3,1.0
+춘천,추석 D-7,고령층,access.far_km,5.0,14,13,3,1.0
+춘천,추석 D-7,고령층,access.far_km,8.0,13,12,3,1.0
+춘천,추석 D-7,고령층,deviation.min_drop,0.05,14,13,3,1.0
+춘천,추석 D-7,고령층,deviation.min_drop,0.1,14,13,3,1.0
+춘천,추석 D-7,고령층,deviation.min_drop,0.15,14,13,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,structure.top_share,0.2,15,15,1,0.8181818181818182
+춘천,추석 D-7,중장년 남성 1인가구,structure.top_share,0.3,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,structure.top_share,0.4,16,16,5,1.0
+춘천,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.3,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.35,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,structure.abs_min,0.4,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,access.far_km,3.0,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,access.far_km,5.0,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,access.far_km,8.0,13,13,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.05,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.1,16,16,3,1.0
+춘천,추석 D-7,중장년 남성 1인가구,deviation.min_drop,0.15,16,16,3,1.0
+춘천,추석 뒤,고령층,structure.top_share,0.2,18,14,1,0.8181818181818182
+춘천,추석 뒤,고령층,structure.top_share,0.3,19,15,3,1.0
+춘천,추석 뒤,고령층,structure.top_share,0.4,19,15,5,1.0
+춘천,추석 뒤,고령층,structure.abs_min,0.3,19,15,3,1.0
+춘천,추석 뒤,고령층,structure.abs_min,0.35,19,15,3,1.0
+춘천,추석 뒤,고령층,structure.abs_min,0.4,19,15,3,1.0
+춘천,추석 뒤,고령층,access.far_km,3.0,20,16,3,1.0
+춘천,추석 뒤,고령층,access.far_km,5.0,19,15,3,1.0
+춘천,추석 뒤,고령층,access.far_km,8.0,18,14,3,1.0
+춘천,추석 뒤,고령층,deviation.min_drop,0.05,19,15,3,1.0
+춘천,추석 뒤,고령층,deviation.min_drop,0.1,19,15,3,1.0
+춘천,추석 뒤,고령층,deviation.min_drop,0.15,19,14,3,1.0
+춘천,추석 뒤,중장년 남성 1인가구,structure.top_share,0.2,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,structure.top_share,0.3,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,structure.top_share,0.4,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.3,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.35,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,structure.abs_min,0.4,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,access.far_km,3.0,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,access.far_km,5.0,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,access.far_km,8.0,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.05,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.1,1,0,0,
+춘천,추석 뒤,중장년 남성 1인가구,deviation.min_drop,0.15,1,0,0,
+춘천,동절기,고령층,structure.top_share,0.2,8,8,1,1.0
+춘천,동절기,고령층,structure.top_share,0.3,8,8,3,1.0
+춘천,동절기,고령층,structure.top_share,0.4,8,8,5,1.0
+춘천,동절기,고령층,structure.abs_min,0.3,8,8,3,1.0
+춘천,동절기,고령층,structure.abs_min,0.35,8,8,3,1.0
+춘천,동절기,고령층,structure.abs_min,0.4,8,8,3,1.0
+춘천,동절기,고령층,access.far_km,3.0,9,9,3,0.8888888888888888
+춘천,동절기,고령층,access.far_km,5.0,8,8,3,1.0
+춘천,동절기,고령층,access.far_km,8.0,7,7,3,0.875
+춘천,동절기,고령층,deviation.min_drop,0.05,8,8,3,1.0
+춘천,동절기,고령층,deviation.min_drop,0.1,8,8,3,1.0
+춘천,동절기,고령층,deviation.min_drop,0.15,8,8,3,1.0
+춘천,동절기,중장년 남성 1인가구,structure.top_share,0.2,10,10,1,1.0
+춘천,동절기,중장년 남성 1인가구,structure.top_share,0.3,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,structure.top_share,0.4,10,10,5,1.0
+춘천,동절기,중장년 남성 1인가구,structure.abs_min,0.3,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,structure.abs_min,0.35,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,structure.abs_min,0.4,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,access.far_km,3.0,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,access.far_km,5.0,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,access.far_km,8.0,8,8,3,0.8
+춘천,동절기,중장년 남성 1인가구,deviation.min_drop,0.05,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,deviation.min_drop,0.1,10,10,3,1.0
+춘천,동절기,중장년 남성 1인가구,deviation.min_drop,0.15,10,10,3,1.0

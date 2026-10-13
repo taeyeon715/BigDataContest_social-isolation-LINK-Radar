@@ -1,0 +1,131 @@
+import { useState } from 'react'
+import { api, ApiError, MAX_QUESTION, type FollowupResponse } from '../api'
+import { ERROR_TEXT, errorText, splitReason } from '../lib/labels'
+import { withRefs } from './EvidenceTable'
+
+export const FOLLOWUP_NOTE = '새 조사를 하지 않고 이 보고서의 근거만으로 답합니다.'
+const EXAMPLES = ['이 후보는 왜 이 등급이야?', '어떤 근거가 가장 중요해?']
+
+type Item = { q: string; res: FollowupResponse }
+
+/** 이어 묻기 답 하나. 답은 근거 ID 버튼과 함께, 보류는 쉬운 문장 + 작은 회색 코드 */
+export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: string) => void }) {
+  const { q, res } = item
+  if (res.status === 'abstained') {
+    const { code, text } = splitReason(res.abstain_reason)
+    const plain = (code && ERROR_TEXT[code]) || text || '근거가 부족해 답하지 않았습니다.'
+    return (
+      <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="abstained">
+        <div className="text-xs text-ink-600">질문 · {q}</div>
+        <p className="mt-1 text-ink-900" data-testid="followup-abstain">
+          {plain}
+        </p>
+        {text && text !== plain && <p className="mt-0.5 text-sm text-ink-800">{text}</p>}
+        {res.needed_data.length > 0 && (
+          <div className="mt-1 text-sm text-ink-800">
+            필요한 자료: {res.needed_data.join(' · ')}
+          </div>
+        )}
+        {code && <div className="mt-1 font-mono text-xs text-ink-600">{code}</div>}
+      </li>
+    )
+  }
+  const lines = (res.answer ?? '').split('\n').filter(Boolean)
+  return (
+    <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="answered">
+      <div className="text-xs text-ink-600">질문 · {q}</div>
+      <div className="mt-1 flex flex-col gap-1 text-ink-900" data-testid="followup-answer">
+        {lines.map((l, i) => (
+          <p key={i}>{withRefs(l, onCite)}</p>
+        ))}
+      </div>
+      {res.cited_evidence_ids.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1 text-xs" data-testid="followup-cited">
+          <span className="text-ink-600">인용한 근거</span>
+          {res.cited_evidence_ids.map((id) => (
+            <button key={id} className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-brand-700 hover:bg-brand-100" onClick={() => onCite(id)}>
+              {id}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-1 text-xs text-ink-600">
+        {res.source === 'llm' ? '설명 문장 포함 (사실 검사 통과)' : '템플릿 문장만'}
+        {res.report_revision != null && ` · 보고서 ${res.report_revision}판 근거`}
+      </div>
+    </li>
+  )
+}
+
+/** 이어 묻기: 이 실행의 근거 카드 안에서만 답함 */
+export function FollowupPanel({ runId, disabled, onCite }: { runId: string; disabled?: boolean; onCite: (id: string) => void }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [items, setItems] = useState<Item[]>([])
+  const [error, setError] = useState<ApiError | null>(null)
+
+  const ask = async (question: string) => {
+    const text = question.trim()
+    if (!text) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await api.followup(runId, { question: text })
+      if (res.run_id !== runId) return
+      setItems((l) => [{ q: text, res }, ...l])
+      setQ('')
+    } catch (e) {
+      setError(e instanceof ApiError ? e : new ApiError(0, 'ERROR', '이어 묻기에 실패했습니다.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const err = error ? errorText(error.code, error.message) : null
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="followup-panel">
+      <p className="text-sm text-ink-600">{FOLLOWUP_NOTE} 특정 개인에 대한 질문에는 답하지 않습니다.</p>
+      <form
+        className="flex flex-col gap-2 sm:flex-row"
+        onSubmit={(e) => {
+          e.preventDefault()
+          ask(q)
+        }}
+      >
+        <input
+          className="field flex-1"
+          aria-label="이어 묻기 질문"
+          placeholder="예: 이 후보는 왜 이 등급이야?"
+          maxLength={MAX_QUESTION}
+          value={q}
+          disabled={disabled || busy}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <button type="submit" className="btn-primary" disabled={disabled || busy || !q.trim()}>
+          {busy ? '묻는 중…' : '묻기'}
+        </button>
+      </form>
+      <div className="flex flex-wrap gap-1">
+        {EXAMPLES.map((x) => (
+          <button key={x} className="chip bg-canvas text-ink-600 hover:bg-brand-50" disabled={disabled || busy} onClick={() => ask(x)}>
+            {x}
+          </button>
+        ))}
+      </div>
+      {err && (
+        <div className="rounded-xl bg-caution-soft px-3 py-2 text-ink-900" role="alert">
+          <div className="font-semibold">{err.title}</div>
+          {err.detail && <div className="text-sm text-ink-800">{err.detail}</div>}
+          <div className="text-xs text-ink-600">오류 코드 {error!.code}</div>
+        </div>
+      )}
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {items.map((it) => (
+            <FollowupAnswer key={it.res.followup_id} item={it} onCite={onCite} />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

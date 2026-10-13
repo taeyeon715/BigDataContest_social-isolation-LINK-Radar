@@ -1,0 +1,42 @@
+# 대회 제공 데이터와 정리본은 올리지 않음 (재배포 금지)
+data/
+*.zip
+*.parquet
+*.csv.gz
+
+# 실행 상태 (체크포인트·승인 기록)
+*.sqlite
+*.sqlite3
+*.db
+
+# 원천 결제건수(y)가 들어 있는 행 단위 예측 결과 (로컬에서만 생성)
+reports/m1_기대활동모델/예측_전체.csv
+
+# API 원문 응답 (키·원천 값이 섞일 수 있음). 검토한 결과물(csv 등)만 올림
+external/**/raw/
+
+# 키·토큰
+.env
+.env.local
+configs/api_tokens*.yaml
+*.tokens.yaml
+
+# 환경
+.venv/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# 화면 (React)
+node_modules/
+web/dist/
+web/.env.local
+*.tsbuildinfo
+test-results/
+playwright-report/
+.playwright-mcp/
+
+# 기타
+.DS_Store
+Thumbs.db

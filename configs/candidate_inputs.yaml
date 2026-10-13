@@ -1,0 +1,62 @@
+# 후보 종류별 필수 근거 / 선택 맥락 (설계 문서 §5.1)
+#
+# required_inputs: 빠지면 판정을 다 할 수 없음
+#   - core: true  → 후보가 생긴 이유 자체. 빠지면 "보류"
+#   - 그 밖      → 가능한 축만 판정하고 "부분 판정" + missing_inputs
+#   - any_of     → 이 중 하나만 있으면 충족
+# optional_context: 빠져도 판정은 함. 경고만 붙임
+#
+# 등급 계산 경로는 이 목록의 required 도구를 LLM 선택과 무관하게 항상 실행 (에이전트 설계 §3 collect_signals)
+
+version: inputs-v1
+
+inputs:
+  calendar_trigger: {name: 달력·계절·기상특보 트리거, tool: get_calendar_triggers}
+  target_group: {name: 대상 집단, tool: check_request_contract}
+  structure_vulnerability: {name: 구조 취약성 (주민등록 1인세대), tool: get_structure}
+  access_gap: {name: 접근성 (관측 거점까지 직선거리), tool: get_access_gap}
+  card_cohort_series: {name: 카드 코호트 일별 시계열, tool: get_card_cohort_series}
+  expected_activity: {name: 기대 활동 (기준선), tool: calc_expected_activity}
+  # ↑ 이탈 기대값 = EDA-6 경보 기준선(같은 요일 과거 8주). 3A 채택 0b 1~7일 예측은 맥락. warm-up·결측일 때만 빠짐
+  cohort_deviation: {name: 이탈 경보, tool: calc_cohort_deviation}
+  holiday_expectation: {name: 반증 - 공휴일 기대값, tool: check_confounders}
+  city_common_factor: {name: 반증 - 도시 공통요인, tool: check_confounders}
+  weather_asos: {name: 반증·트리거 - ASOS 날씨, tool: check_confounders}
+  academic_calendar: {name: 반증 - 학사일정, tool: check_confounders}
+  mobility_layer: {name: 통신 구성·계절 레이어, tool: get_mobility_layer}
+  winter_contraction: {name: 춘천 읍·면 겨울 변화, tool: calc_winter_contraction}
+  validation_reference: {name: 시민생활 지표 (탐색적 참고), tool: get_validation_reference}
+  resources: {name: 복지 자원, tool: find_resources}
+
+candidate_types:
+  scheduled_access_review:
+    name: 예정된 점검
+    required_inputs:
+      - {input: calendar_trigger, core: true}
+      - {input: target_group, core: true}
+      - {any_of: [structure_vulnerability, access_gap]}
+    optional_context: [card_cohort_series, validation_reference, mobility_layer, resources]
+    counter_evidence: false   # 예정된 점검은 반증 대상 아님 → 해당 없음
+
+  unexpected_activity_deviation:
+    name: 예상 밖 이탈
+    required_inputs:
+      - {input: cohort_deviation, core: true}
+      - {input: card_cohort_series, core: true}
+      - {input: expected_activity}
+      - {input: holiday_expectation}
+      - {input: city_common_factor}
+      - {input: weather_asos}
+    optional_context: [academic_calendar, structure_vulnerability, validation_reference, resources]
+    counter_evidence: true
+
+# 하위 시나리오: 후보 종류의 목록을 덮어씀
+variants:
+  춘천 동절기 점검:
+    type: scheduled_access_review
+    required_inputs:
+      - {input: calendar_trigger, core: true}
+      - {input: target_group, core: true}
+      - {any_of: [structure_vulnerability, access_gap]}
+      - {input: winter_contraction}
+    optional_context: [card_cohort_series, validation_reference, mobility_layer, resources]

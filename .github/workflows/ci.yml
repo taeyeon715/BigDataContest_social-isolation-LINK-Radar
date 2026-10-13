@@ -1,0 +1,62 @@
+# 원본 데이터 없이 도는 테스트만 실행 (원본·data/interim 이 필요한 테스트는 자동으로 건너뜀)
+# 액션은 커밋 SHA로 고정 (뒤의 주석이 버전)
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+      - name: 의존성 설치
+        run: uv sync --frozen
+      - name: 테스트
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run pytest -q
+      - name: 리포트 CSV 원천 열 검사
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run python scripts/check_no_raw.py
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: 의존성 설치
+        run: npm ci
+      - name: 테스트
+        run: npm test
+      - name: 빌드
+        run: npm run build
+
+  secrets:
+    # 커밋 이력 전체에서 비밀값(API 키·토큰) 검사
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # PR 이벤트에서 커밋 목록을 읽음
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

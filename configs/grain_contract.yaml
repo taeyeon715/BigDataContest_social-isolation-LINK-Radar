@@ -1,0 +1,146 @@
+# 데이터별 단위(grain) 계약
+#
+# - dims: 그 데이터 한 표 안에서 같이 쓸 수 있는 차원. 요청한 차원이 모두 한 표 안에 있어야 함
+# - 서로 다른 표는 결합하지 않음 (통신 성연령·시간대·요일 표, 카드 데이터1·데이터2)
+# - forbidden_combos: 자주 나오는 잘못된 요청. 맞으면 G-02(결합 단위 불일치)로 거절
+# - time: 관측 단위와 공개 시점 가정 (contracts/time.py)
+# - claims: 해도 되는 주장 / 하면 안 되는 주장 (contracts/claims.py)
+#
+# 설계 문서 §2.1·§2.4
+
+version: grain-v1
+
+# 화이트리스트 (agent/schemas.py 의 Literal 과 같아야 함 — tests/test_schemas.py 가 확인)
+cities: [강남, 춘천]
+sido: [서울, 부산, 대구, 인천, 광주, 대전, 울산, 세종, 경기, 강원, 충북, 충남, 전북, 전남, 경북, 경남, 제주]
+period: {start: "2025-07-01", end: "2025-12-31"}
+
+dimensions:
+  city: 도시(시군구)
+  adm_cd: 행정동
+  cell: 50m 칸
+  month: 월
+  date: 일
+  time_of_day: 시간대
+  weekday: 요일
+  sex: 성별
+  age: 연령
+  industry: 업종
+  customer_residence: 고객 거주 시도
+  household_size: 세대원 수
+  station: 관측소
+  resource_type: 자원 종류
+
+metrics:
+  체류인구: [tel_age, tel_time, tel_wkdy]
+  카드결제: [card2, card1]
+  주민등록인구: [resident_pop]
+  1인세대비율: [resident_hh]
+  시민생활지표: [seoul_living]
+  날씨: [asos]
+  복지자원: [resources]
+
+sources:
+  tel_age:
+    name: SK 통신 성연령
+    dims: [city, adm_cd, cell, month, sex, age]
+    cities: [강남, 춘천]
+    age_bands: tel
+    measured_grain: 50m 칸 × 월 × 성 × 연령(60+ 묶음)
+    time: {resolution: month, observed: same_month, lag_days: 15, anchor: observed_to}
+  tel_time:
+    name: SK 통신 시간대
+    dims: [city, adm_cd, cell, month, time_of_day]
+    cities: [강남, 춘천]
+    measured_grain: 50m 칸 × 월 × 시간(0~23시)
+    time: {resolution: month, observed: same_month, lag_days: 15, anchor: observed_to}
+  tel_wkdy:
+    name: SK 통신 요일
+    dims: [city, adm_cd, cell, month, weekday]
+    cities: [강남, 춘천]
+    measured_grain: 50m 칸 × 월 × 요일
+    time: {resolution: month, observed: same_month, lag_days: 15, anchor: observed_to}
+  card2:
+    name: 신한카드 데이터2 (주력)
+    dims: [city, date, weekday, industry, customer_residence, sex, age]
+    cities: [강남, 춘천]
+    age_bands: card
+    region_fields: [merchant_region, customer_residence]
+    measured_grain: 가맹점 시군구 × 일 × 업종 × 고객 거주 시도 × 성 × 연령
+    time: {resolution: day, observed: same_day, lag_days: 3, anchor: observed_to}
+  card1:
+    name: 신한카드 데이터1 (보조)
+    dims: [city, date, weekday, time_of_day, industry, sex, age]
+    cities: [강남, 춘천]
+    age_bands: card
+    time_slots: ["00_05", "06_11", "12_17", "18_23"]
+    region_fields: [merchant_region]
+    measured_grain: 가맹점 시군구 × 일 × 시간대(4구간) × 업종 × 성 × 연령
+    time: {resolution: day, observed: same_day, lag_days: 3, anchor: observed_to}
+  resident_pop:
+    name: 주민등록 성·연령별 인구
+    dims: [city, adm_cd, month, sex, age]
+    cities: [강남, 춘천]
+    age_bands: resident
+    measured_grain: 행정동 × 월 × 성 × 1세 연령
+    time: {resolution: month, observed: month_end, lag_days: 10, anchor: observed_to}
+  resident_hh:
+    name: 주민등록 세대원수별 세대수
+    dims: [city, adm_cd, month, household_size]
+    cities: [강남, 춘천]
+    measured_grain: 행정동 × 월 × 세대원 수
+    time: {resolution: month, observed: month_end, lag_days: 10, anchor: observed_to}
+  seoul_living:
+    name: 서울 시민생활 데이터 (강남만)
+    dims: [city, adm_cd, month, sex, age]
+    cities: [강남]
+    age_bands: seoul_living
+    measured_grain: 행정동 × 성 × 5세 연령 × 파일 기준월
+    # 서울시 설명: 기준월 직전 3개월 평균 (7월 파일 = 4~6월 관측). 현재 파일에 맞는지는 미확인
+    # 공개일: FAQ의 "20일경"은 실제 공개일로 보지 않음 → actual_available_at 은 비움
+    time:
+      resolution: month
+      observed: months_before
+      window_months: [-3, -1]
+      window_status: 미확인
+      lag_days: 20
+      anchor: base_month_end
+  asos:
+    name: 기상청 ASOS 일자료
+    dims: [city, station, date]
+    cities: [강남, 춘천]
+    measured_grain: 관측소 × 일 (서울 108, 춘천 101)
+    time: {resolution: day, observed: same_day, lag_days: 1, anchor: observed_to}
+  resources:
+    name: 복지자원 원장
+    dims: [city, adm_cd, resource_type]
+    cities: [강남, 춘천]
+    measured_grain: 시설·서비스 1건
+    time: {resolution: snapshot, observed: verified_date, lag_days: 0, anchor: observed_to}
+
+# 교차 금지 조합: 이 차원들을 한 요청에 같이 쓰면 거절 (metric 이 해당하는 경우에만)
+forbidden_combos:
+  - dims: [age, time_of_day]
+    metrics: [체류인구]
+    reason: 통신 성연령 표와 시간대 표는 따로라서 "특정 연령의 시간대 체류"는 알 수 없음
+  - dims: [sex, time_of_day]
+    metrics: [체류인구]
+    reason: 통신 성연령 표와 시간대 표는 결합할 수 없음
+  - dims: [age, weekday]
+    metrics: [체류인구]
+    reason: 통신 성연령 표와 요일 표는 결합할 수 없음
+  - dims: [time_of_day, weekday]
+    metrics: [체류인구]
+    reason: 통신 시간대 표와 요일 표는 결합할 수 없음
+  - dims: [customer_residence, time_of_day]
+    metrics: [카드결제]
+    reason: 거주 시도는 데이터2, 시간대는 데이터1에만 있음. 두 파일은 합칠 수 없음
+  - dims: [adm_cd]
+    metrics: [카드결제]
+    reason: 카드는 가맹점 시군구 단위. 행정동 소비는 알 수 없음 (동에 붙이면 is_shared_context)
+  - dims: [household_size, sex]
+    metrics: [1인세대비율]
+    reason: 세대원수 표에는 성·연령이 없음. 1인세대 비율 × 남성 비율로 "독거 중장년 남성 수"를 추정하지 않음
+  - dims: [household_size, age]
+    metrics: [1인세대비율]
+    reason: 세대원수 표에는 성·연령이 없음

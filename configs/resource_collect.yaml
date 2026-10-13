@@ -1,0 +1,38 @@
+# 자원 수집 설정. collect.py·sources.py가 읽는다.
+max_calls: 200        # 한 번 실행할 때 API 호출 한도 (재시도 포함)
+max_retries: 2        # 한 페이지 실패 시 다시 시도하는 횟수
+retry_wait_sec: 2     # 재시도 사이 대기 (초)
+raw_dir: external/resources/raw          # API 원문 보관 위치
+run_log: external/resources/수집_기록.csv  # 실행 기록
+corrections: external/resources/정정_기록.csv  # 손으로 고친 값 기록
+
+# ---------------------------------------------------------- 보강 수집 (sources.py)
+supplement: external/resources/추가자원_원장.csv   # 수집·수동 자원을 원장 칸으로 만든 것 (ledger.build 가 원래 원장 뒤에 붙임)
+manual: external/resources/수동_추가자원.csv       # 손으로 정리한 자원 (노인맞춤돌봄 수행기관, 사람 자원)
+boundary: ref/adm_boundary.geojson               # 좌표 → 행정동 배정용 경계
+
+cities:
+  강남: {sido: 서울특별시, sigungu: 강남구, code: gn}
+  춘천: {sido: 강원특별자치도, sigungu: 춘천시, code: cc}
+
+# E-Gen (국립중앙의료원). 휴일 운영 의료 접근 (R1 연휴)
+egen:
+  rows_per_page: 500
+  clinic_divs: [A, B, C]   # 병·의원 중 종합병원·병원·의원만 (치과·한방·요양병원 제외)
+
+# 복지로 (한국사회보장정보원). 고립과 관련된 제도·사업만 고름 (서비스 이름 기준. 요약까지 보면 '위안부'의 '안부' 등이 섞임)
+welfare:
+  rows_per_page: 500
+  # 위에서부터 처음 맞는 것으로 원장 subtype 을 정함
+  programs:
+    - {pattern: "노인맞춤돌봄", subtype: 노인맞춤돌봄서비스}
+    - {pattern: "응급안전안심|노인통합돌봄", subtype: 노인 돌봄·안전 확인}
+    - {pattern: "긴급복지|긴급지원|위기가구|긴급 생활용품", subtype: 긴급복지지원}
+    - {pattern: "에너지바우처", subtype: 에너지 지원}
+    - {pattern: "명절위문금", subtype: 명절 위문}
+    - {pattern: "고독사|안부|고립|외로움|은둔|1인가구|독거", subtype: 고독사 예방·안부 확인}
+  # 이름에 위 낱말이 있어도 고립 예방과 거리가 먼 것
+  exclude: "위안부|재외국민|해산비|장제비|교육지원|시설이용지원|운영지원"
+  # 이름에 낱말이 없지만 넣는 것 (servId: subtype)
+  include_ids:
+    WLF00006579: 고독사 예방·안부 확인   # 서울마음편의점 (외로움·고립 상담 거점)

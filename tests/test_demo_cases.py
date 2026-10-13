@@ -1,0 +1,300 @@
+"""시연 사례 D1~D4: 실제 도구(dev 스냅샷) + 가짜 LLM / LLM 없음. 자료가 없으면 건너뜀.
+
+끝점·등급·Guard 판정을 고정한다. LLM 설명 문장은 달라도 된다.
+- D1 강남 구조 취약성 검토 (추석 D-7, 중장년 남성): 1인세대 상위 동만 후보·Level 2, 강남은 Level 3 없음,
+  시민생활은 탐색적 참고, "거리 공백 근거 약함", 자원 운영 상태 "확인 필요"
+- D2 춘천 읍·면 동절기 점검 (12/20, 고령층): 동절기 트리거는 읍·면만, 면 지역 Level 3, 찾아가는 서비스 자원,
+  첫 자원은 노인맞춤돌봄서비스(제도), 그다음 면 행정복지센터, 위기 전화는 맨 아래 "위급 시 안내". Level 3 의 접근성 축은 2026년 원장 거리라
+  "현재 원장 기준 접근성"으로 표시 (simulated_replay. strict 에서는 안 셈)
+- D3 달력 효과로 경보 처리 (10/15): 춘천 20대 여성 10/07 경보는 기각 → Level 1. 기대 활동(EDA-6 기준선)이 연결돼
+  필수 근거는 충족.
+  같은 날 강남 고령층 경보는 대부분 "확인 필요(도시 공통 변화)" → 판단 보류 (기각 아님)
+- D4 근거 부족 보류: "강남 60대의 밤 활동" → 보류 답변 + 필요한 자료
+등급은 configs/rules.yaml (rules-v1.0). D1 강남 7곳 Level 2 (구조 상위·접근성 기준으로 22곳에서 줄어듦),
+D2 읍·면 8곳 중 Level 3 3곳.
+"""
+
+import pytest
+
+from bigcontest.agent.graph import Agent, build_graph
+from bigcontest.agent.state import initial_state
+from bigcontest.agent.tools.datasource import dev_available
+
+pytestmark = pytest.mark.skipif(not dev_available(), reason="dev 스냅샷 자료(data/interim 등) 없음")
+
+D1 = ("2025-09-26", "추석 전에 강남 1인세대 많은 동의 중장년 남성은 어디부터 점검해야 해?")
+D2 = ("2025-12-20", "춘천 읍·면 어르신 겨울철 점검은 어디부터 해야 해?")
+D3 = ("2025-10-15", "추석 연휴 뒤 춘천 20대 여성 카드 결제 이탈 경보를 조사해줘")
+D3B = ("2025-10-15", "추석 연휴 뒤 강남 어르신 카드 결제 이탈 경보를 조사해줘")
+D4 = ("2025-10-20", "강남 60대의 밤 활동은 어때?")
+LLMS = ["none", "fake", "fake_all_tools", "fake_no_tools", "fake_error", "fake_wrong_fact_once"]
+
+
+@pytest.fixture(scope="module")
+def agent(tmp_path_factory):
+    a = Agent(tmp_path_factory.mktemp("demo") / "runs.db", tools_backend="real")
+    yield a
+    a.close()
+
+
+_RUNS: dict = {}
+
+
+def run(agent, name, case, llm="none") -> dict:
+    key = (name, llm)
+    if key not in _RUNS:
+        as_of, q = case
+        _RUNS[key] = agent.start(f"{name}-{llm}", "qa", as_of, question=q, llm=llm)
+    return _RUNS[key]
+
+
+def levels(v: dict) -> dict:
+    return {c["candidate_id"]: (c["candidate_type"], c.get("adm_cd"), c["analysis_cohort"], c["input_status"],
+                                c["counter_result"], c["candidate_level"]) for c in v["candidates"]}
+
+
+def final_guard(v: dict) -> list[tuple[str, str, str]]:
+    """마지막 Guard 판정 (신호 1개 + 사실·표현 2개)."""
+    g = v["guard"]
+    sig = [x for x in g if x["guard"] == "guard_signal"][-1]
+    rep = [x for x in g if x["guard"] == "guard_report"][-2:]
+    return [(x["guard"], x["check"], x["verdict"]) for x in [sig, *rep]]
+
+
+def text(v: dict) -> str:
+    r = v["report"]
+    return "\n".join(r["fact_sentences"] + ([r["narrative"]] if r.get("narrative") else []))
+
+
+PASS3 = [("guard_signal", "신호", "PASS"), ("guard_report", "사실", "PASS"), ("guard_report", "표현", "PASS")]
+
+
+# ---------------------------------------------------------------- D1
+
+
+def test_d1_gangnam_structure_review(agent):
+    st = run(agent, "D1", D1)
+    v = st["values"]
+    assert st["waiting"] and v["route"] == "investigate"  # 끝점: 승인 대기
+    assert final_guard(v) == PASS3
+    by_adm = {c["adm_cd"]: c for c in v["candidates"] if c["candidate_type"] == "scheduled_access_review"}
+    # rules-v1.0: 구조 상위(도시 22개 동 전체 중 상위 30%, 1인세대 비율 0.35 이상)나 접근성 근거가 있는 동만 후보
+    assert len(by_adm) == 7 and all("R1 추석" in c["trigger"] for c in by_adm.values())
+    assert all(c["candidate_level"] == "Level 2" and c["rule_id"] == "L2-STRUCT-TRIGGER" for c in by_adm.values())
+    assert {"11230640", "11230520"} <= set(by_adm)  # 역삼1동·논현1동 (1인세대 비율 상위)
+    assert all("강남 22개 동 전체" in c["level_reason"] for c in by_adm.values())  # 순위 모집단
+    assert {c["event_id"] for c in by_adm.values()} == {"강남:R1:20251003"}
+    assert all(c["event_opened_at"] == "2025-09-26" for c in by_adm.values())  # 트리거 당일(D-7) 생성
+    assert not any(c["candidate_level"] == "Level 3" for c in v["candidates"])  # 강남은 접근성 근거가 약함
+    assert all(c["analysis_cohort"] == "40대·50대" for c in by_adm.values())
+    t = text(v)
+    assert "거리 공백 근거 약함" in t
+    assert "시민생활" in t and "탐색적 참고" in t
+    assert "rules-v1.0" in t
+    assert v["resources"] and all(r["operating_status"] == "확인 필요" for r in v["resources"])  # 가용성 확인 필요
+    assert all(r["city"] == "강남" for r in v["resources"])
+    # 공식 페이지로 확인일을 채운 외로움안녕120(전화형)이 추천에 들어감
+    assert any(r["resource_id"] == "R0739" for r in v["resources"])
+    # 연휴(R1): 휴일 운영 약국·병의원(E-Gen 공휴일 진료시간)이 의료 접근으로 들어감. 명절 당일은 다시 확인
+    holiday = [r for r in v["resources"] if r["resource_type"] in ("휴일 운영 약국", "휴일 운영 병·의원")]
+    assert holiday and all(any("명절 당일 운영" in w for w in r["warnings"]) for r in holiday)
+    # 공식 자료로 지금 활동을 확인하지 못한 사람 자원(우리동네돌봄단)은 추천하지 않고 '확인할 자원'으로
+    assert not any(r["resource_id"] == "PP-GN02" for r in v["resources"])
+    env = [e for e in v["evidence"] if e["metric"] == "복지 자원 후보"]
+    assert any(any(w.startswith("확인할 자원(추천 제외): PP-GN02") for w in e["warnings"]) for e in env)
+
+
+def test_d1_approve_finalizes_once(agent):
+    st = run(agent, "D1", D1)
+    rid = "D1-none"
+    rev = st["values"]["report_revision"]
+    first = agent.approve(rid, "approved", rev)
+    again = agent.approve(rid, "approved", rev)
+    assert first["status"] == "accepted" and first["record"]["kind"] == "확정"
+    assert again["status"] == "duplicate"
+
+
+# ---------------------------------------------------------------- D2
+
+
+def test_d2_chuncheon_winter_review(agent):
+    st = run(agent, "D2", D2)
+    v = st["values"]
+    assert st["waiting"] and final_guard(v) == PASS3
+    assert "calc_winter_contraction" in v["tools_run"]
+    cands = v["candidates"]
+    # 읍·면 10곳 중 구조 상위 또는 직선 5km 이상인 8곳만 후보 (rules-v1.0 진입 규칙)
+    assert len(cands) == 8 and all(c["trigger"].startswith("W 동절기") for c in cands)
+    assert all(c["input_status"] == "충족" for c in cands)  # 동절기 점검 필수 근거(겨울 변화) 포함
+    lv = {c["adm_cd"]: c["candidate_level"] for c in cands}
+    assert {a for a, l in lv.items() if l == "Level 3"} == {"32010350", "32010360", "32010390"}  # 남면·남산면·북산면
+    assert all(c["rule_id"] == "L3-STRUCT-ACCESS-TRIGGER" and c["response_type"] == "현장 확인"
+               for c in cands if c["candidate_level"] == "Level 3")
+    assert {c["event_id"] for c in cands} == {"춘천:W:2025"}
+    t = text(v)
+    assert "직선" in t and "춘천 읍·면 겨울 변화" in t
+    lv3 = {c["candidate_id"] for c in cands if c["candidate_level"] == "Level 3"}
+    assert all("현재 원장 기준 접근성" in c["level_reason"] for c in cands if c["candidate_level"] == "Level 3")
+    res = [r for r in v["resources"] if r["candidate_id"] in lv3]
+    assert res and any("전달 방식: 찾아가는 서비스" in r["warnings"] for r in res)
+    assert "전화형·찾아가는 서비스부터" in t
+    # 제외 규칙(확인일 없음 등)을 먼저 적용한 뒤 상위 K → G-07 에서 다시 빠지는 자원이 없음
+    assert "자원 제외(G-07)" not in t and all(r["verified_date"] for r in v["resources"])
+    # 위기 전화는 첫 추천이 아니라 맨 아래 "위급 시 안내". 공식 페이지 확인 뒤 확인일이 있음
+    for cid in lv3:
+        mine = [r for r in v["resources"] if r["candidate_id"] == cid]
+        crisis = [i for i, r in enumerate(mine) if r.get("group") == "위급 시 안내"]
+        assert {mine[i]["resource_id"] for i in crisis} == {"R0742", "R0744"}
+        assert crisis == list(range(len(mine) - len(crisis), len(mine)))  # 모두 맨 아래
+        # 고령층 안부·관계 첫 순위: 노인맞춤돌봄서비스(제도, 신청은 행정복지센터) → 면 행정복지센터
+        assert [r["resource_type"] for r in mine[:2]] == ["노인맞춤돌봄서비스", "행정복지센터"]
+    env = [e for e in v["evidence"] if e["metric"] == "복지 자원 후보"]
+    assert env and all(any("2025년 당시 운영·위치는 확인되지 않음" in w for w in e["warnings"]) for e in env)
+    assert all(e["availability_basis"] == "unknown" and e["observed_to"] is None for e in env)
+
+
+# ---------------------------------------------------------------- D3
+
+
+def test_d3_calendar_effect_rejects_real_alarm(agent):
+    st = run(agent, "D3", D3)
+    v = st["values"]
+    assert st["waiting"] and final_guard(v) == PASS3
+    (c,) = v["candidates"]
+    assert c["candidate_type"] == "unexpected_activity_deviation" and c["analysis_cohort"] == "20대 여성"
+    assert c["counter_result"] == "기각" and c["candidate_level"] == "Level 1"
+    assert "연휴 뒤 평소 수준으로 회복" in c["counter_reason"]
+    assert c["is_shared_context"] and c["check_first_adm"]
+    assert c["input_status"] == "충족" and not c["missing_inputs"]  # 기대 활동 = EDA-6 기준선
+    assert any("-EXP-20F" in i for i in c["evidence_ids"]) and any("-FC-20F" in i for i in c["evidence_ids"])
+    assert not any(e["metric"] == "달력 트리거" and e["status"] == "OK" and "상황 시연" in str(e["value"])
+                   for e in v["evidence"])  # 기본 경로에는 상황 시연 없음
+
+
+def test_d3_city_common_drop_is_not_rejected(agent):
+    v = run(agent, "D3B", D3B)["values"]
+    cs = v["candidates"]
+    assert cs and all(c["candidate_type"] == "unexpected_activity_deviation" for c in cs)
+    assert not any(c["counter_result"] == "기각" for c in cs)
+    held = [c for c in cs if c["candidate_level"] == "판단 보류"]
+    assert len(held) == 5 and all("확인 필요" in c["counter_reason"] for c in held)
+    # 9/19 60대 남성 경보는 창 평균 하락이 절대 최소값(10%) 미만 → Level 1 (rules-v1.0)
+    assert [c["rule_id"] for c in cs if c["candidate_level"] == "Level 1"] == ["L1-DEV-SMALL"]
+    assert final_guard(v) == PASS3
+
+
+# ---------------------------------------------------------------- D4
+
+
+def test_d4_insufficient_evidence_abstains(agent):
+    st = run(agent, "D4", D4)
+    v = st["values"]
+    assert v["path"][-1] == "abstain_answer" and v["answer"]["status"] == "abstained"
+    assert v["contract_check"]["issues"][0]["code"] == "GRAIN_FORBIDDEN_COMBO"
+    assert v["answer"]["needed_data"] and v["report"]["is_abstain"]
+    assert v["tools_run"] == []  # 계약 검사에서 멈춤
+
+
+def test_after_as_of_request_abstains():
+    out = build_graph().invoke(initial_state("late", "qa", "2025-10-20", question="강남 1인세대 비율 상위 동은?",
+                                             analysis_mode="strict_as_of", tools_backend="real"),
+                               {"recursion_limit": 100})
+    assert out["path"][-1] == "abstain_answer" and "TIME_" in out["abstain_reason"]
+
+
+# ---------------------------------------------------------------- 결정론 · LLM 없는 경로
+
+
+@pytest.mark.parametrize("name,case", [("D1", D1), ("D2", D2), ("D3", D3), ("D3B", D3B)])
+def test_levels_same_for_any_llm(agent, name, case):
+    base = run(agent, name, case, "none")
+    assert base["values"]["report"]["narrative"] is None  # 템플릿만으로 끝까지
+    for llm in LLMS[1:]:
+        v = run(agent, name, case, llm)["values"]
+        assert levels(v) == levels(base["values"]), llm
+        assert final_guard(v) == PASS3, llm  # 틀린 사실을 넣은 설명은 REVISE 뒤 통과
+
+
+def test_wrong_fact_revised(agent):
+    v = run(agent, "D3", D3, "fake_wrong_fact_once")["values"]
+    verdicts = [g["verdict"] for g in v["guard"] if g["guard"] == "guard_report" and g["check"] == "사실"]
+    assert verdicts == ["REVISE", "PASS"]
+
+
+def test_d4_same_for_any_llm(agent):
+    for llm in ("fake", "fake_error"):
+        v = run(agent, "D4", D4, llm)["values"]
+        assert v["answer"]["status"] == "abstained"
+
+
+# ---------------------------------------------------------------- 정기 감시 도시
+
+
+def test_monitoring_city_selection():
+    both = build_graph().invoke(initial_state("mon-both", "monitoring", "2025-09-26", tools_backend="real"),
+                                {"recursion_limit": 100})
+    assert both["path"][-1] == "publish_candidates"
+    assert {c["city"] for c in both["candidates"]} == {"강남", "춘천"}
+    one = build_graph().invoke(initial_state("mon-cc", "monitoring", "2025-09-26", tools_backend="real", city="춘천"),
+                               {"recursion_limit": 100})
+    assert {c["city"] for c in one["candidates"]} == {"춘천"}
+    lv = lambda s: {(c["city"], c.get("adm_cd"), c["candidate_level"]) for c in s["candidates"] if c["city"] == "춘천"}  # noqa: E731
+    assert lv(one) == lv(both)  # 같은 도시면 같은 등급
+
+
+# ---------------------------------------------------------------- 담당자용 출력 · 판단 기록
+
+
+def actions_of(v: dict) -> dict:
+    return {a["candidate_id"]: a for a in v["report"]["actions"]}
+
+
+@pytest.mark.parametrize("name,case", [("D1", D1), ("D2", D2), ("D3B", D3B)])
+def test_level23_have_action_plan_checklist_areas(agent, name, case):
+    v = run(agent, name, case)["values"]
+    acts = actions_of(v)
+    lv23 = {c["candidate_id"] for c in v["candidates"] if c["candidate_level"] in ("Level 2", "Level 3")}
+    assert set(acts) == lv23  # Level 2·3 후보마다, 그 밖에는 없음
+    for cid in lv23:
+        a = acts[cid]
+        assert a["check_areas"] and a["check_area_note"] == "판단도구 문항 채점 아님, 현장에서 먼저 물어볼 영역"
+        p, ck = a["action_plan"], a["checklist"]
+        assert p["owner"] and p["method"] and p["due"] and p["check_areas"]
+        assert p["text"] in v["report"]["fact_sentences"]  # 보고서에는 한 줄로
+        assert ck["lists"] and ck["contacts"] and "명단을 만들지 않음" in ck["note"]
+        assert not any("위급 시 안내" in r for r in p["linked_resources"])
+    assert v["report"]["distribution"] == "내부용(대외비)"
+
+
+def test_d1_nonhyeon1_action(agent):
+    v = run(agent, "D1", D1)["values"]
+    cid = next(c["candidate_id"] for c in v["candidates"] if c.get("adm_cd") == "11230520")  # 논현1동
+    a = actions_of(v)[cid]
+    assert a["group"] == "중장년 남성 1인가구" and a["where"] == "강남 논현1동"
+    assert [x["area"] for x in a["check_areas"]][:2] == ["건강·복약", "사회적 관계·연락"]  # R1 + 1인세대·소통
+    assert a["action_plan"]["due_date"] == "2025-10-02"  # 추석 연휴 전날
+    assert all("강남 논현1동 · 40~64세 남성" in x for x in a["checklist"]["lists"])
+
+
+def test_d2_nammyeon_action(agent):
+    v = run(agent, "D2", D2)["values"]
+    cid = next(c["candidate_id"] for c in v["candidates"] if c.get("adm_cd") == "32010350")  # 남면
+    a = actions_of(v)[cid]
+    assert a["candidate_level"] == "Level 3" and a["group"] == "고령층"
+    assert [x["area"] for x in a["check_areas"]][:2] == ["이동·외출", "주거·안전"]  # 동절기 접근 거리 + 난방
+    p = a["action_plan"]
+    assert p["due_date"] == "2026-01-03" and p["method"].startswith("전화형·찾아가는 서비스 먼저")
+    assert "노인맞춤돌봄 수행기관" in p["owner"]
+    assert set(p["emergency_contacts"]) and not any(n in p["text"] for n in p["emergency_contacts"])
+    assert any("노인맞춤돌봄 대상자" in x for x in a["checklist"]["lists"])
+
+
+def test_demo_decision_trace(agent):
+    st = run(agent, "D1", D1, "fake")
+    tr = st["values"]["decision_trace"]
+    assert [t["node"] for t in tr] == st["values"]["path"]
+    by = {t["node"]: t for t in tr}
+    assert by["classify"]["source"] == "llm" and by["classify"]["reason"]
+    assert by["collect_signals"]["reason"]
+    assert by["guard_report"]["next"] == "await_approval"
+    assert all(D1[1] not in str(t) for t in tr)

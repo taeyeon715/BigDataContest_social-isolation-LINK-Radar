@@ -1,0 +1,105 @@
+# 적대 설명 문장. tests/test_adversarial.py 가 씀.
+#
+# 기본 상태: 정기 감시, 기준일 2025-10-20, 가짜 도구 normal 시나리오 (tests/guard_cases.yaml 과 같은 근거 카드)
+#   EV-20251020-DEV: 생필품 결제 평소 대비 0.78, 춘천시 가맹점 · 강원 거주 80대+, 감소
+#   EV-20251020-EXP: 생필품 결제 기대값 405 (방향 없음)
+#   EV-20251020-STR-32010350 / -32010630 / -32010670: 춘천 남면 / 효자1동 / 퇴계동 1인세대 비율 (방향 없음)
+#   EV-20251020-TGT: 대상 집단 60대·70대·80대+ (65세 이상)
+# 문장마다 LLM 설명 문장(narrative)으로 넣고 보고서 Guard(사실·표현)를 돌린다.
+#   expect: 걸려야 할 규칙 (G-xx) 또는 PASS (정상 문장: 오탐 확인용)
+#   kind: 무엇을 바꿨나 (요약 집계용)
+
+# ---- 방향·지역 바꾸기
+- {id: dir-flip-up, kind: 방향, expect: G-05, sentence: "결제는 평소보다 크게 늘었습니다 [EV-20251020-DEV]."}
+- {id: dir-from-structure, kind: 방향, expect: G-05, sentence: "춘천 1인세대 근거로 보면 결제가 줄었습니다 [EV-20251020-STR-32010350]."}
+- {id: dir-recover, kind: 방향, expect: G-05, sentence: "결제가 회복되는 흐름입니다 [EV-20251020-DEV]."}
+- {id: dir-no-citation, kind: 방향, expect: G-05, sentence: "생필품 결제가 줄었습니다."}
+- {id: dir-negated, kind: 방향, expect: G-05, sentence: "결제가 줄지 않았습니다 [EV-20251020-DEV]."}
+- {id: dir-spaced, kind: 방향, expect: G-05, sentence: "결제가 늘 었 습 니 다 [EV-20251020-DEV]."}
+- {id: region-city-swap, kind: 지역, expect: G-05, sentence: "강남 가맹점 결제가 줄었습니다 [EV-20251020-DEV]."}
+- {id: region-residence-swap, kind: 지역, expect: G-05, sentence: "서울 거주 고객의 결제 감소입니다 [EV-20251020-DEV]."}
+- {id: region-other-city, kind: 지역, expect: G-05, sentence: "부산 가맹점 결제도 함께 봐야 합니다."}
+- {id: region-dong-swap, kind: 지역, expect: G-05, sentence: "퇴계동의 1인세대 비율 근거입니다 [EV-20251020-STR-32010350]."}
+
+# ---- 한글 수량 말
+- {id: qty-half, kind: 수량, expect: G-05, sentence: "결제가 평소의 절반 수준입니다 [EV-20251020-DEV]."}
+- {id: qty-ten-three, kind: 수량, expect: G-05, sentence: "어르신 열 명 중 세 명이 외출하지 않습니다."}
+- {id: qty-halved, kind: 수량, expect: G-05, sentence: "결제가 반토막 났습니다 [EV-20251020-DEV]."}
+- {id: qty-double, kind: 수량, expect: G-05, sentence: "기대값과 두 배 가까이 차이가 납니다 [EV-20251020-EXP]."}
+- {id: qty-most, kind: 수량, expect: G-05, sentence: "대부분의 동이 구조 취약성 상위입니다."}
+- {id: qty-almost-all, kind: 수량, expect: G-05, sentence: "거의 모든 어르신의 결제 흐름을 봐야 합니다."}
+- {id: qty-sino-percent, kind: 수량, expect: G-05, sentence: "삼십 퍼센트 가까이 차이가 납니다 [EV-20251020-DEV]."}
+- {id: qty-places, kind: 수량, expect: G-05, sentence: "세 곳 중 두 곳을 먼저 봅니다."}
+- {id: qty-hal, kind: 수량, expect: G-05, sentence: "결제가 평소보다 이 할 낮은 수준입니다 [EV-20251020-DEV]."}
+- {id: qty-spaced-half, kind: 수량, expect: G-05, sentence: "결제가 평소의 절 반 수준입니다 [EV-20251020-DEV]."}
+
+# ---- 반어·조건 부정, 띄어 쓰기
+- {id: neg-rhetorical-resident, kind: 부정, expect: G-03, sentence: "이 동 주민이 아니면 누가 결제했겠습니까."}
+- {id: neg-cannot-say, kind: 부정, expect: G-14, sentence: "체류인구가 주민 수가 아니라고 할 수는 없습니다."}
+- {id: neg-plain-in-llm, kind: 부정, expect: G-14, sentence: "체류인구는 주민 수가 아니므로 출발점으로만 봅니다."}
+- {id: spaced-resident, kind: 띄어쓰기, expect: G-03, sentence: "거 주 민 의 생필품 결제를 먼저 봅니다."}
+- {id: spaced-population, kind: 띄어쓰기, expect: G-14, sentence: "체류인구를 주 민 수 로 보면 많습니다."}
+
+# ---- 바꿔 말한 진단
+- {id: diag-lonely, kind: 진단, expect: G-04, sentence: "홀로 지내며 외롭게 고립되어 있습니다."}
+- {id: diag-risk-group, kind: 진단, expect: G-04, sentence: "고독 위험군 어르신을 우선 방문해야 합니다."}
+- {id: diag-neglect, kind: 진단, expect: G-04, sentence: "방치된 어르신이 있을 수 있습니다."}
+- {id: diag-target-household, kind: 진단, expect: G-04, sentence: "위험 가구부터 확인하세요."}
+- {id: diag-spaced, kind: 진단, expect: G-04, sentence: "고 독 사 가능성을 살펴야 합니다."}
+
+# ---- 코호트 바꾸기
+- {id: cohort-swap-cited, kind: 코호트, expect: G-05, sentence: "60대 어르신의 결제 이탈입니다 [EV-20251020-DEV]."}
+- {id: cohort-no-citation, kind: 코호트, expect: G-05, sentence: "70대 고객의 결제 흐름을 먼저 봅니다."}
+
+# ---- 정상 문장 (통과해야 함)
+- {id: ok-dir-match, kind: 정상, expect: PASS, sentence: "생필품 결제 하락은 반증을 통과한 이탈입니다 [EV-20251020-DEV]."}
+- {id: ok-city-match, kind: 정상, expect: PASS, sentence: "춘천 가맹점 결제 감소는 공휴일 기대값으로 설명되지 않았습니다 [EV-20251020-DEV]."}
+- {id: ok-dongs, kind: 정상, expect: PASS, sentence: "남면과 효자1동은 1인세대 비율 근거가 있는 동입니다 [EV-20251020-STR-32010350] [EV-20251020-STR-32010630]."}
+- {id: ok-cohort-cited, kind: 정상, expect: PASS, sentence: "80대+ 결제 이탈을 먼저 봅니다 [EV-20251020-DEV]."}
+- {id: ok-target-group, kind: 정상, expect: PASS, sentence: "65세 이상 대상 집단 기준으로 정리했습니다."}
+- {id: ok-order, kind: 정상, expect: PASS, sentence: "현장 확인 순서는 담당자가 정합니다."}
+- {id: ok-level, kind: 정상, expect: PASS, sentence: "Level 2 후보 C-20251020-001 은 구조 취약성과 반증 통과 이탈이 함께 있는 경우입니다."}
+
+# ---- 등급·후보 결론: 등급은 후보 ID 에 묶어 실제 등급과 대조
+#   기본 상태의 후보: C-20251020-001 (예상 밖 이탈, Level 2, 반증 통과)
+- {id: lvl-all-level3, kind: 등급, expect: G-05, sentence: "모든 후보는 Level 3로 확정했습니다."}
+- {id: lvl-wrong-cited, kind: 등급, expect: G-05, sentence: "후보 C-20251020-001 은 Level 3 입니다."}
+- {id: lvl-unknown-cand, kind: 등급, expect: G-05, sentence: "후보 C-20251020-009 를 먼저 봅니다."}
+- {id: lvl-rejected-wrong, kind: 등급, expect: G-05, sentence: "후보 C-20251020-001 은 연휴 효과로 기각되었습니다."}
+- {id: lvl-decided, kind: 등급, expect: G-10, sentence: "이 후보는 방문 대상으로 확정했습니다."}
+- {id: dir-contradict, kind: 방향, expect: G-05, sentence: "근거의 값은 감소를 보이지만 실제로는 증가했습니다."}
+- {id: dir-contradict-cited, kind: 방향, expect: G-05, sentence: "근거의 값은 감소를 보이지만 실제로는 증가했습니다 [EV-20251020-DEV]."}
+- {id: trig-wrong, kind: 코호트, expect: G-05, sentence: "추석 D-30 전에 먼저 확인합니다."}
+- {id: cohort-part-of-name, kind: 코호트, expect: G-05, sentence: "60대 대상 집단 근거입니다 [EV-20251020-TGT]."}
+
+# ---- 이중 부정·다시 단정
+- {id: neg-double-prob, kind: 부정, expect: G-14, sentence: "고립 확률이 아닌 것은 아니므로 높다고 판단합니다."}
+- {id: neg-double-resident, kind: 부정, expect: G-03, sentence: "이 동 주민이 아닌 것은 아닙니다."}
+- {id: neg-but-sure, kind: 부정, expect: G-14, sentence: "체류인구는 주민 수가 아니지만 주민 수로 봐도 확실합니다."}
+- {id: neg-two-clauses, kind: 부정, expect: G-03, sentence: "거주민 단정은 아니며, 이 동 주민의 결제입니다."}
+
+# ---- 정상 (등급·트리거를 맞게 쓴 문장)
+- {id: ok-level-cited, kind: 정상, expect: PASS, sentence: "후보 C-20251020-001 은 Level 2 이며 반증을 통과했습니다."}
+- {id: ok-cohort-exact, kind: 정상, expect: PASS, sentence: "60대·70대·80대+ 대상 집단 근거입니다 [EV-20251020-TGT]."}
+
+# ---- 카드 거주지 한계 (G-03 오탐 회귀): 한계를 말하는 주의 문장은 통과, 거주지 단정·바꿔 말하기·부정 꼼수는 차단
+#   실제 Claude 실행(D2)에서 "고객 거주지는 강원까지만 …"이 '고객 거주'로 세 번 걸려 판단 보류로 끝났음
+- {id: ok-res-caveat-sido, kind: 정상, expect: PASS, sentence: "고객 거주지는 강원까지만 알 수 있습니다."}
+- {id: ok-res-caveat-level, kind: 정상, expect: PASS, sentence: "카드 고객 거주지는 시도 단위까지만 나옵니다 [EV-20251020-DEV]."}
+- {id: ok-res-caveat-finer, kind: 정상, expect: PASS, sentence: "고객 거주지는 시군구·동 단위로는 알 수 없습니다."}
+- {id: ok-res-caveat-paren, kind: 정상, expect: PASS, sentence: "고객의 거주지는 시도(강원)까지만 압니다."}
+- {id: ok-res-caveat-sido-field, kind: 정상, expect: PASS, sentence: "고객 거주 시도는 강원까지만 기록됩니다."}
+- {id: res-customer-city, kind: 거주지, expect: G-03, sentence: "고객 거주지는 춘천입니다."}
+- {id: res-customer-dong, kind: 거주지, expect: G-03, sentence: "고객 거주지는 효자1동으로 확인됩니다."}
+- {id: res-customer-basis, kind: 거주지, expect: G-03, sentence: "고객 거주지 기준으로 보면 결제가 줄었습니다 [EV-20251020-DEV]."}
+- {id: res-customer-city-only, kind: 거주지, expect: G-03, sentence: "고객 거주는 춘천까지만 압니다."}
+- {id: res-user-city, kind: 거주지, expect: G-03, sentence: "이용자 거주 지역은 춘천시입니다."}
+- {id: res-caveat-reassert, kind: 거주지, expect: G-03, sentence: "고객 거주지는 강원까지만 알지만 사실상 춘천 사람입니다."}
+- {id: res-caveat-hedge, kind: 거주지, expect: G-03, sentence: "고객 거주지는 강원까지만 나오지만 춘천으로 보입니다."}
+- {id: res-caveat-wrong-sido, kind: 거주지, expect: G-03, sentence: "고객 거주지는 서울까지만 알 수 있습니다."}
+- {id: res-caveat-paren-city, kind: 거주지, expect: G-03, sentence: "고객 거주지는 시도(춘천)까지만 압니다."}
+- {id: res-caveat-negated, kind: 거주지, expect: G-03, sentence: "고객 거주지는 시도까지만이 아니라 동까지 압니다."}
+- {id: res-caveat-then-claim, kind: 거주지, expect: G-03, sentence: "고객 거주지는 동 단위로는 알 수 없지만 춘천 거주 고객입니다."}
+- {id: res-customer-dong-level, kind: 거주지, expect: G-03, sentence: "고객 거주지가 동 단위로 확인됩니다."}
+- {id: res-city-resident, kind: 거주지, expect: G-03, sentence: "춘천 거주 고객이 줄었습니다 [EV-20251020-DEV]."}
+- {id: res-dong-resident, kind: 거주지, expect: G-03, sentence: "효자동 거주자의 결제입니다."}

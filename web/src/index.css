@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply bg-canvas text-ink-900 font-sans text-sm antialiased;
+    min-height: 100%;
+  }
+  /* 키보드 포커스 표시 (KWCAG 2.2). 마우스 클릭에는 안 보임 */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-card shadow-card;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-surface text-ink-800 hover:bg-canvas;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-pill px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  }
+  .field {
+    @apply rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus-visible:ring-offset-0;
+  }
+  .th {
+    @apply px-3 py-2 text-left text-xs font-semibold text-ink-600 whitespace-nowrap;
+  }
+  .td {
+    @apply px-3 py-2 align-top;
+  }
+  .scroll-x {
+    scrollbar-width: thin;
+  }
+  /* 탭 줄: 넘칠 때만 가로로 밀리고 스크롤 막대는 숨김 */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 인쇄용 보기 (보고서 결재용). 화면 틀은 감추고 보고서 한 장만 */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  html,
+  body,
+  #root {
+    background: #fff !important;
+  }
+  .print-sheet {
+    font-size: 11pt;
+  }
+  .print-sheet table {
+    break-inside: auto;
+  }
+  .print-sheet tr,
+  .print-sheet li {
+    break-inside: avoid;
+  }
+}
+
+/* Leaflet 기본 스타일 일부를 덮음 */
+.leaflet-container {
+  font-family: inherit;
+  border-radius: 16px;
+}

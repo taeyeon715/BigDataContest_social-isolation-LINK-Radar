@@ -1,0 +1,317 @@
+"""도구가 자료를 읽는 한 곳. 모든 실제 도구는 여기서 고정한 `snapshot_id` 로 읽는다.
+
+- 지금은 "dev" 스냅샷 하나: data/interim(정제 parquet) + external + ref + configs/project.yaml(공휴일).
+  snapshot_id = "dev-" + (입력 파일 해시들의 해시) 앞 12자리. 파일이 하나라도 바뀌면 id 가 바뀐다.
+- **지정 파일만 읽음**: 모든 표(카드·공휴일·날씨·주민등록·시민생활·통신·원장·동 이름)는 이 객체의
+  `self.files[원천]` 에서만 읽는다. 전역 ROOT·설정 파일 경로를 다시 찾지 않는다. root 나 files 를 바꾸면
+  그 파일들만 읽는다.
+- **해시는 만들 때 한 번**: `self.hashes` 는 객체를 만들 때 계산한 값이다. 실행 메타데이터도 이 값으로
+  적는다 (지금 파일을 다시 해시해 섞지 않음).
+- 파일이 바뀐 경우 (실제 검사 범위)
+  - 객체를 만들 때: 지금 파일의 id 가 고정한 id 와 다르면 `SnapshotMismatch`.
+  - 표를 **처음** 읽을 때: 파일이 만들 때와 다르면 `SnapshotMismatch` (조용히 새 자료를 읽지 않음).
+  - 이미 읽어 둔 표: 캐시 값(만들 때 자료)을 그대로 돌려준다. 여기서는 파일 변경을 검사하지 않는다.
+  - 메타데이터를 쓸 때(`run_metadata`): 다시 확인해 바뀌었으면 `snapshot_check` 에 "불일치 … 재실행 필요"를
+    적거나(기본) `on_change="raise"` 면 `SnapshotMismatch`. 해시 칸은 언제나 만들 때 값.
+  - 재개·발행 전에는 `verify()` 로 확인한다. 프로세스를 다시 시작해 같은 id 를 열면 객체를 새로 만들므로,
+    파일이 바뀌었으면 `SnapshotMismatch` (재실행 필요).
+- 나중에 발행 스냅샷(snapshot.py, data/snapshots/<id>/)을 읽게 할 때는 `DataSource(sid, files=…)` 로 그 파일을
+  지정하거나, 같은 메서드를 가진 클래스를 만들어 `register_source` 로 등록하면 된다. 도구 코드는 바꾸지 않는다.
+- 읽은 표는 스냅샷별로 한 번만 읽어 둔다 (프로세스 안 캐시).
+- 카드 daily() 는 결제 행이 없는 (날짜, 코호트)를 0건으로 채운다. `card_observed()` 는 원자료 행이 있던 칸(True)을
+  따로 남겨, 도구가 "행 없음=0건 가정" 일수를 근거 경고에 적게 한다 (card.py 는 바꾸지 않음).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import threading
+from functools import cached_property
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import yaml
+
+from bigcontest.config import ROOT
+
+# 원천 이름 → 파일 (원천 이름은 grain_contract.yaml 의 sources 와 같게)
+DEV_FILES: dict[str, str] = {
+    "card2": "data/interim/card2.parquet",
+    "tel_age": "data/interim/tel_age.parquet",
+    "tel_time": "data/interim/tel_time.parquet",
+    "tel_wkdy": "data/interim/tel_wkdy.parquet",
+    "resident_pop": "external/resident/주민등록_성연령별인구_2025-07_12.csv",
+    "resident_hh": "external/resident/주민등록_세대원수별세대수_2025-07_12.csv",
+    "seoul_living": "external/seoul_living/시민생활_10개관심집단_강남_2025-07_12.csv",
+    "asos": "external/weather/kma_asos_daily_2025-07_12.csv",
+    "resources": "external/resources/복지자원_원장_v2.csv",
+    "adm_names": "ref/adm_cd_names.csv",
+    "adm_code_map": "ref/adm_code_map.csv",
+    "config": "configs/project.yaml",
+}
+DERIVED = {"card2", "tel_age", "tel_time", "tel_wkdy"}  # 정제 규칙을 거친 파일
+
+
+class DataSourceError(RuntimeError):
+    code = "DATA_ERROR"
+
+
+class DataUnavailable(DataSourceError):
+    code = "DATA_UNAVAILABLE"
+
+
+class SnapshotMismatch(DataSourceError):
+    code = "SNAPSHOT_MISMATCH"
+
+
+_HASH_CACHE: dict[tuple[str, int, int], str] = {}
+_LOCK = threading.Lock()
+
+
+def _sha256(path: Path) -> str:
+    st = path.stat()
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    if key not in _HASH_CACHE:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        _HASH_CACHE[key] = h.hexdigest()
+    return _HASH_CACHE[key]
+
+
+def dev_files(root: Path = ROOT) -> dict[str, Path]:
+    return {k: Path(root) / v for k, v in DEV_FILES.items()}
+
+
+def _hashes_of(files: dict[str, Path]) -> dict[str, str]:
+    missing = [k for k, p in files.items() if not p.exists()]
+    if missing:
+        raise DataUnavailable(f"스냅샷 파일 없음: {', '.join(missing)}")
+    return {k: _sha256(p) for k, p in files.items()}
+
+
+def _snapshot_id_of(hashes: dict[str, str]) -> str:
+    joined = "\n".join(f"{k}:{hashes[k]}" for k in sorted(hashes))
+    return "dev-" + hashlib.sha256(joined.encode()).hexdigest()[:12]
+
+
+def dev_hashes(root: Path = ROOT) -> dict[str, str]:
+    return _hashes_of(dev_files(root))
+
+
+def dev_snapshot_id(root: Path = ROOT) -> str:
+    """지금 파일로 만든 dev 스냅샷 id. 파일이 없으면 DataUnavailable."""
+    return _snapshot_id_of(dev_hashes(root))
+
+
+def files_snapshot_id(files: dict[str, Path]) -> str:
+    """지정한 파일 묶음의 스냅샷 id (DataSource(files=…) 와 같은 계산)."""
+    return _snapshot_id_of(_hashes_of({k: Path(v) for k, v in files.items()}))
+
+
+def dev_available(root: Path = ROOT) -> bool:
+    return all(p.exists() for p in dev_files(root).values())
+
+
+def _card2_from(path: Path) -> pd.DataFrame:
+    """card.load_card2(local_only=True) 와 같은 거르기를 지정 파일에 적용
+    (본사등록 업종 제외, 같은 시도 거주, 10대 제외, 80·90대 → 80대+)."""
+    from bigcontest.card import AGE_MAP
+
+    d = pd.read_parquet(path)
+    d = d[~d["hq"]]
+    d = d[d["local"]]
+    d = d[d["age"].isin(AGE_MAP)].copy()
+    d["age_g"] = d["age"].map(AGE_MAP)
+    return d
+
+
+class DataSource:
+    """고정 스냅샷 읽기. 표는 처음 쓸 때 읽고 이 객체에 둔다.
+
+    files: 원천 이름 → 파일 (없으면 root 아래 DEV_FILES). 모든 표는 이 파일에서만 읽는다.
+    """
+
+    def __init__(self, snapshot_id: str, root: Path = ROOT, files: dict[str, Path] | None = None):
+        self.root = Path(root)
+        self.files = {k: Path(v) for k, v in (files or dev_files(self.root)).items()}
+        self.hashes = _hashes_of(self.files)  # 만들 때 한 번. 메타데이터도 이 값
+        sid = _snapshot_id_of(self.hashes)
+        if sid != snapshot_id:
+            raise SnapshotMismatch(f"고정한 스냅샷 {snapshot_id} 와 지금 파일({sid})이 다름. 재실행 필요 (새 실행으로 다시 분석)")
+        self.snapshot_id = snapshot_id
+        self._cache: dict[Any, Any] = {}
+        self._lock = threading.RLock()
+
+    # ------------------------------------------------ 버전·일관성
+    def data_version(self, source: str) -> str:
+        """근거 봉투의 data_version: <원천>@sha256:<앞 12자리>[/정제 규칙]."""
+        from bigcontest.ingest import CLEANING_RULE_VERSION
+
+        key = source if source in self.hashes else None
+        if key is None:
+            return f"{source}@{self.snapshot_id}"
+        v = f"{source}@sha256:{self.hashes[key][:12]}"
+        return v + (f"/{CLEANING_RULE_VERSION}" if source in DERIVED else "")
+
+    def changed_files(self) -> list[str]:
+        """만들 때 해시와 지금 파일이 다른 원천 (없어진 파일 포함). 빈 목록이면 일치."""
+        return [k for k, p in self.files.items() if not p.exists() or _sha256(p) != self.hashes[k]]
+
+    def verify(self) -> None:
+        """지금 파일이 고정한 스냅샷 그대로인지. 다르면 SnapshotMismatch (재개·발행 전에 부름)."""
+        changed = self.changed_files()
+        if changed:
+            raise SnapshotMismatch(f"{self.snapshot_id}: 입력 파일이 바뀜 ({', '.join(changed)}). 재실행 필요")
+
+    def raw_file_hashes(self) -> dict[str, str]:
+        """메타데이터용 원본 해시 (파일 이름 → sha256). 만들 때 캡처한 값."""
+        return {self.files[k].name: self.hashes[k] for k in sorted(self.files, key=lambda k: self.files[k].name)}
+
+    def run_metadata(self, run_id: str, analysis_mode: str, as_of, thresholds: dict | None = None,
+                     rule_version: str | None = None, on_change: str = "mark"):
+        """runmeta.RunMetadata. 원본 해시 = **이 객체를 만들 때 캡처한** 해시 (지금 파일을 다시 해시해 섞지 않음).
+
+        지금 파일이 바뀌었으면 on_change="mark"(기본): snapshot_check 에 불일치·재실행 필요를 적음,
+        on_change="raise": SnapshotMismatch.
+        """
+        from bigcontest.runmeta import SNAPSHOT_OK, collect, snapshot_changed_note
+
+        changed = self.changed_files()
+        if changed and on_change == "raise":
+            self.verify()
+        return collect(run_id, self.snapshot_id, analysis_mode, as_of, raw_hashes=self.raw_file_hashes(),
+                       thresholds=thresholds, rule_version=rule_version,
+                       ledger=f"ledger@sha256:{self.hashes['resources'][:12]}", root=self.root,
+                       snapshot_check=snapshot_changed_note(changed) if changed else SNAPSHOT_OK)
+
+    def _get(self, key, fn):
+        with self._lock:
+            if key not in self._cache:
+                # 처음 읽을 때 파일이 고정한 스냅샷 그대로인지 다시 확인 (해시는 mtime·크기로 캐시돼 싸다)
+                changed = self.changed_files()
+                if changed:
+                    raise SnapshotMismatch(f"{self.snapshot_id}: 실행 중에 입력 파일이 바뀜 ({', '.join(changed)}). "
+                                           "재실행 필요 (새 실행으로 다시 분석)")
+                self._cache[key] = fn()
+            return self._cache[key]
+
+    # ------------------------------------------------ 표 (모두 self.files 에서만)
+    def _config(self) -> dict:
+        def read():
+            with open(self.files["config"], encoding="utf-8") as f:
+                return yaml.safe_load(f)
+
+        return self._get("config", read)
+
+    def holidays(self) -> list[pd.Timestamp]:
+        return self._get("holidays", lambda: [pd.Timestamp(k) for k in self._config()["holidays"]])
+
+    def holiday_names(self) -> dict[pd.Timestamp, str]:
+        return self._get("holiday_names", lambda: {pd.Timestamp(k): v for k, v in self._config()["holidays"].items()})
+
+    def card2(self) -> pd.DataFrame:
+        return self._get("card2", lambda: _card2_from(self.files["card2"]))
+
+    def panel(self):
+        """경보 패널 (EDA-6 과 같은 입력): 카드 데이터2, 같은 시도 거주, 본사등록 제외, 도시 × 연령 × 성."""
+        from bigcontest.card import daily
+        from bigcontest.signals.alarm import Panel
+
+        def build():
+            b = daily(self.card2(), ["city", "age_g", "SEX_CCD"])
+            wide = b.pivot_table(index="date", columns=["city", "age_g", "SEX_CCD"], values="USE_CNT").astype(float)
+            return Panel(wide, self.holidays())
+
+        return self._get("panel", build)
+
+    def card_observed(self) -> pd.DataFrame:
+        """패널과 같은 모양의 bool 표: 원자료 행이 있던 (날짜, 코호트) = True.
+        False 칸은 daily() 가 0건으로 채운 칸 (거래 0 인지 미공급인지 구분 못 함)."""
+
+        def build():
+            p = self.panel()
+            seen = self.card2().groupby(["date", "city", "age_g", "SEX_CCD"]).size()
+            seen = seen.unstack(["city", "age_g", "SEX_CCD"])
+            cols = pd.MultiIndex.from_tuples(p.cols, names=["city", "age_g", "SEX_CCD"])
+            return seen.reindex(index=p.dates, columns=cols).notna()
+
+        return self._get("card_observed", build)
+
+    def card_missing_days(self, col, start=None, end=None) -> int:
+        """코호트 하나에서 [start, end] 안의 '행 없음 → 0건 가정' 일수."""
+        m = self.card_observed()
+        if col not in m.columns:
+            return 0
+        s = m[col]
+        if start is not None:
+            s = s[s.index >= pd.Timestamp(start)]
+        if end is not None:
+            s = s[s.index <= pd.Timestamp(end)]
+        return int((~s).sum())
+
+    def weather(self) -> pd.DataFrame:
+        return self._get("weather", lambda: pd.read_csv(self.files["asos"], parse_dates=["date"]))
+
+    def rain(self) -> pd.DataFrame:
+        return self._get("rain", lambda: self.weather().pivot_table(index="date", columns="city", values="rain"))
+
+    def alarm_card(self, cutoff) -> pd.DataFrame:
+        """기준일 카드: cutoff 까지의 결제·날씨만으로 다시 계산한 경보 목록 (alarm.records(as_of=...))."""
+        from bigcontest.signals.alarm import records
+
+        cutoff = pd.Timestamp(cutoff)
+        return self._get(("alarm_card", cutoff), lambda: records(self.panel(), rain=self.rain(), as_of=cutoff))
+
+    def households(self) -> pd.DataFrame:
+        from bigcontest.external import resident_households
+
+        return self._get("households",
+                         lambda: resident_households(self.files["resident_hh"], self.files["adm_code_map"]))
+
+    def seoul_living(self) -> pd.DataFrame:
+        from bigcontest.external import seoul_living
+
+        return self._get("seoul_living",
+                         lambda: seoul_living(path=self.files["seoul_living"], map_path=self.files["adm_code_map"]))
+
+    def tel(self, name: str) -> pd.DataFrame:
+        return self._get(("tel", name), lambda: pd.read_parquet(self.files[name]))
+
+    def ledger(self) -> pd.DataFrame:
+        from bigcontest.resources.ledger import load
+
+        return self._get("ledger", lambda: load(self.files["resources"]))
+
+    def adm_names(self) -> pd.DataFrame:
+        return self._get("adm_names", lambda: pd.read_csv(self.files["adm_names"], dtype=str))
+
+    @cached_property
+    def adm_index(self) -> dict[str, dict]:
+        return {r["adm_cd"]: r for r in self.adm_names().to_dict("records")}
+
+    def cached(self, key, fn):
+        """도구가 계산한 중간 결과 (같은 스냅샷이면 같은 결과)."""
+        return self._get(("tool", key), fn)
+
+
+_SOURCES: dict[str, DataSource] = {}
+
+
+def register_source(snapshot_id: str, source) -> None:
+    """발행 스냅샷 같은 다른 읽기 구현을 등록 (DataSource 와 같은 메서드)."""
+    _SOURCES[snapshot_id] = source
+
+
+def open_datasource(snapshot_id: str) -> DataSource:
+    """고정한 snapshot_id 의 자료. dev 스냅샷이 아니면(발행 스냅샷 읽기는 아직 없음) DataUnavailable."""
+    with _LOCK:
+        if snapshot_id in _SOURCES:
+            return _SOURCES[snapshot_id]
+        if not snapshot_id.startswith("dev-"):
+            raise DataUnavailable(f"읽을 수 없는 스냅샷: {snapshot_id} (지금은 dev 스냅샷만 연결됨)")
+        ds = DataSource(snapshot_id)
+        _SOURCES[snapshot_id] = ds
+        return ds

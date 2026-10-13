@@ -1,0 +1,175 @@
+# 기대 활동 모델 설정과 채택 결정
+#
+# 채택 규칙(adoption)은 모델 비교를 돌리기 전에 정해 커밋했다. 결과를 본 뒤 기준값을 바꾸지 않는다.
+# decisions 칸은 notebooks/m1_expected_activity.py 가 계산 결과로 채운다 (손으로 고치지 않음).
+
+version: "3A-1"
+
+data:
+  source: card2  # 카드 데이터2, 같은 시도 거주 고객(강남=서울, 춘천=강원), 본사등록 업종 제외
+  cohort: [city, age_g, SEX_CCD]  # 10대 제외, 80대·90대는 80대+
+  target: log1p(USE_CNT)  # 모델은 log(결제건수+1)을 예측. 지표는 결제건수 단위로 되돌려 계산
+  missing: "관측 누락은 0으로 채우지 않고 NaN으로 둔다"
+
+split:
+  kind: rolling_origin
+  min_train_days: 56  # 최소 8주 학습
+  step_days: 7  # 1주씩 이동
+  horizons: [1, 2, 3, 4, 5, 6, 7]  # 기준일 다음 1~7일 예측
+  report_horizons: [1, 7]
+  train_window: expanding  # 자료 시작일 ~ 예측 기준일(prediction_origin)
+  same_split_for_all_cohorts: true
+
+interval:
+  method: "과거 기준일들의 같은 모델·같은 코호트 오차로 만든 경험적 구간 (예측 대상일이 기준일 이전인 오차만)"
+  nominal: 0.80
+  min_past_errors: 14
+
+models:
+  "0a":
+    name: seasonal_naive
+    desc: "전 주 같은 요일 값"
+  "0b":
+    name: same_weekday_mean
+    n_weeks: 4  # 최근 같은 요일 4주 평균 (공휴일 제외)
+    min_obs: 2
+  "0b8":
+    name: same_weekday_mean
+    n_weeks: 8  # = EDA-6 경보 규칙의 기대값 (참고 행)
+    min_obs: 2
+  "1":
+    name: stl_forecast
+    period: 7
+    robust: true
+    deseasonalized_model: "ARIMA(0,1,1), 상수 없음 (= 단순 지수평활)"
+    holiday: "학습 때 공휴일 값은 같은 요일 앞뒤 주 평균으로 대체. 예측일이 공휴일이면 과거 공휴일의 평균 이탈(있을 때만)을 더함"
+  "2":
+    name: lightgbm
+    scope: "기준일마다 한 번 학습, 두 도시 28개 코호트를 한 모델로 (코호트 칸 포함)"
+    objective: l1
+    params: {n_estimators: 300, learning_rate: 0.03, num_leaves: 15, min_child_samples: 50, subsample: 0.8, subsample_freq: 1, colsample_bytree: 0.8, random_state: 0, n_jobs: 1, verbose: -1}
+    tuning: "하지 않음 (위 값 고정)"
+    target: "log1p(y[목표일]) − 기준일까지 28일 평균"
+    features:
+      - "h (예측 거리)"
+      - "목표일 요일, 공휴일 여부, 전날·다음날 공휴일 여부, 가장 가까운 공휴일까지 일수 (달력은 미리 알려짐)"
+      - "같은 요일 지난 값 4개 (목표일−7·14·21·28일, 모두 기준일 이전)"
+      - "기준일 값, 최근 7일 평균 (28일 평균 대비)"
+      - "기준일까지의 도시 공통요인 (같은 도시 코호트들의 최근 7일 이탈 중앙값)"
+      - "코호트 (도시, 연령, 성)"
+    forbidden:
+      - "미래 실측 날씨 (예보 이력이 없으므로 날씨 특징 자체를 넣지 않음)"
+      - "같은 미래 날짜의 다른 코호트 결제"
+
+adoption:
+  metric: "상대 MAE = 코호트 MAE(결제건수) ÷ 코호트 평균 실제값, 도시 안 코호트 평균. 평가 대상일 전체(공휴일 포함)"
+  baseline: "0a와 0b 중 도시·h마다 더 나은 쪽"
+  stl_rule: "STLForecast는 두 도시 모두에서 h=1과 h=7 상대 MAE가 각각 더 나은 기준선보다 5% 이상 낮을 때만 채택 (STL ≤ 0.95 × 기준선)"
+  lgbm_rule: "LightGBM은 두 도시 모두에서 h=1과 h=7 상대 MAE가 '기준선과 STL 중 더 나은 것'보다 5% 이상 낮고, 80대+에서 두 도시·두 h 모두 기준선보다 나쁘지 않을 때만 채택"
+  margin: 0.05
+  detection_rule: "경보의 기대값을 EDA-6 규칙(같은 요일 8주 평균)에서 모델 예측으로 바꾸는 것은, 그 모델이 예측에서 채택되고, 같은 짝지은 주입 쌍에서 15% 하락 탐지(local)가 EDA-6 규칙 이상이며, 배경 경보율(평가창당 새로 난 창)과 합성 오경보율(평가창당)이 각각 EDA-6 규칙보다 0.5%p 넘게 높지 않을 때만"
+  shap: "LightGBM이 채택될 때만 계산"
+
+decisions:  # notebooks/m1_expected_activity.py 가 채움
+  computed_by: notebooks/m1_expected_activity.py
+  metric: 상대 MAE (평가 대상일 전체)
+  rows:
+    강남 h=1:
+      0a: 0.0986
+      0b: 0.0677
+      best_baseline: 0b
+      '1': 0.0448
+      '2': 0.0544
+    강남 h=7:
+      0a: 0.1213
+      0b: 0.085
+      best_baseline: 0b
+      '1': 0.0772
+      '2': 0.0986
+    춘천 h=1:
+      0a: 0.0987
+      0b: 0.076
+      best_baseline: 0b
+      '1': 0.0684
+      '2': 0.067
+    춘천 h=7:
+      0a: 0.115
+      0b: 0.0886
+      best_baseline: 0b
+      '1': 0.0906
+      '2': 0.0973
+  baseline_choice:
+    per_city_h:
+      강남 h=1: 0b
+      강남 h=7: 0b
+      춘천 h=1: 0b
+      춘천 h=7: 0b
+    overall: 0b
+  stl:
+    adopted: false
+    rule: STLForecast는 두 도시 모두에서 h=1과 h=7 상대 MAE가 각각 더 나은 기준선보다 5% 이상 낮을 때만 채택 (STL ≤ 0.95 × 기준선)
+    pass:
+      강남 h=1: true
+      강남 h=7: true
+      춘천 h=1: true
+      춘천 h=7: false
+  lgbm:
+    adopted: false
+    rule: LightGBM은 두 도시 모두에서 h=1과 h=7 상대 MAE가 '기준선과 STL 중 더 나은 것'보다 5% 이상 낮고, 80대+에서 두 도시·두 h 모두 기준선보다 나쁘지 않을 때만 채택
+    pass_overall:
+      강남 h=1: false
+      강남 h=7: false
+      춘천 h=1: false
+      춘천 h=7: false
+    pass_80plus_not_worse:
+      강남 h=1: true
+      강남 h=7: false
+      춘천 h=1: true
+      춘천 h=7: false
+  adopted_forecast_model: 0b
+  detection:
+    rule: 경보의 기대값을 EDA-6 규칙(같은 요일 8주 평균)에서 모델 예측으로 바꾸는 것은, 그 모델이 예측에서 채택되고, 같은 짝지은 주입 쌍에서 15% 하락 탐지(local)가 EDA-6 규칙 이상이며, 배경 경보율(평가창당 새로 난 창)과 합성 오경보율(평가창당)이 각각 EDA-6 규칙보다 0.5%p 넘게 높지 않을 때만
+    by_model:
+      0a:
+        adopted: false
+        forecast_adopted: false
+        detect15_local: 0.8245
+        eda6_detect15_local: 0.9277
+        background_new_window: 0.0414
+        eda6_background_new_window: 0.0108
+        synthetic_new_window: 0.0124
+        eda6_synthetic_new_window: 0.0131
+        median_delay: 2.0
+      0b:
+        adopted: false
+        forecast_adopted: true
+        detect15_local: 0.925
+        eda6_detect15_local: 0.9277
+        background_new_window: 0.0078
+        eda6_background_new_window: 0.0108
+        synthetic_new_window: 0.0135
+        eda6_synthetic_new_window: 0.0131
+        median_delay: 2.0
+      '1':
+        adopted: false
+        forecast_adopted: false
+        detect15_local: 0.865
+        eda6_detect15_local: 0.9277
+        background_new_window: 0.0234
+        eda6_background_new_window: 0.0108
+        synthetic_new_window: 0.0111
+        eda6_synthetic_new_window: 0.0131
+        median_delay: 2.0
+      '2':
+        adopted: false
+        forecast_adopted: false
+        detect15_local: 0.8829
+        eda6_detect15_local: 0.9277
+        background_new_window: 0.0167
+        eda6_background_new_window: 0.0108
+        synthetic_new_window: 0.0115
+        eda6_synthetic_new_window: 0.0131
+        median_delay: 2.0
+    expected_value_for_alarm: EDA-6
+    pairs: 601
+    start_from: '2025-09-14'

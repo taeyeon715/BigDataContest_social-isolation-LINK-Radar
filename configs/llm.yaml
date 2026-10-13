@@ -1,0 +1,67 @@
+# LLM 설정 (에이전트 설계 §8). 모델 ID 는 이 파일 한 곳에만 둔다.
+#
+# - 가격: Anthropic 공식 가격표 (https://platform.claude.com/docs/en/about-claude/pricing, 2026-10-13 확인)
+#   Haiku 5.5 는 프롬프트 100,000 토큰을 넘으면 비싼 가격 (long_context). 캐시 쓰기·읽기는 지금 쓰지 않음
+# - temperature: Sonnet 5.5·Haiku 5.5 는 기본값 외 샘플링 값을 받지 않고(400), anthropic SDK 1.13 messages.create 에도
+#   temperature 인자가 없어 null 로 둔다. 출력 길이·생각 깊이는 max_tokens·effort 로 조절
+# - 출력은 모두 JSON 스키마 구조화 출력(output_config.format) → Pydantic 검증. 실패하면 1회 재시도 뒤 규칙·템플릿
+# - 프롬프트: configs/prompts/<prompt>.md (파일 이름이 프롬프트 버전)
+
+version: llm-v1
+pricing_checked: "2026-10-13"
+pricing_source: https://platform.claude.com/docs/en/about-claude/pricing
+timeout_s: 60
+
+models:
+  supervisor:   # 질문 해석·추가 조사 선택·설명 문장
+    id: claude-sonnet-5-5
+    input_usd_per_mtok: 2.0
+    output_usd_per_mtok: 10.0
+  brief:        # 정기 감시 대량 브리핑
+    id: claude-haiku-5-5
+    input_usd_per_mtok: 0.10
+    output_usd_per_mtok: 0.50
+    long_context_over_tokens: 100000
+    long_input_usd_per_mtok: 0.50
+    long_output_usd_per_mtok: 2.50
+
+slots:
+  classify:
+    model: supervisor
+    prompt: classify_v2
+    max_tokens: 2000
+    effort: low
+    temperature: null
+  choose_extra_tools:
+    model: supervisor
+    prompt: choose_tools_v1
+    max_tokens: 2000
+    effort: low
+    temperature: null
+  explain:
+    model: supervisor
+    prompt: explain_v4
+    max_tokens: 4000
+    effort: medium
+    temperature: null
+    max_sentences: 4
+  brief:
+    model: brief
+    prompt: brief_v3
+    max_tokens: 3000
+    effort: low
+    temperature: null
+    max_sentences: 3
+  plan_more:    # 추가 조사 메모 → 도구 계획. 화이트리스트 enum 만
+    model: supervisor
+    prompt: plan_more_v1
+    max_tokens: 1500
+    effort: low
+    temperature: null
+  followup:     # 이어 묻기 답. 근거 카드 안 근거 번호만 인용
+    model: supervisor
+    prompt: followup_v2
+    max_tokens: 3000
+    effort: medium
+    temperature: null
+    max_sentences: 3

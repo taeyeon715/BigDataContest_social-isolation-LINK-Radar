@@ -1,0 +1,204 @@
+# Guard 규칙 (설계 문서 §6.1, 에이전트 설계 §6)
+#
+# 규칙마다
+#   where:   어디서 보나 — check_availability / guard_signal / guard_report.사실 / guard_report.표현
+#   action:  설계 문서 §6.1 "실패 시" 칸 그대로
+#   verdict: action 을 PASS / REVISE / ABSTAIN 중 하나로 옮긴 것 (에이전트 설계 §6 "규칙별 처리 → 세 판정")
+#   REVISE 는 Guard 마다 max_revise 번까지. 넘으면 ABSTAIN
+#
+# 테스트: tests/test_guard.py + tests/guard_cases.yaml (규칙마다 사례 1개 이상)
+
+version: guard-v0
+max_revise: 2
+
+# G-08 작은 칸 (재식별 보호). 기준 10: 통계 공표 관행(작은 칸 5~10 미만 비공개) 중 보수적인 쪽.
+#   - 인원·세대 수 근거(unit 이 count_units)는 값이 기준보다 작으면 차단 (0 포함)
+#   - 비율·율 근거는 분모 크기로 본다: denominator 설명에 small_cell_denominators 중 하나가 들어 있으면
+#     n_obs 가 분모 크기(사람·세대 수)이고, 기준보다 작으면 차단
+#     (그 밖의 n_obs 는 날짜 수·격자 수·행 수라 작은 칸 기준과 무관)
+min_cell: 10
+count_units: [명, 세대, 가구]
+small_cell_denominators: [전체 세대수, 체류인구 전체, 총인구]
+
+# G-11: 폐기한 지표 (근거로 쓰면 REVISE)
+deprecated_metrics:
+  - 통신 야간 체류 비율 (폐기 지표)
+  - 고립 위험 점수
+
+# 금지 표현을 부정하는 주의 문장("체류인구는 주민 수가 아님")은 위반으로 보지 않는 규칙과, 부정으로 보는 뒤따르는 말
+# (표현 검사의 patterns 에만 적용. contracts.claims 검사는 그대로)
+# - 예외는 코드가 만든 템플릿 문장(fact_sentences)에만. LLM 설명 문장은 부정문이어도 위반 (프롬프트가 부정문도 금지)
+# - 반어·조건 꼴("아니면", "아니라고 할 수 없", "않을까", "않나")은 부정으로 보지 않음
+# - 패턴은 원문과 공백을 뺀 문장에 모두 검사 ("거 주 민" 같은 띄어 쓰기 우회)
+negation_exempt: [G-03, G-14]
+negation_pattern: '^\s*(가|이|는|은|도|와|과)?\s*(아니|아님|않|아닌)'
+rhetorical_pattern: '^\s*(가|이|는|은|도|와|과)?\s*(아닌\s*(것|게|건|거)|아니지만|아니나|아니어도|아니라도|아니더라도|아니면|아니라고\s*(할|볼|하기)?\s*수\s*없|아니라\s*(할|볼)\s*수\s*없|아닐까|아니겠|아닙니까|아닌가|아니냐|않(을까|나|겠|습니까|았을까|았나|는가|냐))'
+
+# 부정한 뒤 같은 문장에서 다시 단정하면 예외 아님 ("~가 아니지만 … 확실하다")
+negation_reassert: '확실|분명|틀림없|판단합니다|판단됩니다|높다고|맞습니다|볼\s*수\s*있'
+
+# 설명 문장(LLM) 사실 검사 G-05. 숫자·모르는 근거 ID 에 더해
+narrative:
+  # 방향 말: 문장에 나오면 같은 문장이 인용한 근거 중 그 방향인 것이 있어야 함 (인용 근거가 없거나 방향이 없으면 차단)
+  direction_words:
+    증가: ['늘(었|어|고|면|지|기|린|난|날)', '증가', '올(랐|라)', '오르', '상승', '회복', '반등', '많아(졌|지)', '높아(졌|지)', '커(졌|지)', '급증', '확대']
+    감소: ['줄(었|어|고|면|지|기|였|여)', '감소', '떨어', '낮아(졌|지)', '하락', '적어(졌|지)', '작아(졌|지)', '급감', '위축', '내려(갔|가|간)', '꺾', '둔화']
+    변화 없음: ['변화\s*(가|는)?\s*없', '변동\s*(이|은)?\s*없', '보합']
+  # 방향 말을 부정한 꼴: 방향을 대조할 수 없어 차단
+  negated_direction: '(늘|줄|증가하|감소하|오르|떨어지|낮아지|높아지|하락하|상승하|회복하|회복되|변하)지\s*(않|못)'
+  # 도시 이름: 문장에 나오면 인용한 근거의 도시와 같아야 함 (인용이 없으면 근거 카드에 있는 도시여야 함)
+  cities: {강남: [강남, 서울], 춘천: [춘천, 강원]}
+  # 근거 카드에 없을 지역 이름 (나오면 차단)
+  other_regions: [서초, 송파, 부산, 대구, 인천, 광주, 대전, 울산, 세종, 수원, 원주, 강릉, 속초, 홍천, 제주]
+  # 한글 수량 말 (숫자로 봄)
+  quantity_patterns:
+    - '절반|반토막|반\s*이상|반\s*넘|곱절|갑절'
+    - '(?<![가-힣])(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|스물|서른|마흔|쉰|예순|일흔|여든|아흔|몇)\s*(명|곳|가구|세대|건|군데|배|개\s*동|분의)'
+    - '(?<![가-힣])열\s*(명|곳|가구|세대|건|군데|배|중)'
+    - '(?<![가-힣])(수|[일이삼사오육칠팔구])?[십백천만][일이삼사오육칠팔구]?\s*(명|곳|가구|세대|건|배|퍼센트|프로)'
+    - '(?<![가-힣])[일이삼사오육칠팔구십]\s*(퍼센트|프로|할)(?![가-힣])'
+    - '[가-힣]+\s*분의\s*(일|이|삼|사|하나|둘|셋)'
+    - '모든\s*후보|후보\s*(모두|전부|전체)|전체\s*후보'
+    - '대부분|대다수|과반|태반|상당수|거의\s*(모두|모든|전부|다|절반|없)|십중팔구|전원'
+
+# G-06: 다시 수집하면 풀릴 수 있는 도구 오류 (REVISE 로 다시 모음)
+retriable_error_codes: [TOOL_TIMEOUT]
+
+# contracts.claims.check_claim 위반 코드 → Guard 규칙
+claim_code_rules:
+  DIAGNOSIS: G-04
+  CARD_ISOLATION_DETECTION: G-12
+  ACCURACY_WITHOUT_LABEL: G-09
+  STAY_AS_RESIDENT: G-14
+  RANK_CORR_AS_AGREEMENT: G-14
+  HOUSEHOLD_TERM: G-14
+  SL_PREDICTION: G-14
+  TEL_AGE_IN_RHYTHM: G-14
+  TEL_AGE_FINER_THAN_60PLUS: G-14
+  ADM_WEATHER: G-03
+  RESIDENCE_FINER_THAN_SIDO: G-03
+  RESIDENCE_NOT_IN_SOURCE: G-03
+  RESIDENCE_MISMATCH: G-03
+  ADM_LEVEL_FROM_SHARED_CONTEXT: G-03
+
+rules:
+  G-01:
+    name: 요청한 차원이 원천 데이터에 있는가
+    where: check_availability
+    action: ABSTAIN
+    verdict: ABSTAIN
+  G-02:
+    name: 결합 키와 집계 단위가 맞는가 (예 연령 × 시간대 결합 금지)
+    where: check_availability
+    action: ABSTAIN
+    verdict: ABSTAIN
+  G-03:
+    name: 가맹점 소재지·유동인구를 거주민으로 단정하지 않았는가
+    where: guard_report.표현
+    action: REVISE
+    verdict: REVISE
+    patterns: ['거주민', '이\s*동\s*주민']
+  G-04:
+    name: 개인 고립·고독사 진단 문장이 없는가
+    where: guard_report.표현
+    action: REVISE
+    verdict: REVISE
+    patterns: ['고독사', '고립\s*위험이\s*(높|크)', '고립된\s*(사람|어르신|가구|분|노인)', '고립되어\s*(있|지내|살)',
+               '고립\s*상태', '고독\s*위험군', '고립\s*위험군', '외롭게', '외로움을\s*(느끼|겪)', '방치',
+               '위험\s*(대상자|가구|군|인물|노인)', '사회적으로\s*고립된', '은둔']
+  G-05:
+    name: 모든 숫자·주장에 근거 ID 가 있고 인용한 사실이 근거 카드와 같은가
+    where: guard_report.사실
+    action: REVISE
+    verdict: REVISE
+  G-06:
+    name: 대안 설명과 반대 근거를 검토했는가
+    where: guard_signal
+    action: REVISE 또는 ABSTAIN
+    verdict: REVISE   # 반증을 안 했거나 다시 하면 풀릴 오류. 한도를 넘으면 ABSTAIN
+  G-07:
+    name: 자원 추천에 출처·지역·대상·확인일이 있는가
+    where: guard_report.표현
+    action: 추천 제외
+    verdict: PASS     # 해당 자원만 빼고 경고를 붙임
+    required_fields: [source_url, city, target_group, verified_date]
+  G-08:
+    name: 작은 칸·재식별 보호 기준을 지키는가
+    where: guard_signal
+    action: 출력 차단
+    verdict: ABSTAIN
+  G-09:
+    name: 정답 라벨 없이 예측 정확도를 주장하지 않는가
+    where: guard_report.표현
+    action: REVISE
+    verdict: REVISE
+    patterns: ['정확도\s*\d', '적중률']
+  G-10:
+    name: 최종 판단을 사람에게 남기는가
+    where: guard_report.표현
+    action: 출력 차단
+    verdict: REVISE   # write_report 템플릿이 "최종 판단은 담당자" 문장을 넣음. 한도를 넘으면 ABSTAIN
+    required_text: 최종 판단은 담당자
+    # 설명이 결정을 대신 내린 것처럼 쓰면 REVISE (확정·승인은 담당자만)
+    patterns: ['확정(했|하였|됐|되었|합니다|입니다|함|된다|되었습니다)', '승인(했|하였|됐|되었)', '최종\s*(결정|판단)(했|하였|입니다|합니다)']
+  G-11:
+    name: 폐기한 지표를 근거로 쓰지 않았는가
+    where: guard_signal
+    action: REVISE
+    verdict: REVISE
+  G-12:
+    name: 카드로 고립·독거를 탐지했다고 주장하지 않았는가
+    where: guard_report.표현
+    action: REVISE
+    verdict: REVISE
+    patterns: ['고립\s*(발생|탐지|감지)', '독거\s*(탐지|확인)']
+  G-13:
+    name: 기준일 뒤 자료·모델을 쓰지 않았는가, 가정한 공개 시점을 표시했는가
+    where: check_availability, guard_signal, guard_report.표현
+    action: ABSTAIN 또는 표시 추가
+    verdict_by_mode:
+      simulated_replay: REVISE    # 가정 표시가 없으면 write_report 가 자동으로 넣음
+      retrospective: REVISE
+      strict_as_of: ABSTAIN       # 기준일 뒤 자료
+  G-14:
+    name: 지표를 다른 뜻으로 바꾸지 않았는가
+    where: guard_signal, guard_report.표현
+    action: REVISE
+    verdict: REVISE
+    # 집계 지표 → 개인 점수, 전국 비율 → 지역 확률, 체류 인구 → 주민 수, 순위상관 → 일치율
+    patterns: ['고립\s*점수', '개인\s*(위험\s*)?점수', '(고립|위험)\s*확률', '주민\s*수', '일치율']
+
+# 개인 지목 질문: intake 가 LLM 없이 막음 → out_of_scope (OUT_OF_SCOPE_INDIVIDUAL)
+individual:
+  message: 개인을 찾거나 판정하지 않습니다. 동·집단 단위로 바꿔 물어보세요 (예 "강남 1인세대 비율 상위 동은?")
+  # 사람 이름 + 호칭: 성 + 두 글자 이름 뒤에 호칭, 또는 성 + 씨
+  surnames: 김이박최정강조윤장임한오서신권황안송류유전홍고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제모탁국어은편용예경봉
+  honorifics: '(할머니|할아버지|어르신|씨|님|여사|옹|선생님)'
+  # 성으로 시작하지만 이름이 아닌 세 글자 말 (지명·집단·흔한 말)
+  not_names: [강남구, 고령층, 고령자, 중장년, 노인층, 독거인, 남성분, 여성분, 주민분, 이웃분, 지역민, 정기적, 조사할, 조사한,
+              방문할, 확인할, 확인한, 모든분, 한부모, 장애인, 수급자, 기초생활, 이번주, 우리동, 주변의, 근처의, 성인남, 성인여]
+  not_name_endings: [동, 구, 시, 군, 읍, 면, 리, 할, 한, 된, 될, 의, 들, 적, 던, 층, 별]
+  patterns:
+    - '명단'
+    - '누구|누가'
+    - '몇\s*호'
+    - '호수'
+    - '번지'
+    - '\d+\s*동\s*\d+\s*호'
+    - '(?<![\d가-힣])\d{2,4}\s*호(?![가-힣선])'
+    - '전화\s*번호|연락처|휴대\s*폰|핸드폰'
+    - '주소|사는\s*곳|사시는\s*곳|집\s*위치'
+    - '주민\s*(등록)?\s*번호'
+    - '실명|이름|신상|개인\s*정보'
+    - '특정\s*(인|개인|가구|가정|사람|어르신|분|세대)'
+    - '어느\s*(집|가구|가정|분)'
+    - '(?<!\d)\d{6}\s*-\s*[1-4]\d{0,6}'
+    - '(?<!\d)0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}(?!\d)'
+    - '[\w.+-]+@[\w-]+\.[\w.]+'
+
+# LLM 에 보내기 전에 가리는 개인정보. 가린 개수만 llm_log 에 남김 (원문은 남기지 않음)
+pii_mask:
+  - {label: 주민번호, pattern: '(?<!\d)\d{6}\s*-\s*[1-4][\d*]{0,6}'}
+  - {label: 전화번호, pattern: '(?<!\d)0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}(?!\d)'}
+  - {label: 이메일, pattern: '[\w.+-]+@[\w-]+\.[\w.]+'}
+  - {label: 상세주소, pattern: '\d+\s*동\s*\d+\s*호|\d+(-\d+)?\s*번지|(?<![\d가-힣])\d{2,4}\s*호(?![가-힣선])|[가-힣]{1,10}(로|길)\s*\d{1,4}(-\d{1,4})?(?![\d가-힣%])'}
