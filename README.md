@@ -10,7 +10,7 @@
 ![Claude](https://img.shields.io/badge/Claude-Sonnet%205.5-D97757?logo=anthropic&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/pytest-830%20passed-2EA44F?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest-939%20passed-2EA44F?logo=pytest&logoColor=white)
 
 2026 빅콘테스트 · AI데이터 활용 분야 · 서울 강남구 · 강원 춘천시
 
@@ -343,8 +343,8 @@ cd web && npm test        # 화면 상태 (Vitest)
 
 | 항목 | 결과 |
 |---|---|
-| pytest | **830 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
-| 화면 (vitest) | **77 통과** |
+| pytest | **939 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
+| 화면 (vitest) | **98 통과** |
 | 하락 폭별 감지 | 2·3·5·10·15·20% 하락의 감지율과 코호트 단위 신뢰구간을 함께 공개 ([EDA-6](reports/eda6_사전경보재평가/)) |
 | 시연 사례 D1~D4 | 실제 데이터 도구로 끝까지 동작. 가짜 LLM 6종·LLM 없음·실제 Claude에서 등급이 같음 |
 | 모델 비교 | 채택 기준을 비교 전에 고정. STL·LightGBM 미채택, 단순 기준선 유지 |
