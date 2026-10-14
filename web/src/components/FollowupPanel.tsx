@@ -5,9 +5,34 @@ import { withRefs } from './EvidenceTable'
 import { RoleNote, useRole } from './ui'
 
 export const FOLLOWUP_NOTE = '새 조사를 하지 않고 이 보고서의 근거만으로 답합니다.'
-const EXAMPLES = ['이 후보는 왜 이 등급이야?', '어떤 근거가 가장 중요해?']
+const EXAMPLES = ['이 후보는 왜 이 등급이야?', '어떤 근거가 가장 중요해?', '연결할 자원은?', '자료 한계는?']
 
-type Item = { q: string; res: FollowupResponse }
+/** 질문 종류 (서버 intent). 등급 이유 / 자원·대응 / 비교 / 자료 한계 / 기타 */
+export type FollowupIntent = 'why_level' | 'resources' | 'compare' | 'data_limits' | 'other'
+export const INTENT_LABEL: Record<FollowupIntent, string> = {
+  why_level: '등급 이유',
+  resources: '자원·대응',
+  compare: '비교',
+  data_limits: '자료 한계',
+  other: '기타',
+}
+/** 서버 응답 + 질문 종류·답한 대상 (types.ts 에 없을 수 있어 여기서 넓힘) */
+type FollowupRes = FollowupResponse & {
+  intent?: FollowupIntent | null
+  target?: { candidate_ids?: string[]; adm_cds?: string[] } | null
+}
+
+type Item = { q: string; res: FollowupRes }
+
+/** 질문 종류 칩 */
+export function IntentChip({ intent }: { intent?: FollowupIntent | null }) {
+  if (!intent) return null
+  return (
+    <span className="chip bg-canvas text-ink-600" data-testid="followup-intent" data-intent={intent}>
+      질문 종류 · {INTENT_LABEL[intent] ?? intent}
+    </span>
+  )
+}
 
 /** 이어 묻기 답 하나. 답은 근거 ID 버튼과 함께, 보류는 쉬운 문장 + 작은 회색 코드 */
 export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: string) => void }) {
@@ -17,7 +42,10 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
     const plain = (code && ERROR_TEXT[code]) || text || '근거가 부족해 답하지 않았습니다.'
     return (
       <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="abstained">
-        <div className="text-xs text-ink-600">질문 · {q}</div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-600">
+          <span>질문 · {q}</span>
+          <IntentChip intent={res.intent} />
+        </div>
         <p className="mt-1 text-ink-900" data-testid="followup-abstain">
           {plain}
         </p>
@@ -27,6 +55,11 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
             필요한 자료: {res.needed_data.join(' · ')}
           </div>
         )}
+        {code === 'NO_DATA' && (
+          <div className="mt-1 rounded-xl bg-canvas px-3 py-2 text-sm text-ink-800" data-testid="followup-new-run">
+            이 보고서에는 비교할 근거가 없습니다. 기준일을 바꾼 새 조사를 시작해 두 보고서를 비교하세요.
+          </div>
+        )}
         {code && <div className="mt-1 font-mono text-xs text-ink-600">{code}</div>}
       </li>
     )
@@ -34,7 +67,10 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
   const lines = (res.answer ?? '').split('\n').filter(Boolean)
   return (
     <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="answered">
-      <div className="text-xs text-ink-600">질문 · {q}</div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-600">
+        <span>질문 · {q}</span>
+        <IntentChip intent={res.intent} />
+      </div>
       <div className="mt-1 flex flex-col gap-1 text-ink-900" data-testid="followup-answer">
         {lines.map((l, i) => (
           <p key={i}>{withRefs(l, onCite)}</p>

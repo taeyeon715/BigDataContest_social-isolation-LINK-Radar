@@ -12,6 +12,9 @@ LangGraph API (langgraph 1.2.x)
 (`run_resume_keys` 표에 키를 먼저 차지). 확정·보류는 finalize 단계의 기록이 1건만 남긴다.
 승인 대기에서 추가 조사는 plan_more(담당자 focus → 도구 계획) → collect_signals, 검토 반영은
 record_review → write_report. 끝점·승인 대기 직전에 노드·도구 소요 시간을 run_meta["perf"] 로 합침.
+조사 경로는 반증 뒤 조사 루프(open_questions → investigate ⇄ check_findings, 많아야 2회차)를 지나 guard_signal 로 간다.
+신호 Guard 의 REVISE 는 규칙별 처치(remedy)로 나뉜다: 근거 빼기(drop_evidence → guard_signal), 실패한 도구만 다시
+(retry_tools → classify_candidate), 바로 보류(abstain_report). 전체 다시 수집은 하지 않는다.
 노드마다 소요 시간을 `bigcontest.agent` 로거에 JSON 칸(run_id, node, ms)으로 남긴다 (질문 원문은 안 남김).
 """
 
@@ -99,13 +102,20 @@ def after_availability(state: dict) -> str:
     return "lookup" if state.get("route") == "lookup" else "collect_signals"
 
 
+REMEDY_NODE = {"drop_evidence": "drop_evidence", "retry_failed_tool": "retry_tools", "abstain": "abstain_report"}
+
+
 def after_guard_signal(state: dict) -> str:
     v = state.get("verdict")
     if v == "ABSTAIN":
         return "abstain_report"
-    if v == "REVISE":
-        return "collect_signals"
+    if v == "REVISE":  # 규칙별 처치. 처치가 없으면(예전 체크포인트) 예전처럼 다시 수집
+        return REMEDY_NODE.get((state.get("remedy") or {}).get("remedy"), "collect_signals")
     return "build_card" if state.get("route") == "lookup" else "assign_level"
+
+
+def after_check_findings(state: dict) -> str:
+    return "investigate" if (state.get("investigation") or {}).get("continue") else "guard_signal"
 
 
 def after_guard_report(state: dict) -> str:
@@ -146,6 +156,7 @@ ROUTERS = {
     "classify": after_classify,
     "check_availability": after_availability,
     "guard_signal": after_guard_signal,
+    "check_findings": after_check_findings,
     "guard_report": after_guard_report,
     "abstain_report": after_abstain,
     "await_approval": after_approval,
@@ -163,6 +174,7 @@ def build_graph(checkpointer=None, store: RecordStore | None = None):
         "intake", "classify", "check_availability", "lookup", "collect_signals", "classify_candidate",
         "counter_evidence", "guard_signal", "assign_level", "assign_queue", "match_resources", "build_card",
         "write_report", "guard_report", "abstain_report", "answer", "abstain_answer", "plan_more", "record_review",
+        "open_questions", "investigate", "check_findings", "drop_evidence", "retry_tools",
     ]
     for name in plain:
         g.add_node(name, _node(name, getattr(nodes, name)))
@@ -177,9 +189,15 @@ def build_graph(checkpointer=None, store: RecordStore | None = None):
     g.add_edge("lookup", "guard_signal")
     g.add_edge("collect_signals", "classify_candidate")
     g.add_edge("classify_candidate", "counter_evidence")
-    g.add_edge("counter_evidence", "guard_signal")
+    g.add_edge("counter_evidence", "open_questions")
+    g.add_edge("open_questions", "investigate")
+    g.add_edge("investigate", "check_findings")
+    g.add_conditional_edges("check_findings", after_check_findings, ["investigate", "guard_signal"])
     g.add_conditional_edges("guard_signal", after_guard_signal,
-                            ["abstain_report", "collect_signals", "build_card", "assign_level"])
+                            ["abstain_report", "drop_evidence", "retry_tools", "collect_signals", "build_card",
+                             "assign_level"])
+    g.add_edge("drop_evidence", "guard_signal")
+    g.add_edge("retry_tools", "classify_candidate")
     g.add_edge("assign_level", "assign_queue")
     g.add_edge("assign_queue", "match_resources")
     g.add_edge("match_resources", "build_card")
@@ -212,6 +230,8 @@ class Agent:
         self.saver = open_checkpointer(self.db_path)
         self.store = RecordStore(self.db_path)
         self.app = build_graph(self.saver, self.store)
+        # 이어 묻기 짧은 기억: 실행마다 직전 대상 조건(후보 ID·동 코드)만. 질문 원문은 담지 않음
+        self.followup_memory: dict[str, dict] = {}
 
     def _invoke(self, inp, run_id: str, mode: str | None = None):
         if mode is None:
@@ -340,8 +360,13 @@ class Agent:
         return self.status(run_id)
 
     def followup(self, run_id: str, question: str, llm: str | None = None) -> dict[str, Any]:
-        """이어 묻기: 이 실행의 근거 카드·후보만 읽음. 새 도구를 부르지 않고 상태도 바꾸지 않음."""
+        """이어 묻기: 이 실행의 근거 카드·후보만 읽음. 새 도구를 부르지 않고 상태도 바꾸지 않음.
+        직전 이어 묻기의 대상 조건(후보 ID·동 코드)만 이 객체에 기억해 "그 동네·거기"를 푼다."""
         from bigcontest.agent.followup import answer_followup
 
         values = self.status(run_id)["values"]
-        return answer_followup(values, question, llm if llm is not None else values.get("llm"))
+        out = answer_followup(values, question, llm if llm is not None else values.get("llm"),
+                              memory=self.followup_memory.get(run_id))
+        if out.get("target") and (out["target"].get("candidate_ids") or out["target"].get("adm_cds")):
+            self.followup_memory[run_id] = out["target"]
+        return out

@@ -517,6 +517,56 @@ def check_resources(resources: list[dict]) -> tuple[list[dict], list[str]]:
 # ---------------------------------------------------------------- 신호·조회 Guard
 
 
+def _meaning_claims(ev: ToolResult) -> list[str]:
+    """G-14: 근거가 주장하는 내용 중 지표 뜻을 바꾼 것."""
+    pats = rules()["rules"]["G-14"]["patterns"]
+    return [c for c in ev.valid_claims if any(re.search(p, c) for p in pats)]
+
+
+def drop_targets(evidence: list[ToolResult]) -> dict[str, str]:
+    """처치 drop_evidence 대상: 근거 ID → 규칙 (G-11 폐기 지표, G-14 지표 뜻 바꾸기)."""
+    out: dict[str, str] = {}
+    for ev in evidence:
+        if ev.metric in rules()["deprecated_metrics"]:
+            out[ev.evidence_id] = "G-11"
+        elif _meaning_claims(ev):
+            out[ev.evidence_id] = "G-14"
+    return out
+
+
+def retry_targets(evidence: list[ToolResult]) -> list[str]:
+    """처치 retry_failed_tool 대상: 다시 시도할 수 있는 오류(retriable_error_codes)로 실패한 근거 ID."""
+    codes = set(rules()["retriable_error_codes"])
+    return [ev.evidence_id for ev in evidence if ev.status == "ERROR" and ev.error_code in codes]
+
+
+def remedy_of(rule_id: str, where: str) -> str:
+    """규칙 → 처치 (guard_rules.yaml remedy / remedy_by_where). 모르면 abstain."""
+    r = rules()["rules"].get(rule_id) or {}
+    return (r.get("remedy_by_where") or {}).get(where) or r.get("remedy") or "abstain"
+
+
+def pick_remedy(rule_ids: list[str], where: str) -> str:
+    """걸린 규칙들 → 처치 하나 (remedy_order 순서로 앞선 것)."""
+    order = rules()["remedy_order"]
+    found = {remedy_of(r, where) for r in rule_ids if r}
+    return next((x for x in order if x in found), "abstain")
+
+
+def reason_problems(text: str | None) -> list[str]:
+    """LLM 이 쓴 짧은 이유(조사 루프 why 등)를 보고서에 싣기 전 검사: 숫자·한글 수량 말(G-05)과 표현 규칙 패턴.
+    걸린 규칙 ID 목록 (빈 목록이면 통과)."""
+    if not text:
+        return []
+    out = []
+    if re.search(r"\d", _NON_FACT_NUM.sub("", text)) or quantity_words(text):
+        out.append("G-05")
+    for rule_id, r in rules()["rules"].items():
+        if any(pattern_hit(p, text, rule_id, False) for p in r.get("patterns", [])):
+            out.append(rule_id)
+    return list(dict.fromkeys(out))
+
+
 def check_signal(
     evidence: list[ToolResult],
     candidates: list[dict],
@@ -524,14 +574,16 @@ def check_signal(
     as_of: date,
     abstain_reason: str | None = None,
     attempt: int = 1,
+    extra: list[ToolResult] | None = None,
 ) -> GuardResult:
-    """신호·조회 Guard. candidates 는 Candidate dict (반증 기록 확인용)."""
+    """신호·조회 Guard. candidates 는 Candidate dict (반증 기록 확인용).
+    extra 는 조사 루프 근거 (등급 입력 아님): 작은 칸·폐기 지표·지표 뜻 검사만 한다."""
     cfg = rules()
     hits = _Hits("guard_signal", "신호", analysis_mode)
     if abstain_reason:
         hits.add("", abstain_reason, "ABSTAIN")
 
-    for ev in evidence:
+    for ev in list(evidence) + list(extra or []):
         # G-08 작은 칸: 인원 칸 값, 또는 비율의 분모(사람·세대 수)가 기준보다 작음
         why = small_cell(ev)
         if why:
@@ -542,13 +594,12 @@ def check_signal(
         if ev.metric in cfg["deprecated_metrics"]:
             hits.add("G-11", f"{ev.evidence_id}: 폐기한 지표 '{ev.metric}'")
         # G-14 지표 뜻 바꾸기 (근거가 주장하는 내용)
-        for claim in ev.valid_claims:
-            for pat in cfg["rules"]["G-14"]["patterns"]:
-                if re.search(pat, claim):
-                    hits.add("G-14", f"{ev.evidence_id}: '{claim}'")
+        for claim in _meaning_claims(ev):
+            hits.add("G-14", f"{ev.evidence_id}: '{claim}'")
+    for ev in evidence:
         # G-06 다시 하면 풀릴 반증 오류
         if ev.status == "ERROR" and ev.metric.startswith("반증") and ev.error_code in cfg["retriable_error_codes"]:
-            hits.add("G-06", f"{ev.evidence_id}: 반증 도구 {ev.error_code} → 다시 수집")
+            hits.add("G-06", f"{ev.evidence_id}: 반증 도구 {ev.error_code} → 실패한 도구만 다시")
 
     # G-13 기준일 뒤 자료 (strict_as_of 는 ABSTAIN)
     late = after_as_of(evidence, as_of)

@@ -6,10 +6,13 @@ LLM 이 맡는 일
 - explain: 설명 문장 (사실은 템플릿이 근거 카드에서 넣음)
 - plan_more: 추가 조사 메모 → 화이트리스트 도구·반증 계획
 - followup: 이어 묻기 답 문장 (근거 카드 안 근거 ID 만 인용)
+- investigate: 조사 루프에서 코드가 만든 미해결 질문 중 확인할 것 고르기 (근거를 본 뒤, 결과는 "추가로 확인한 것"에만)
+- followup_intent: 이어 묻기 질문 종류 (규칙이 못 정할 때만, enum 5개)
 
 등급·후보는 바꾸지 못한다. 호출마다 기록(모델 ID, 프롬프트 버전, 토큰, 비용, 소요 시간)을 남긴다.
 가짜 변형(variant)은 테스트가 "LLM 이 무엇을 골라도 등급이 같다", "틀린 사실을 Guard 가 잡는다"를 확인하는 데 쓴다.
-상태의 `llm` 값: none(LLM 없음) / 가짜 변형 이름 / claude (configs/llm.yaml 의 모델, ANTHROPIC_API_KEY 필요).
+상태의 `llm` 값: none(LLM 없음) / 가짜 변형 이름 / claude (configs/llm.yaml 의 모델, ANTHROPIC_API_KEY 필요) /
+replay:<녹화 파일> (녹화한 Claude 응답을 재생, 키·네트워크 없음, cassette.py) / record:<녹화 파일> (실제 Claude 를 부르며 녹화).
 """
 
 from __future__ import annotations
@@ -49,6 +52,10 @@ class LLM(Protocol):
     def plan_more(self, memo: str, tools: list[str], counter_checks: list[str], candidates: list[dict]) -> dict: ...
 
     def followup(self, question: str, payload: dict) -> list[str]: ...
+
+    def investigate(self, questions: list[dict], candidates: list[dict], already: list[dict], max_picks: int) -> dict: ...
+
+    def followup_intent(self, question: str) -> dict: ...
 
 
 # 가짜 변형
@@ -132,6 +139,23 @@ class FakeLLM:
         t, c = memo_plan(memo)
         return {"tools": t, "counter_checks": c, "reason": "가짜: 메모 낱말로 도구를 고름"}
 
+    def investigate(self, questions: list[dict], candidates: list[dict], already: list[dict], max_picks: int) -> dict:
+        """가짜 조사 고르기. fake: 목록 뒤쪽부터 (규칙과 다르게), fake_no_tools: 안 고름,
+        fake_all_tools: 목록 밖 key·중복·숫자·진단 말이 든 이유까지 (노드가 거름)."""
+        self._maybe_fail()
+        keys = [q["key"] for q in questions]
+        if self.variant == "fake_no_tools":
+            return {"picks": [], "reason": "가짜: 더 확인할 것 없음"}
+        if self.variant == "fake_all_tools":
+            picks = [{"key": k, "why": "가짜: 3곳 모두 고독사 위험"} for k in keys + keys + ["RUN_SQL|강남|"]]
+            return {"picks": picks, "reason": "가짜: 목록 밖 key 까지 고름"}
+        picks = [{"key": k, "why": "가짜: 목록 뒤쪽 질문부터 확인"} for k in reversed(keys)][:max_picks]
+        return {"picks": picks, "reason": "가짜: 목록 뒤쪽부터 고름"}
+
+    def followup_intent(self, question: str) -> dict:
+        self._maybe_fail()
+        return {"intent": "other", "reason": "가짜: 기타"}
+
     def followup(self, question: str, payload: dict) -> list[str]:
         self._maybe_fail()
         ids = [f["evidence_id"] for f in payload.get("facts") or []][:2]
@@ -151,6 +175,10 @@ def get_llm(name: str | None) -> LLM | None:
         return None
     if name == "claude":
         return AnthropicLLM()
+    if name.startswith("replay:") or name.startswith("record:"):
+        from bigcontest.agent.cassette import client_for
+
+        return AnthropicLLM(client=client_for(name))
     return FakeLLM(name)
 
 
@@ -220,6 +248,11 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
         record["cost_usd"] = None if any(c is None for c in costs) else round(sum(costs), 6)
         record["api_calls"] = len(calls)
         record["dropped_sentences"] = sum(c.get("dropped", 0) for c in calls)
+        if any("drafted" in c for c in calls):  # Guard 전에 뺀 문장 수·이유 코드 (설명 품질 지표가 씀)
+            record["drafted_sentences"] = sum(c.get("drafted", 0) for c in calls)
+            reasons = sorted({r for c in calls for r in c.get("dropped_reasons") or []})
+            if reasons:
+                record["dropped_reasons"] = reasons
         if any("masked" in c for c in calls):
             record["masked_items"] = max(c.get("masked", 0) for c in calls)
     if run_budget is not None:
@@ -325,6 +358,47 @@ class PlanOut(_Out):
     tools: list[str]
     counter_checks: list[str]
     reason: str
+
+
+class PickOut(_Out):
+    key: str
+    why: str
+
+
+class InvestigateOut(_Out):
+    picks: list[PickOut]
+    reason: str
+
+
+INTENTS = ("why_level", "resources", "compare", "data_limits", "other")
+
+
+class IntentOut(_Out):
+    intent: Literal["why_level", "resources", "compare", "data_limits", "other"]
+    reason: str
+
+
+def _investigate_schema(keys: list[str]) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "picks": {"type": "array", "items": {
+                "type": "object",
+                "properties": {"key": {"type": "string", "enum": list(keys) or ["none"]}, "why": {"type": "string"}},
+                "required": ["key", "why"], "additionalProperties": False}},
+            "reason": {"type": "string"},
+        },
+        "required": ["picks", "reason"],
+        "additionalProperties": False,
+    }
+
+
+INTENT_SCHEMA = {
+    "type": "object",
+    "properties": {"intent": {"type": "string", "enum": list(INTENTS)}, "reason": {"type": "string"}},
+    "required": ["intent", "reason"],
+    "additionalProperties": False,
+}
 
 
 def _plan_schema(tools: list[str], checks: list[str]) -> dict:
@@ -518,6 +592,28 @@ class AnthropicLLM:
         return {"tools": [t for t in out.tools if t in tools],
                 "counter_checks": [c for c in out.counter_checks if c in counter_checks], "reason": out.reason}
 
+    def investigate(self, questions: list[dict], candidates: list[dict], already: list[dict], max_picks: int) -> dict:
+        if not questions:
+            return {"picks": [], "reason": "고를 질문 없음"}
+        keys = [q["key"] for q in questions]
+        view = [{k: q.get(k) for k in ("key", "label", "question", "tool", "candidate_ids")} for q in questions]
+        out = self._call("investigate", {"questions": view, "candidates": candidates, "already": already,
+                                         "max_picks": max_picks}, _investigate_schema(keys), InvestigateOut)
+        self.last_reason = out.reason
+        picks = [{"key": p.key, "why": p.why} for p in out.picks if p.key in keys]  # 노드에서 한 번 더 거름
+        return {"picks": picks[:max_picks], "reason": out.reason}
+
+    def followup_intent(self, question: str) -> dict:
+        from bigcontest.agent.guard import mask_pii
+
+        masked, n = mask_pii(question)
+        try:
+            out = self._call("followup_intent", {"question": masked}, INTENT_SCHEMA, IntentOut)
+        finally:
+            self.calls[-1]["masked"] = n
+        self.last_reason = out.reason
+        return {"intent": out.intent, "reason": out.reason}
+
     def followup(self, question: str, payload: dict) -> list[str]:
         from bigcontest.agent.guard import mask_pii
 
@@ -541,7 +637,22 @@ class AnthropicLLM:
         lines = lines[: self.cfg["slots"][slot].get("max_sentences", 4)]
         kept = sanitize_sentences(lines, card, candidates)
         self.calls[-1]["dropped"] = len(lines) - len(kept)
+        self.calls[-1]["drafted"] = len(lines)
+        if len(kept) < len(lines):  # 뺀 문장의 이유 코드 (AG-09). 문장 원문은 남기지 않음
+            from bigcontest.agent import guard as G
+
+            self.calls[-1]["dropped_reasons"] = sorted({_reason_code(w) for s in lines if s not in kept
+                                                         for w in G.narrative_problems(s, card, candidates)})
         return kept
+
+
+def _reason_code(why: str) -> str:
+    """narrative_problems 사유 → 짧은 이유 코드 (숫자 / 수량 말 / 방향 / 도시 / 지역 / 동 / 근거 ID / 후보 주장)."""
+    for code, pat in (("UNKNOWN_ID", "근거 카드에 없는 근거 ID"), ("NUMBER", "숫자"), ("QUANTITY", "수량"),
+                      ("DIRECTION", "방향"), ("CITY", "도시"), ("REGION", "지역 이름"), ("DONG", "동 이름")):
+        if pat in why:
+            return code
+    return "CANDIDATE_CLAIM"
 
 
 def sanitize_sentences(lines: list[str], card: EvidenceCard, candidates: list | None = None) -> list[str]:

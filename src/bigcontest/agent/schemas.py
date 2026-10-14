@@ -459,6 +459,35 @@ class TraceStep(_Model):
     ms: float | None = Field(default=None, ge=0)
 
 
+class InvestigationItem(_Model):
+    """조사 루프(open_questions → investigate → check_findings)에서 확인한 질문 하나. 등급·반증 입력이 아님."""
+
+    key: str  # 질문 열쇠 "질문ID|도시|동"
+    qid: str  # 고정 질문 목록의 ID (investigation.CATALOG)
+    label: str  # 짧은 이름 (예: 연휴 회복 미확인)
+    question: str  # 템플릿 질문 문장
+    city: str | None = None
+    adm_cd: str | None = None
+    candidate_ids: list[str] = Field(default_factory=list)
+    tool: str  # 화이트리스트 도구 이름
+    round: int = Field(ge=1)
+    source: Literal["llm", "rule"] = "rule"  # 누가 골랐나
+    why: str | None = None  # 고른 이유 (LLM 이유는 Guard 표현 검사를 지난 것만)
+    status: Literal["answered", "unanswered", "no_data", "error", "dropped"]
+    finding: str  # 템플릿 결과 문장
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class Investigation(_Model):
+    """보고서 "추가로 확인한 것" 칸. 등급·순서·반증 결과에는 쓰지 않는다."""
+
+    rounds: int = 0
+    items: list[InvestigationItem] = Field(default_factory=list)
+    not_picked: list[str] = Field(default_factory=list)  # 고르지 않은 질문 (짧은 이름)
+    stopped: str | None = None  # 멈춘 이유 (한도·예산·남은 질문 없음)
+    note: str = "추가로 확인한 것은 등급·순서·반증 판정에 쓰지 않음 (참고용)"
+
+
 class Report(_Model):
     report_revision: int = Field(ge=1)
     evidence_card: EvidenceCard
@@ -476,6 +505,8 @@ class Report(_Model):
     round_changes: list[str] = Field(default_factory=list)
     # ---- 이 판에 반영한 검토 ID (가장 최근 검토까지 반영됐는지 API 가 확인)
     review_ids: list[str] = Field(default_factory=list)
+    # ---- 조사 루프에서 추가로 확인한 것 (등급·반증 입력 아님, 근거 ID 포함)
+    investigation: Investigation | None = None
     # ---- 배포 표시와 대외용 문구
     distribution: Literal["내부용(대외비)"] = DISTRIBUTION_INTERNAL
     external_notice: str = EXTERNAL_NOTICE
@@ -819,6 +850,9 @@ class FollowupResponse(_Model):
     guard: list[GuardResult] = Field(default_factory=list)
     abstain_reason: str | None = None
     needed_data: list[str] = Field(default_factory=list)
+    # 질문 종류 (등급 이유 / 자원 / 비교 / 자료 한계 / 기타)와 답한 대상 조건 (후보 ID·동 코드만, 질문 원문 없음)
+    intent: Literal["why_level", "resources", "compare", "data_limits", "other"] | None = None
+    target: dict[str, list[str]] | None = None
 
 
 class RunResource(ResourceRecommendation):

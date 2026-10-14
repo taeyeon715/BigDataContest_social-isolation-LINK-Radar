@@ -16,8 +16,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from bigcontest.agent import budget as B
 from bigcontest.agent import guard as G
-from bigcontest.agent.llm import call_llm, get_llm_safe
+from bigcontest.agent import investigation as INV
+from bigcontest.agent.llm import call_llm, get_llm_safe, llm_config
 from bigcontest.agent.periods import RELATIVE as PERIOD_LABELS
 from bigcontest.agent.periods import find_period, window
 from bigcontest.agent.places import Place, by_code, dongs, resolve_place
@@ -156,10 +158,10 @@ def _ctx(state: dict, attempt: int | None = None, city: str | None = None) -> To
 MAX_TIMINGS = 400  # 상태에 남기는 도구 호출 기록 수
 
 
-def _timings(state: dict, *ctxs: ToolContext) -> list[dict]:
-    """도구 호출 기록(ms·상태)을 상태에 더함. 회차는 근거 판 번호."""
+def _timings(state: dict, *ctxs: ToolContext, phase: str | None = None) -> list[dict]:
+    """도구 호출 기록(ms·상태)을 상태에 더함. 회차는 근거 판 번호. phase 는 조사 루프(investigate)·다시 시도(retry) 표시."""
     rnd = (state.get("evidence_revision") or 0) + 1
-    new = [{**e, "round": rnd} for c in ctxs for e in (c.tool_log or [])]
+    new = [{**e, "round": rnd, **({"phase": phase} if phase else {})} for c in ctxs for e in (c.tool_log or [])]
     return (list(state.get("tool_timings") or []) + new)[-MAX_TIMINGS:]
 
 
@@ -605,19 +607,25 @@ def collect_signals(state: dict) -> dict:
     evidence: list[ToolResult] = []
     asked: list[str] = []
     ctxs = []
+    made_by: dict[str, str] = {}  # 근거 ID → "도구|도시" (Guard 처치: 실패한 도구만 다시)
     for city in cities:
         ctx = _ctx(state, rev, city)
         ctxs.append(ctx)
         for name in required:
-            evidence += call_tool(name, ctx)
+            got = call_tool(name, ctx)
+            evidence += got
+            made_by.update({e.evidence_id: f"{name}|{city}" for e in got})
         for r in (r for r in runs if r["city"] == city):
             got = call_tool(r["tool"], ctx)
             evidence += got
+            made_by.update({e.evidence_id: f"{r['tool']}|{city}" for e in got})
             if r["requested"]:
                 asked += [e.evidence_id for e in got]
     return {
         "evidence": _dump(evidence),
         "evidence_revision": rev,
+        "evidence_tools": made_by,
+        "remedy": None,
         "tools_run": tools,
         "extra_runs": runs,
         "requested_evidence_ids": list(dict.fromkeys(asked)),
@@ -835,23 +843,258 @@ def counter_evidence(state: dict) -> dict:
     return {"candidates": _dump(out)}
 
 
+def _inv_evidence(state: dict) -> list[ToolResult]:
+    return [ToolResult(**e) for e in state.get("investigation_evidence") or []]
+
+
 def guard_signal(state: dict) -> dict:
+    """신호 Guard + 규칙별 처치 (guard_rules.yaml remedy, AG-04). 전체 다시 수집은 하지 않는다.
+
+    - drop_evidence (G-11 폐기 지표, G-14 지표 뜻 바꾸기): 걸린 근거만 빼고 다시 검사. Guard 횟수를 쓰지 않음.
+      후보가 등급 근거로 쓴 근거면 뺄 수 없어 판단 보류
+    - retry_failed_tool (G-06 다시 시도할 수 있는 반증 오류): 실패한 도구만 다시 (retry_tools). 횟수 한도 max_revise
+    - abstain (G-08 작은 칸, G-13 기준일 뒤 자료 등): 바로 판단 보류
+    조사 루프 근거(investigation_evidence)도 작은 칸·폐기 지표·지표 뜻 검사를 받는다."""
     used = (state.get("revise_count") or {}).get("guard_signal", 0)
-    gr = G.check_signal(
-        _evidence(state),
-        state.get("candidates") or [],
-        state["analysis_mode"],
-        _as_of(state),
-        abstain_reason=state.get("abstain_reason"),
-        attempt=used + 1,
-    )
-    verdict, why = G.decide(gr, used, allow_revise=state.get("route") != "lookup")
-    upd: dict[str, Any] = {"guard": list(state.get("guard") or []) + [gr.model_dump(mode="json")], "verdict": verdict}
-    if verdict == "REVISE":
+    evidence, extra = _evidence(state), _inv_evidence(state)
+    cands = state.get("candidates") or []
+    gr = G.check_signal(evidence, cands, state["analysis_mode"], _as_of(state),
+                        abstain_reason=state.get("abstain_reason"), attempt=used + 1, extra=extra)
+    allow = state.get("route") != "lookup"
+    upd: dict[str, Any] = {"guard": list(state.get("guard") or []) + [gr.model_dump(mode="json")], "remedy": None}
+    remedy = G.pick_remedy(gr.rule_ids, "guard_signal") if gr.verdict == "REVISE" and allow else None
+    why_no = "처치 abstain (guard_rules.yaml)"
+    if remedy == "drop_evidence":
+        targets = G.drop_targets(evidence + extra)
+        used_by = {i for c in cands for i in c.get("evidence_ids") or []}
+        if targets and not set(targets) & used_by:
+            upd.update(verdict="REVISE", remedy={"remedy": remedy, "rule_ids": sorted(set(targets.values())),
+                                                 "targets": targets})
+            return upd
+        remedy = "abstain"
+        why_no = "처치 drop_evidence 불가: 후보가 등급 근거로 쓴 근거라 뺄 수 없음"
+    elif remedy == "retry_failed_tool":
+        _, tool_over = B.state_check(state)
+        targets = G.retry_targets(evidence)
+        why_no = (f"{B.BUDGET_EXCEEDED}: {tool_over}" if tool_over
+                  else "처치 retry_failed_tool 불가: 다시 시도할 수 있는 오류로 실패한 도구가 없음")
+        if targets and not tool_over:
+            verdict, why = G.decide(gr, used, allow_revise=True)
+            upd["verdict"] = verdict
+            if verdict == "REVISE":
+                upd["revise_count"] = {**state.get("revise_count", {}), "guard_signal": used + 1}
+                upd["remedy"] = {"remedy": remedy, "rule_ids": gr.rule_ids, "targets": targets}
+            else:
+                upd["abstain_reason"] = state.get("abstain_reason") or why
+            return upd
+        remedy = "abstain"
+    verdict, why = G.decide(gr, used, allow_revise=allow)
+    if remedy == "abstain" and verdict == "REVISE":
+        verdict, why = "ABSTAIN", f"{why_no}: " + "; ".join(gr.reasons)
+    upd["verdict"] = verdict
+    if verdict == "REVISE":  # 처치를 정하지 못한 REVISE (예전 체크포인트) → 예전처럼 다시 수집
         upd["revise_count"] = {**state.get("revise_count", {}), "guard_signal": used + 1}
     if verdict == "ABSTAIN":
         upd["abstain_reason"] = state.get("abstain_reason") or why
+        if remedy == "abstain":
+            upd["remedy"] = {"remedy": "abstain", "rule_ids": gr.rule_ids, "targets": {}}
     return upd
+
+
+def drop_evidence(state: dict) -> dict:
+    """처치 drop_evidence: Guard 가 걸은 근거(폐기 지표 등)만 상태에서 빼고 경고를 남김. 다시 guard_signal 로."""
+    targets: dict[str, str] = dict((state.get("remedy") or {}).get("targets") or {})
+    keep = [e for e in state.get("evidence") or [] if e["evidence_id"] not in targets]
+    keep_inv = [e for e in state.get("investigation_evidence") or [] if e["evidence_id"] not in targets]
+    gone = [e for e in (state.get("evidence") or []) + (state.get("investigation_evidence") or [])
+            if e["evidence_id"] in targets]
+    errors = list(state.get("errors") or [])
+    for e in gone:
+        item = {"evidence_id": e["evidence_id"], "metric": e.get("metric") or "",
+                "error_code": f"{targets[e['evidence_id']]} 처치: 근거에서 뺌"}
+        if item not in errors:
+            errors.append(item)
+    upd: dict[str, Any] = {"evidence": keep, "investigation_evidence": keep_inv, "errors": errors, "verdict": None}
+    inv = state.get("investigation")
+    if inv:
+        items = []
+        for it in inv.get("items") or []:
+            if set(it.get("evidence_ids") or []) & set(targets):
+                rule = next(targets[i] for i in it["evidence_ids"] if i in targets)
+                it = {**it, "status": "dropped", "finding": f"Guard {rule} 가 이 근거를 뺌 (폐기 지표·지표 뜻 바꾸기)",
+                      "evidence_ids": [i for i in it["evidence_ids"] if i not in targets]}
+            items.append(it)
+        upd["investigation"] = {**inv, "items": items}
+    return upd
+
+
+def retry_tools(state: dict) -> dict:
+    """처치 retry_failed_tool: 다시 시도할 수 있는 오류(시간 초과·입출력)로 실패한 도구만 같은 도시에서 다시 부른다.
+    LLM 도구 선택은 다시 하지 않는다. 그 도구가 낸 옛 근거는 새 결과로 바꾼다. 다음은 후보 분류부터 다시 (등급 입력이 바뀜)."""
+    rev = (state.get("evidence_revision") or 0) + 1
+    made_by = dict(state.get("evidence_tools") or {})
+    failed = list(((state.get("remedy") or {}).get("targets")) or G.retry_targets(_evidence(state)))
+    pairs = list(dict.fromkeys(made_by[i] for i in failed if i in made_by))
+    old = [e for e in state.get("evidence") or [] if made_by.get(e["evidence_id"]) not in pairs]
+    new: list[ToolResult] = []
+    ctxs = []
+    for pair in pairs:
+        tool, city = pair.split("|", 1)
+        ctx = _ctx(state, rev, city)
+        ctxs.append(ctx)
+        got = call_tool(tool, ctx)
+        new += got
+        made_by.update({e.evidence_id: pair for e in got})
+    return {
+        "evidence": old + _dump(new),
+        "evidence_revision": rev,
+        "evidence_tools": made_by,
+        "errors": _errors(state, new),
+        "tool_timings": _timings(state, *ctxs, phase="retry"),
+        "verdict": None,
+        "remedy": {**(state.get("remedy") or {}), "retried": [p.split("|")[0] for p in pairs]},
+    }
+
+
+# ---------------------------------------------------------------- 조사 루프 (investigation.py, AG-03)
+
+
+def _inv_cfg() -> dict:
+    return dict((llm_config().get("slots") or {}).get("investigate") or {})
+
+
+def open_questions(state: dict) -> dict:
+    """관찰: 후보마다 아직 풀리지 않은 질문을 고정 목록에서 만든다 (코드). 추가 조사 회차가 바뀌면 처음부터.
+    Guard 처치(retry_tools)로 다시 들어오면 이미 확인한 질문과 회차 수는 이어서 센다."""
+    cfg = _inv_cfg()
+    er = state.get("extra_rounds") or 0
+    inv = dict(state.get("investigation") or {})
+    upd: dict[str, Any] = {}
+    if inv.get("extra_round") != er:
+        inv = {"extra_round": er, "rounds": [], "items": []}
+        upd["investigation_evidence"] = []
+    inv["questions"] = INV.questions_for(_focus_candidates(state), _as_of(state), _backend(state),
+                                         int(cfg.get("max_open", 8)))
+    inv["stopped"] = None
+    inv["continue"] = False
+    upd["investigation"] = inv
+    return upd
+
+
+def _focus_candidates(state: dict) -> list[Candidate]:
+    """조사 루프가 볼 후보: 질문한 동·후보로 연 조사·추가 조사 집중 후보가 있으면 그 후보만 (보고서에 남을 후보).
+    등급·순서는 이 거르기와 무관하게 assign_queue 가 도시 전체로 정한다."""
+    cands = _candidates(state)
+    req = _req(state)
+    ids = set(state.get("scope_candidate_ids") or []) | set((state.get("extra_plan") or {}).get("candidate_ids") or [])
+    adms = set(req.adm_cds) if req is not None and state.get("mode") == "qa" else set()
+    if not ids and not adms:
+        return cands
+    return [c for c in cands if c.candidate_id in ids or (adms & {c.adm_cd, *c.check_first_adm})]
+
+
+def _cand_view(state: dict) -> list[dict]:
+    keys = ("candidate_id", "candidate_type", "city", "adm_cd", "check_first_adm", "analysis_cohort", "trigger",
+            "counter_result", "counter_reason", "input_status")
+    return [{k: c.get(k) for k in keys} for c in state.get("candidates") or []][:20]
+
+
+def investigate(state: dict) -> dict:
+    """계획 + 실행: 남은 질문 중 많아야 max_picks 개를 고르고(LLM, 없거나 실패·예산 초과면 규칙) 정해진 도구를 실행한다.
+    결과 근거는 investigation_evidence 에만 둔다 (등급·반증 입력인 evidence 에는 넣지 않음)."""
+    cfg = _inv_cfg()
+    k, max_rounds = int(cfg.get("max_picks", 3)), int(cfg.get("max_rounds", 2))
+    inv = dict(state.get("investigation") or {"rounds": [], "items": [], "questions": []})
+    rounds, items = list(inv.get("rounds") or []), list(inv.get("items") or [])
+    tried = {i["key"] for i in items}
+    open_ = [q for q in inv.get("questions") or [] if q["key"] not in tried]
+    rnd = len(rounds) + 1
+    if rnd > max_rounds:
+        return {"investigation": {**inv, "stopped": f"확인 회차 한도 {max_rounds}회"}}
+    if not open_:
+        return {"investigation": {**inv, "stopped": "남은 질문 없음"}}
+    llm_over, tool_over = B.state_check(state)
+    if tool_over:
+        return {"investigation": {**inv, "stopped": f"{B.BUDGET_EXCEEDED}: {tool_over} → 조사 멈춤 (템플릿)"}}
+    already = [{"key": i["key"], "status": i["status"]} for i in items]
+    llm, init_rec = (None, None) if llm_over else _llm(state)
+    picks, rec, reason = None, None, None
+    if llm is not None:
+        out, rec = call_llm(llm, "investigate", llm.investigate, open_, _cand_view(state), already, k)
+        if rec is not None and rec.get("ok") and isinstance(out, dict):
+            picks, reason = INV.clean_picks(out.get("picks"), open_, k), out.get("reason")
+    source = "llm" if picks is not None else "rule"
+    if picks is None:
+        picks = INV.rule_picks(open_, k)
+        why = f"LLM 예산 초과({llm_over})" if llm_over else ("LLM 없음" if llm is None else "LLM 실패")
+        reason = f"규칙: 우선순위로 고름 ({why})"
+    by_key = {q["key"]: q for q in open_}
+    cohort_of = {c["candidate_id"]: c.get("analysis_cohort") for c in state.get("candidates") or []}
+    req = _req(state)
+    new_ev: list[ToolResult] = []
+    ctxs, cache = [], {}
+    for p in picks:
+        q = by_key[p["key"]]
+        sig = (q["tool"], q["city"], q.get("adm_cd") if q["tool"] == "find_resources" else None)
+        if sig not in cache:
+            ctx = _ctx(state, None, q["city"])
+            ctxs.append(ctx)
+            if q["tool"] == "find_resources":
+                env, found = find_resources(ctx, q.get("adm_cd"), req.group if req else None,
+                                            need_type=INV.MEDICAL_NEED)
+                cache[sig] = ([env], len([r for r in found if r.get("city") == q["city"]]))
+            else:
+                cache[sig] = (call_tool(q["tool"], ctx), None)
+        results, n = cache[sig]
+        new_ev += results
+        # 질문한 후보의 집단에 드는 근거만 답으로 봄 (예: 20대 남성 연휴 근거는 고령층 후보의 답이 아님)
+        cohorts = {cohort_of.get(cid) for cid in q.get("candidate_ids") or []} - {None}
+        fit = [r for r in results if not cohorts or any(cohort_fits(r.analysis_cohort, co) for co in cohorts)]
+        status, finding, ids = INV.judge(q, fit, n)
+        items.append({**{f: q.get(f) for f in ("key", "qid", "label", "question", "city", "adm_cd", "candidate_ids",
+                                                 "tool")},
+                      "round": rnd, "source": source, "why": p.get("why"), "status": status, "finding": finding,
+                      "evidence_ids": ids})
+    rounds.append({"round": rnd, "source": source, "reason": str(reason or "")[:200], "picked": [p["key"] for p in picks]})
+    have = {e["evidence_id"] for e in state.get("investigation_evidence") or []}
+    merged = list(state.get("investigation_evidence") or [])
+    for e in new_ev:
+        if e.evidence_id not in have:
+            merged.append(e.model_dump(mode="json"))
+            have.add(e.evidence_id)
+    stopped = None if picks else ("LLM 이 더 확인할 질문이 없다고 봄" if source == "llm" else "고를 질문 없음")
+    return {"investigation": {**inv, "rounds": rounds, "items": items, "stopped": stopped},
+            "investigation_evidence": merged, "llm_log": _log(state, init_rec, rec),
+            "tool_timings": _timings(state, *ctxs, phase="investigate")}
+
+
+def check_findings(state: dict) -> dict:
+    """확인: 이번 회차 질문마다 풀림/여전히 모름/자료 없음/도구 오류를 세고, 못 푼 질문이 있고 남은 질문·회차·예산이
+    있으면 한 회차 더 (graph.after_check_findings). 결과는 등급·반증에 쓰지 않는다."""
+    cfg = _inv_cfg()
+    max_rounds = int(cfg.get("max_rounds", 2))
+    inv = dict(state.get("investigation") or {})
+    rounds, items = inv.get("rounds") or [], inv.get("items") or []
+    this = [i for i in items if rounds and i["round"] == len(rounds)]
+    unresolved = [i for i in this if i["status"] != "answered"]
+    tried = {i["key"] for i in items}
+    remaining = [q for q in inv.get("questions") or [] if q["key"] not in tried]
+    _, tool_over = B.state_check(state)
+    more = bool(inv.get("stopped") is None and this and unresolved and remaining and len(rounds) < max_rounds
+                and not tool_over)
+    if not more and inv.get("stopped") is None:
+        if not this:
+            inv["stopped"] = "이번 회차에 확인한 질문 없음"
+        elif not unresolved:
+            inv["stopped"] = "확인한 질문이 모두 풀림"
+        elif not remaining:
+            inv["stopped"] = "남은 질문 없음"
+        elif tool_over:
+            inv["stopped"] = f"{B.BUDGET_EXCEEDED}: {tool_over}"
+        else:
+            inv["stopped"] = f"확인 회차 한도 {max_rounds}회"
+    inv["continue"] = more
+    return {"investigation": inv}
 
 
 def assign_level(state: dict) -> dict:
@@ -972,6 +1215,8 @@ def build_card(state: dict) -> dict:
                  else f"후보 {len(cands)}건 (지정) · {cities} · 기준일 {as_of}")
     else:
         title = f"후보 {len(cands)}건 · {cities} · 기준일 {as_of}"
+    if state.get("route") != "lookup":
+        evidence = evidence + investigation_card_evidence(state, evidence, cands)
     card = R.build_evidence_card(
         state["run_id"], state["snapshot_id"], state["analysis_mode"], as_of,
         max(1, state.get("evidence_revision") or 1), evidence, title,
@@ -983,6 +1228,31 @@ def build_card(state: dict) -> dict:
                                              thresholds=dict(S.STUB_LEVEL_RULES))
         upd["run_meta"] = {"path": str(Path(state["run_meta_dir"]) / f"{state['run_id']}.json"), "created": created}
     return upd
+
+
+def investigation_card_evidence(state: dict, evidence: list[ToolResult], cands: list[Candidate]) -> list[ToolResult]:
+    """조사 루프 근거 중 보고서 "추가로 확인한 것"에 인용한 것 (남은 후보와 관련된 질문만). 카드에 없는 것만.
+    등급·순서가 정해진 뒤 카드에만 붙이므로 등급과 무관하다."""
+    sec = INV.section(state.get("investigation"), {c.candidate_id for c in cands})
+    want = {i for it in (sec or {}).get("items") or [] for i in it.get("evidence_ids") or []}
+    have = {e.evidence_id for e in evidence}
+    cohorts = {c.analysis_cohort for c in cands}
+    out = []
+    for e in _inv_evidence(state):
+        if e.evidence_id in want and e.evidence_id not in have                 and (not cohorts or any(cohort_fits(e.analysis_cohort, co) for co in cohorts)):
+            out.append(e)
+            have.add(e.evidence_id)
+    return out
+
+
+def investigation_section(state: dict, card: EvidenceCard, cands: list[Candidate]) -> dict | None:
+    """보고서 "추가로 확인한 것": 남은 후보와 관련된 질문만, 근거 ID 는 카드에 있는 것만 (화면에서 근거로 이동)."""
+    sec = INV.section(state.get("investigation"), {c.candidate_id for c in cands})
+    if not sec:
+        return None
+    ids = {e.evidence_id for e in card.evidence}
+    sec["items"] = [{**i, "evidence_ids": [x for x in i["evidence_ids"] if x in ids]} for i in sec["items"]]
+    return sec
 
 
 def _scoped(state: dict, cands: list[Candidate]) -> bool:
@@ -1141,7 +1411,8 @@ def write_report(state: dict) -> dict:
                     narrative="\n".join(lines) if lines else None, actions=actions,
                     level_explanations=[R.explain_level(c) for c in cands if c.rule_checks],
                     decision_trace=report_trace(state), round_changes=changes,
-                    review_ids=list(review.get("review_ids") or []))
+                    review_ids=list(review.get("review_ids") or []),
+                    investigation=investigation_section(state, card, cands))
     return {"report": pack_report(report), "report_revision": rev, "llm_log": _log(state, init_rec, rec)}
 
 
@@ -1494,6 +1765,53 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
         step["rule_ids"] = sorted({r for g in new for r in g.get("rule_ids", [])})
         step["reason"] = _short(next((r for g in new for r in g.get("reasons", [])), None))
         step["inputs"] = {"checks": [f"{g['check']} {g['verdict']}" for g in new]}
+        rem = upd.get("remedy") or {}
+        if name == "guard_signal" and rem.get("remedy"):
+            step["choice"] = f"{upd.get('verdict')} → 처치 {rem['remedy']}"
+            step["inputs"]["remedy"] = rem["remedy"]
+            step["inputs"]["targets"] = sorted(rem.get("targets") or [])[:5]
+        elif name == "guard_report" and upd.get("verdict") == "REVISE":
+            step["inputs"]["remedy"] = "rewrite"
+    elif name == "drop_evidence":
+        rem = before.get("remedy") or {}
+        step["source"] = "guard"
+        step["rule_ids"] = list(rem.get("rule_ids") or [])
+        step["choice"] = f"근거 {len(rem.get('targets') or {})}건 뺌 → 다시 검사 (Guard 횟수 안 씀)"
+        step["inputs"] = {"evidence_ids": sorted(rem.get("targets") or [])[:5]}
+    elif name == "retry_tools":
+        rem = upd.get("remedy") or {}
+        step["source"] = "guard"
+        step["rule_ids"] = list(rem.get("rule_ids") or [])
+        tried = rem.get("retried") or []
+        step["choice"] = f"실패한 도구만 다시 {len(tried)}개: {', '.join(tried) or '없음'}"
+        step["inputs"] = {"evidence_revision": upd.get("evidence_revision"), "tools": tried}
+    elif name == "open_questions":
+        qs = (upd.get("investigation") or {}).get("questions") or []
+        step["choice"] = f"미해결 질문 {len(qs)}개 (고정 목록)"
+        step["inputs"] = {"questions": [f"{q['label']} · {q['city']}{' ' + q['adm_cd'] if q.get('adm_cd') else ''}"
+                                        for q in qs][:8]}
+    elif name == "investigate":
+        inv = upd.get("investigation") or {}
+        rounds = inv.get("rounds") or []
+        b_rounds = (before.get("investigation") or {}).get("rounds") or []
+        if len(rounds) > len(b_rounds):
+            r = rounds[-1]
+            picked = [i for i in inv.get("items") or [] if i["round"] == r["round"]]
+            step["source"] = "llm" if r["source"] == "llm" else "rule"
+            step["choice"] = f"{r['round']}회차: " + (", ".join(f"{i['label']} → {i['tool']}" for i in picked) or "고르지 않음")
+            step["reason"] = _short(r.get("reason"))
+            step["inputs"] = {"picked": r["picked"], "evidence_ids_new": [e for i in picked for e in i["evidence_ids"]][:5]}
+        else:
+            step["choice"] = "건너뜀"
+            step["reason"] = _short(inv.get("stopped"))
+    elif name == "check_findings":
+        inv = upd.get("investigation") or {}
+        items = inv.get("items") or []
+        step["choice"] = (_count(items, lambda i: INV.STATUS_KO.get(i["status"], i["status"])) if items else "확인한 것 없음")
+        step["reason"] = _short(None if inv.get("continue") else inv.get("stopped"))
+        step["inputs"] = {"rounds": len(inv.get("rounds") or []), "items": [
+            {k: i.get(k) for k in ("label", "question", "city", "adm_cd", "tool", "round", "source", "why", "status",
+                                   "finding", "evidence_ids")} for i in items][:8]}
     elif name == "assign_level":
         cands = st.get("candidates") or []
         step["choice"] = _count(cands, lambda c: c.get("candidate_level"))

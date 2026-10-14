@@ -4,7 +4,8 @@
 #   where:   어디서 보나 — check_availability / guard_signal / guard_report.사실 / guard_report.표현
 #   action:  설계 문서 §6.1 "실패 시" 칸 그대로
 #   verdict: action 을 PASS / REVISE / ABSTAIN 중 하나로 옮긴 것 (에이전트 설계 §6 "규칙별 처리 → 세 판정")
-#   REVISE 는 Guard 마다 max_revise 번까지. 넘으면 ABSTAIN
+#   remedy:  REVISE 때 할 처치 (아래 remedy_order 설명). 위치에 따라 다르면 remedy_by_where
+#   REVISE 는 Guard 마다 max_revise 번까지. 넘으면 ABSTAIN (drop_evidence 는 횟수를 쓰지 않음)
 #
 # 테스트: tests/test_guard.py + tests/guard_cases.yaml (규칙마다 사례 1개 이상)
 
@@ -61,8 +62,17 @@ narrative:
     - '모든\s*후보|후보\s*(모두|전부|전체)|전체\s*후보'
     - '대부분|대다수|과반|태반|상당수|거의\s*(모두|모든|전부|다|절반|없)|십중팔구|전원'
 
-# G-06: 다시 수집하면 풀릴 수 있는 도구 오류 (REVISE 로 다시 모음)
-retriable_error_codes: [TOOL_TIMEOUT]
+# G-06: 다시 수집하면 풀릴 수 있는 도구 오류 (REVISE → 실패한 도구만 다시). configs/llm.yaml tools 와 같은 값
+retriable_error_codes: [TOOL_TIMEOUT, TOOL_IO]
+
+# 규칙별 처치 (remedy). REVISE 일 때 무엇을 하나 (AG-04). 전체 다시 수집은 하지 않는다
+#   retry_failed_tool: 다시 시도할 수 있는 오류(retriable_error_codes)로 실패한 도구만 다시 (LLM 도구 선택은 다시 하지 않음).
+#                      다시 시도할 도구가 없으면 abstain
+#   drop_evidence:     걸린 근거만 빼고 경고를 남긴 뒤 다시 검사 (Guard 횟수를 쓰지 않음). 후보가 쓴 근거면 abstain
+#   abstain:           바로 판단 보류
+#   rewrite:           보고서를 다시 씀 (걸린 규칙·문장을 LLM 에 피드백). 보고서 Guard 만
+# 여러 규칙이 함께 걸리면 이 순서로 하나만 고르고, 처치 뒤 다시 Guard 를 돌린다
+remedy_order: [abstain, drop_evidence, retry_failed_tool, rewrite]
 
 # contracts.claims.check_claim 위반 코드 → Guard 규칙
 claim_code_rules:
@@ -87,22 +97,26 @@ rules:
     where: check_availability
     action: ABSTAIN
     verdict: ABSTAIN
+    remedy: abstain
   G-02:
     name: 결합 키와 집계 단위가 맞는가 (예 연령 × 시간대 결합 금지)
     where: check_availability
     action: ABSTAIN
     verdict: ABSTAIN
+    remedy: abstain
   G-03:
     name: 가맹점 소재지·유동인구를 거주민으로 단정하지 않았는가
     where: guard_report.표현
     action: REVISE
     verdict: REVISE
+    remedy: rewrite
     patterns: ['거주민', '이\s*동\s*주민']
   G-04:
     name: 개인 고립·고독사 진단 문장이 없는가
     where: guard_report.표현
     action: REVISE
     verdict: REVISE
+    remedy: rewrite
     patterns: ['고독사', '고립\s*위험이\s*(높|크)', '고립된\s*(사람|어르신|가구|분|노인)', '고립되어\s*(있|지내|살)',
                '고립\s*상태', '고독\s*위험군', '고립\s*위험군', '외롭게', '외로움을\s*(느끼|겪)', '방치',
                '위험\s*(대상자|가구|군|인물|노인)', '사회적으로\s*고립된', '은둔']
@@ -111,33 +125,39 @@ rules:
     where: guard_report.사실
     action: REVISE
     verdict: REVISE
+    remedy: rewrite
   G-06:
     name: 대안 설명과 반대 근거를 검토했는가
     where: guard_signal
     action: REVISE 또는 ABSTAIN
     verdict: REVISE   # 반증을 안 했거나 다시 하면 풀릴 오류. 한도를 넘으면 ABSTAIN
+    remedy: retry_failed_tool
   G-07:
     name: 자원 추천에 출처·지역·대상·확인일이 있는가
     where: guard_report.표현
     action: 추천 제외
     verdict: PASS     # 해당 자원만 빼고 경고를 붙임
+    remedy: drop_evidence
     required_fields: [source_url, city, target_group, verified_date]
   G-08:
     name: 작은 칸·재식별 보호 기준을 지키는가
     where: guard_signal
     action: 출력 차단
     verdict: ABSTAIN
+    remedy: abstain
   G-09:
     name: 정답 라벨 없이 예측 정확도를 주장하지 않는가
     where: guard_report.표현
     action: REVISE
     verdict: REVISE
+    remedy: rewrite
     patterns: ['정확도\s*\d', '적중률']
   G-10:
     name: 최종 판단을 사람에게 남기는가
     where: guard_report.표현
     action: 출력 차단
     verdict: REVISE   # write_report 템플릿이 "최종 판단은 담당자" 문장을 넣음. 한도를 넘으면 ABSTAIN
+    remedy: rewrite
     required_text: 최종 판단은 담당자
     # 설명이 결정을 대신 내린 것처럼 쓰면 REVISE (확정·승인은 담당자만)
     patterns: ['확정(했|하였|됐|되었|합니다|입니다|함|된다|되었습니다)', '승인(했|하였|됐|되었)', '최종\s*(결정|판단)(했|하였|입니다|합니다)']
@@ -146,11 +166,13 @@ rules:
     where: guard_signal
     action: REVISE
     verdict: REVISE
+    remedy: drop_evidence
   G-12:
     name: 카드로 고립·독거를 탐지했다고 주장하지 않았는가
     where: guard_report.표현
     action: REVISE
     verdict: REVISE
+    remedy: rewrite
     patterns: ['고립\s*(발생|탐지|감지)', '독거\s*(탐지|확인)']
   G-13:
     name: 기준일 뒤 자료·모델을 쓰지 않았는가, 가정한 공개 시점을 표시했는가
@@ -160,6 +182,7 @@ rules:
       simulated_replay: REVISE    # 가정 표시가 없으면 write_report 가 자동으로 넣음
       retrospective: REVISE
       strict_as_of: ABSTAIN       # 기준일 뒤 자료
+    remedy_by_where: {guard_signal: abstain, guard_report: rewrite}
   G-14:
     name: 지표를 다른 뜻으로 바꾸지 않았는가
     where: guard_signal, guard_report.표현
@@ -167,6 +190,7 @@ rules:
     verdict: REVISE
     # 집계 지표 → 개인 점수, 전국 비율 → 지역 확률, 체류 인구 → 주민 수, 순위상관 → 일치율
     patterns: ['고립\s*점수', '개인\s*(위험\s*)?점수', '(고립|위험)\s*확률', '주민\s*수', '일치율']
+    remedy_by_where: {guard_signal: drop_evidence, guard_report: rewrite}
 
 # 개인 지목 질문: intake 가 LLM 없이 막음 → out_of_scope (OUT_OF_SCOPE_INDIVIDUAL)
 individual:
