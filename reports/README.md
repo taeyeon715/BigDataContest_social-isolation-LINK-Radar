@@ -20,6 +20,7 @@
 | [M3 모델링 결과: 분류 성능과 위험 요인 확인](m3_모델링결과/README.md) | 3 |
 | [R-1 후보·등급 규칙 평가 (rules-v1.1)](r1_등급규칙/README.md) | 1 |
 | [R-2 위험도 결과표: 동 × 집단 × 기준일](r2_위험도결과/README.md) | 4 |
+| [S-1 LINK-Sim: 페르소나 기반 가상 데이터 (합성)](s1_LINK-Sim/README.md) | 3 |
 | [W-1 자원 원장 보강](w1_자원원장/README.md) | 0 |
 | [W-2 자원 추천 평가 (작은 정답 세트)](w2_자원추천평가/README.md) | 0 |
 
@@ -103,3 +104,10 @@
 |---|---|
 | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f01_map_gangnam.png" width="420"></a><br>강남 고령층 등급 지도 (기준일 3개) <sub>(3. 지도와 산점도)</sub> | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f02_map_chuncheon.png" width="420"></a><br>춘천 고령층 등급 지도 (기준일 3개) <sub>(3. 지도와 산점도)</sub> |
 | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f03_structure_access.png" width="420"></a><br>구조(S1) × 접근성(A1) 산점도, 색 = 등급 <sub>(3. 지도와 산점도)</sub> | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f04_region_age.png" width="420"></a><br>지역 × 연령 비교 히트맵 <sub>(6. 지역 × 연령 비교 매트릭스)</sub> |
+
+### [S-1 LINK-Sim: 페르소나 기반 가상 데이터 (합성)](s1_LINK-Sim/README.md)
+
+| | |
+|---|---|
+| <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/요일_모양.png" width="420"></a><br>요일 모양 실제 vs 합성 <sub>(2. 충실도 (fidelity))</sub> | <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/시계열_예시.png" width="420"></a><br>코호트 시계열 예시 (세로선 = 공휴일). 수준은 맞추지 않으므로 평균을 뺀 log로 비교 <sub>(2. 충실도 (fidelity))</sub> |
+| <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/최소감지_곡선.png" width="420"></a><br>코호트 안 고립 비율별 탐지율 (합성) <sub>(4. (a) 정답 있는 평가)</sub> |  |

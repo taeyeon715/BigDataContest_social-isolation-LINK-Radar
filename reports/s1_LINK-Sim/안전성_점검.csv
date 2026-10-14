@@ -1,0 +1,10 @@
+﻿항목,값
+LINK-Sim 이 읽는 파일 (공개),"adm_code_map, adm_names, asos, asos_heat, config, resident_hh, resident_pop, resources, seoul_living, welfare_recipients"
+합성 자료로 바꾸는 원천,"card2, card1, card2_visitors, tel_age, tel_time, tel_wkdy"
+보정 목표(targets.json) 최상위 항목,"version, dates, card, city_noise, mct_share, visitor_ratio, visitor_log_sd, card1_band, tel_comp, tel_month_index, tel_hour, tel_wkdy, tel_grid_nightday_q"
+보정 목표에 원천 값 이름(USE_CNT·TS_AT·체류량 등),0개
+가상 사람 속성,"임의 ID(SIM-…), 행정동, 성, 10년 연령대, 1인 여부, 동 유형, 페르소나, 활동량 (이름·1세 나이·주소·실제 ID 없음)"
+가상 사람이 속한 실제 칸(동×성×연령대) 인구 최솟값,18명
+실제 인구 10명 미만 칸에 속한 가상 사람,0명
+IPF 추정 10명 미만 칸(1인 여부 포함)에서 뽑힌 가상 사람,6명 (칸 51개)
+"실제·합성 일별 잔차 상관 (중앙값, 최대 절대값)","-0.001, 0.269"
