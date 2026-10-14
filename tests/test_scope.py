@@ -34,7 +34,8 @@ def _same_as_monitoring(agent: Agent, as_of: str, city: str, prefix: str, limit:
         assert card.title.startswith(f"후보 {c['candidate_id']} ·") and "건" not in card.title
         ids = {e.evidence_id for e in card.evidence}
         assert set(c["evidence_ids"]) <= ids  # 그 후보 근거는 모두 카드에
-        assert ids <= {e["evidence_id"] for e in v["evidence"]}
+        # 카드 근거는 상태에 있음 (등급 입력 근거 + 조사 루프 근거 "추가로 확인한 것")
+        assert ids <= {e["evidence_id"] for e in v["evidence"] + v["investigation_evidence"]}
         assert {r["candidate_id"] for r in v["resources"]} <= {c["candidate_id"]}
         titles.append(card.title)
     return titles
@@ -162,7 +163,10 @@ def _check_round(st, card1, v, card2) -> tuple[set[str], str]:
     from bigcontest.agent.state import report_of
 
     assert [x["candidate_level"] for x in v["candidates"]] == [x["candidate_level"] for x in st["candidates"]]
-    ids1, ids2 = {e.evidence_id for e in card1.evidence}, {e.evidence_id for e in card2.evidence}
+    # 등급 입력 근거만 비교 (조사 루프가 1회차에 이미 보여 준 근거는 "추가로 확인한 것" 칸 몫, round_changes 도 같은 기준)
+    main1, main2 = {e["evidence_id"] for e in st["evidence"]}, {e["evidence_id"] for e in v["evidence"]}
+    ids1 = {e.evidence_id for e in card1.evidence} & main1
+    ids2 = {e.evidence_id for e in card2.evidence} & main2
     assert ids1 <= ids2  # 1회차 근거가 말없이 빠지지 않음
     new = ids2 - ids1
     assert new and new <= set(v["requested_evidence_ids"])

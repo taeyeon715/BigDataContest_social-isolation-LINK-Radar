@@ -108,8 +108,8 @@ def test_levels_rules_v1():
     evidence = _structs({"32010350": 0.61, "32010110": 0.30, "32010310": 0.33}) + [
         ev("EV-20251015-ACC-32010350", "관측 거점까지 직선거리", 18.6, unit="km", applied_scope="춘천 남면 (32010350)")]
     (out,) = S.assign_level([c], evidence)
-    assert out.candidate_level == "Level 3" and "rules-v1.0" in out.level_reason
-    assert out.rule_id == "L3-STRUCT-ACCESS-TRIGGER" and out.rule_version == "rules-v1.0"
+    assert out.candidate_level == "Level 3" and "rules-v1.1" in out.level_reason
+    assert out.rule_id == "L3-STRUCT-ACCESS-TRIGGER" and out.rule_version == "rules-v1.1"
     partial = Candidate(**{**c.model_dump(), "input_status": "부분 판정", "missing_inputs": ["winter_contraction"]})
     assert S.assign_level([partial], evidence)[0].candidate_level == "Level 2"  # 부분 판정은 Level 3 불가
 

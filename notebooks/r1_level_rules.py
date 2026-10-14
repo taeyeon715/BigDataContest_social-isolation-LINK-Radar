@@ -1,4 +1,4 @@
-"""R-1 후보·등급 규칙 평가 (configs/rules.yaml rules-v1.0)
+"""R-1 후보·등급 규칙 평가 (configs/rules.yaml rules-v1.1)
 
 실행: uv run python notebooks/r1_level_rules.py   (dev 스냅샷 자료가 있어야 함)
 결과: reports/r1_등급규칙/ (README.md, figs/, *.csv). CSV 에는 비율·순위·등급·건수(후보 수)만 (원천 값 없음).
@@ -8,6 +8,8 @@
 3. 민감도: 임계값 ±, 지표 하나씩 빼기 → Top-10 겹침률, 후보 수 범위
 4. 연휴 뒤 기대 경로, 이탈 지속 조건의 지연, 전체/필터 조회 같은 등급, 60~64세 남성, D1 후보 수
 5. 페르소나 주입 (합성 검증, 실제 고립 탐지율 아님)
+7. rules-v1.1 (H3): v1.0 동작 재현과 비교, 집단 차별화, 카드가 바꾼 판단(외지 손님·시간대 리듬·업종 다양성),
+   폭염 특보 단계, 명절 전·중·후 묶음, 수급자 비율, 1인세대 순증, "행 없음 = 0" 민감도
 """
 
 from __future__ import annotations
@@ -322,8 +324,233 @@ for _, r in pers.iterrows():
         ok.append("기각" not in g and g != "후보 없음")
 pers["기대와 맞음"] = ["예" if x else "아니오" for x in ok]
 
+# ------------------------------------------------------------ 7. rules-v1.1 (H3): v1.0 동작 재현과 비교
+# v1.0 동작 = 같은 근거에서 v1.1 이 더한 입력(대상 인구 비중·연휴 외지 손님)을 빼고, 도시 단위 안내 집단을 비움.
+# 폭염 특보 단계·명절 묶음·맥락 칸은 표시만이라 등급 수를 바꾸지 않는다.
+from bigcontest.rules import context as X  # noqa: E402
+
+V10_DROP = {"structure_target_population", "holiday_visitor_context"}
+V10_RULES = load_rules({"thresholds.city_guidance.groups": []})
+
+
+def run_v10(ev, req, as_of, k=10):
+    return run_variant(ev, "D", req, as_of, k, V10_RULES, V10_DROP).candidates
+
+
+def lv_summary(cs):
+    return {"후보": len(cs), "L2+": sum(c.candidate_level in ("Level 2", "Level 3") for c in cs),
+            "L3": sum(c.candidate_level == "Level 3" for c in cs), "보류": sum(c.candidate_level == "판단 보류" for c in cs)}
+
+
+ver_rows = []
+for key in EV:
+    city, dname, g = key
+    old, new = run_v10(EV[key], REQ[key], DATES[dname]), run(key, "D", 10)
+    o, n = lv_summary(old), lv_summary(new)
+    ro = {key_of(c): c.rule_id for c in old}
+    rn = {key_of(c): c.rule_id for c in new}
+    from collections import Counter
+
+    changed = Counter(f"{ro.get(k, '없음')} → {rn.get(k, '없음')}" for k in set(ro) | set(rn) if ro.get(k) != rn.get(k))
+    if o == n and not changed:
+        continue
+    ver_rows.append({"도시": city, "기준일": dname, "집단": g,
+                     "후보 v1.0": o["후보"], "후보 v1.1": n["후보"], "L2+ v1.0": o["L2+"], "L2+ v1.1": n["L2+"],
+                     "L3 v1.0": o["L3"], "L3 v1.1": n["L3"],
+                     "바뀐 규칙 (후보 수)": "; ".join(f"{x} ({cnt})" for x, cnt in sorted(changed.items()))})
+ver = pd.DataFrame(ver_rows)
+
+
+# 7-1. 집단 차별화: 춘천 추석 D-7 집단별 점검 동
+diff_rows = []
+for city in CITIES:
+    sets = {}
+    for g in GROUPS:
+        cs = [c for c in run((city, "추석 D-7", g), "D", 10) if c.candidate_type == "scheduled_access_review"]
+        sets[g] = ({c.adm_cd or "도시 단위" for c in cs}, cs)
+    for g, (adms, cs) in sets.items():
+        diff_rows.append({"도시": city, "집단": g, "점검 후보": len(cs),
+                          "Level 3": sum(c.candidate_level == "Level 3" for c in cs),
+                          "동 단위": sum(c.adm_cd is not None for c in cs),
+                          "고령층과 같은 동 비율": jaccard(adms, sets["고령층"][0]),
+                          "규칙 id": ", ".join(sorted({c.rule_id for c in cs})) or "-",
+                          "대응 종류": ", ".join(sorted({c.response_type for c in cs if c.response_type})) or "-"})
+group_diff = pd.DataFrame(diff_rows)
+
+# 대상 인구 조건 초안 (구조 상위에 "대상 성·연령 인구 비중 ≥ 도시 중앙값"을 거는 것). 결과를 보고 채택하지 않음 (rules.yaml)
+DRAFT_RULES = load_rules({"thresholds.structure.target_population.apply_to_structure": True})
+miss_rows, draft_rows = [], []
+for city in CITIES:
+    for g in ("중장년 남성 1인가구", "50~69세 남성"):
+        evs = EV[(city, "추석 D-7", g)]
+        facts = S.structure_facts([e for e in evs if S.input_of(e) == "structure_vulnerability" and e.status == "OK"],
+                                  DRAFT_RULES, [e for e in evs if S.input_of(e) == "structure_target_population"])
+        for adm, f in facts.items():
+            if f.rate_top:
+                miss_rows.append({"도시": city, "집단": g, "adm_cd": adm, "동": DS.adm_index[adm]["adm_nm"],
+                                  "1인세대 순위": f"{f.rank}/{f.n}", "대상 인구 비중": round(f.target_share, 4),
+                                  "도시 중앙값": round(f.target_median, 4), "초안이면 구조 상위": bool(f.top)})
+        key = (city, "추석 D-7", g)
+        base_c = [c for c in run(key, "D", 10) if c.candidate_type == "scheduled_access_review"]
+        draft_c = [c for c in run_variant(EV[key], "D", REQ[key], DATES["추석 D-7"], 10, DRAFT_RULES).candidates
+                   if c.candidate_type == "scheduled_access_review"]
+        row = {"도시": city, "집단": g, "점검 후보 (채택: 표시만)": len(base_c), "점검 후보 (초안: 조건)": len(draft_c),
+               "Level 3 (채택)": sum(c.candidate_level == "Level 3" for c in base_c),
+               "Level 3 (초안)": sum(c.candidate_level == "Level 3" for c in draft_c)}
+        if city == "강남" and SL.get(g):
+            adms = sorted(SL[g])
+            for name, cs in (("채택", base_c), ("초안", draft_c)):
+                pr = dong_priority(cs, adms)
+                x = [pr[a] for a in adms]
+                row[f"시민생활 순위상관 ({name}, 탐색적)"] = spearmanr(x, [SL[g][a] for a in adms]).statistic if len(set(x)) > 1 else None
+        draft_rows.append(row)
+target_tab = pd.DataFrame(miss_rows)
+draft_tab = pd.DataFrame(draft_rows)
+
+# 7-2. 카드가 바꾼 판단: 추석 뒤 날마다 이탈 후보 (v1.0 재현 vs v1.1)
+card_rows = []
+for city in CITIES:
+    for g in ("고령층", "중장년 남성 1인가구"):
+        for d in pd.date_range("2025-10-10", "2025-10-24"):
+            d = d.date()
+            c = ctx_for(SID, city, d, g)
+            ev = collect(c)
+            old = {key_of(x): x for x in run_v10(ev, c.request, d) if x.candidate_type == "unexpected_activity_deviation"}
+            new = {key_of(x): x for x in run_variant(ev, "D", c.request, d, 10).candidates
+                   if x.candidate_type == "unexpected_activity_deviation"}
+            for k in set(old) | set(new):
+                a, b = old.get(k), new.get(k)
+                card_rows.append({"도시": city, "집단": g, "기준일": f"{d:%m/%d}", "코호트": (a or b).analysis_cohort,
+                                  "v1.0": a.rule_id if a else "없음", "v1.1": b.rule_id if b else "없음",
+                                  "v1.1 대응": b.response_type if b else "-"})
+card_dec = pd.DataFrame(card_rows)
+card_changed = card_dec[card_dec["v1.0"] != card_dec["v1.1"]]
+
+# 연휴 외지 손님 비중 (연휴 × 도시)
+hol_set = {d.date() for d in DS.holidays()}
+vis_rows = []
+for b in S.holiday_blocks(DS):
+    for city in CITIES:
+        v = X.visitor_context(DS.card2_visitors(), city, b, hol_set, date(2025, 12, 31), RULES)
+        vis_rows.append({"연휴": f"{b[2]} ({b[0]:%m/%d}~{b[1]:%m/%d})", "도시": city, "연휴 중 외지 손님 비중": v.holiday_share,
+                         "직전 8주 주말": v.base_share, "주말 날별 표준편차": v.base_sd, "차이(%p)": v.diff * 100,
+                         "판정 (기준 +3%p)": v.verdict})
+visitor_tab = pd.DataFrame(vis_rows)
+
+# 시간대 상대 리듬 (도시 × 달)
+rh = []
+for city in CITIES:
+    t = X.time_rhythm(DS.card1(), city, date(2025, 12, 31), RULES["thresholds"]["card_context"]["rhythm_band"])
+    for m, row in t.iterrows():
+        rh.append({"도시": city, "달": f"{m}월", "고령 오전 비중": row["고령"], "40대 오전 비중": row["40대"], "차이(%p)": row["차이"] * 100})
+rhythm_tab = pd.DataFrame(rh)
+
+# 업종 다양성 (기준일 3개, 고령층 코호트)
+div_rows = []
+for key in EV:
+    city, dname, g = key
+    if g != "고령층":
+        continue
+    for e in EV[key]:
+        if S.input_of(e) == "card_category_diversity" and e.status == "OK":
+            div_rows.append({"도시": city, "기준일": dname, "코호트": e.analysis_cohort, "평소 대비": float(e.value)})
+div_tab = pd.DataFrame(div_rows).pivot_table(index=["도시", "코호트"], columns="기준일", values="평소 대비").reset_index() \
+    if div_rows else pd.DataFrame()
+
+# 7-3. 폭염 특보 단계 (2025 여름, 상황 시연 기준: 그날·다음 날 실측을 예보 대신)
+from bigcontest.rules.heat import heat_stage  # noqa: E402
+
+hd = DS.heat()
+heat_rows = []
+for city in CITIES:
+    h = hd[(hd["city"] == city) & (hd["date"] <= "2025-09-30")].set_index("date").sort_index()
+    st, st_hi = [], []
+    for i in range(len(h) - 1):
+        days = [(h["at_max"].iloc[j], h["tmax"].iloc[j]) for j in (i, i + 1)]
+        st.append(heat_stage(days, RULES))
+        st_hi.append(heat_stage([(h["at_max_hi"].iloc[j], h["tmax"].iloc[j]) for j in (i, i + 1)], RULES))
+    st = pd.Series(st)
+    heat_rows.append({"도시": city, "최고기온 33℃ 이상 (예전 R4)": int((h["tmax"] >= 33).sum()),
+                      "체감 33℃ 이상": int((h["at_max"] >= 33).sum()), "체감 35℃ 이상": int((h["at_max"] >= 35).sum()),
+                      "폭염주의보 단계 날": int((st == "폭염주의보").sum()), "폭염경보 단계 날": int((st == "폭염경보").sum()),
+                      "폭염중대경보 단계 날": int((st == "폭염중대경보").sum()),
+                      "특보 단계 날 (평균 습도로 낸 위쪽 근사)": int(pd.Series(st_hi).notna().sum()),
+                      "가장 높은 체감": float(h["at_max"].max())})
+heat_tab = pd.DataFrame(heat_rows)
+heat_tab = heat_tab.astype({c: int for c in heat_tab.columns if c not in ("도시", "가장 높은 체감")})
+
+# 7-4. 명절 전·중·후 묶음 (추석 D-7 기준)
+tl_rows = []
+bundle = X.holiday_bundle(S.holiday_blocks(DS), DS.holiday_names(), DATES["추석 D-7"])
+for city in CITIES:
+    for elderly in (True, False):
+        bid, steps = X.holiday_timeline(bundle, DATES["추석 D-7"], city, elderly)
+        for s_ in steps:
+            tl_rows.append({"묶음": bid, "집단": "고령층" if elderly else "그 밖 집단", "단계": s_["phase"], "규칙": s_["code"],
+                            "기간": s_["label"], "추석 D-7 기준 상태": s_["status"], "후보 생김": "예" if s_["applies"] else "표시만"})
+timeline_tab = pd.DataFrame(tl_rows)
+
+# 7-5. 수급자 비율 (강남 22개 동, 구조 별도 칸)
+recs = [e for e in EV[("강남", "추석 D-7", "중장년 남성 1인가구")] if S.input_of(e) == "recipient_rate" and e.status == "OK"]
+st_ = {S.adm_of(e): float(e.value) for e in EV[("강남", "추석 D-7", "중장년 남성 1인가구")]
+       if S.input_of(e) == "structure_vulnerability" and e.status == "OK"}
+d1c = {c.adm_cd: c for c in run(("강남", "추석 D-7", "중장년 남성 1인가구"), "D", 10)
+       if c.candidate_type == "scheduled_access_review"}
+rec_rows = []
+for e in recs:
+    a = S.adm_of(e)
+    rec_rows.append({"adm_cd": a, "동": DS.adm_index[a]["adm_nm"], "수급자 비율": float(e.value),
+                     "수급자 순위": S._rank_of(e)[0], "1인세대 비율": st_.get(a), "경제 취약형": S.recipient_top(e, RULES),
+                     "D1 점검 후보": a in d1c})
+rec_tab = pd.DataFrame(rec_rows).sort_values("수급자 순위")
+rec_rho = spearmanr(rec_tab["수급자 비율"], rec_tab["1인세대 비율"]).statistic
+n_econ_d1 = int((rec_tab["경제 취약형"] & rec_tab["D1 점검 후보"]).sum())
+
+# 7-6. 1인세대 월 순증 (추석 D-7 기준월)
+net_rows = []
+for city in CITIES:
+    for e in EV[(city, "추석 D-7", "고령층")]:
+        if S.input_of(e) == "one_person_net_change" and e.status == "OK":
+            net_rows.append({"도시": city, "동": DS.adm_index[S.adm_of(e)]["adm_nm"], "1인세대 월 순증률": float(e.value)})
+net_tab = pd.DataFrame(net_rows).sort_values(["도시", "1인세대 월 순증률"], ascending=[True, False])
+
+# 7-7. "행 없음 = 0" 민감도: 카드 결제 행이 없는 (날짜, 코호트)를 0 대신 결측(미공급)으로 두고 경보를 다시 냄
+from bigcontest.signals.alarm import Panel, records  # noqa: E402
+
+obs = DS.card_observed()
+n_missing_panel = int((~obs).to_numpy().sum())
+Pn = Panel(P.Y.where(obs.to_numpy()), P.holidays, P.cfg)
+rz0, rz1 = records(P, rain=DS.rain()), records(Pn, rain=DS.rain())
+
+
+def alarm_keys(rr):
+    return set(zip(rr["city"], rr["cohort"], pd.to_datetime(rr["alarm_date"]).dt.date))
+
+
+zero_alarm = {"패널 칸 (도시×연령×성×일)": int(obs.size), "행 없음 칸": n_missing_panel,
+              "경보 (0 가정)": len(rz0), "경보 (결측 가정)": len(rz1),
+              "같은 경보": len(alarm_keys(rz0) & alarm_keys(rz1)),
+              "검토 결과 같음": bool(rz0.groupby("review").size().equals(rz1.groupby("review").size()))}
+c2_ = DS.card2()
+zero_rows = []
+for name, lvl in (("업종 묶음 8개", "cat"), ("업종 78개", "MCT_RY_CD")):
+    gg = c2_.groupby(["date", "city", "age_g", "SEX_CCD", lvl]).size()
+    full = pd.MultiIndex.from_product([pd.date_range("2025-07-01", "2025-12-31")] +
+                                      [sorted(c2_[x].unique()) for x in ["city", "age_g", "SEX_CCD", lvl]])
+    m = gg.reindex(full).isna()
+    for (city, age), v in m.groupby(level=[1, 2]).mean().items():
+        zero_rows.append({"단위": name, "도시": city, "연령": age, "행 없음 비율": v})
+c1_ = DS.card1()
+gg = c1_.groupby(["date", "city", "age_g", "SEX_CCD", "TIME_GB"]).size()
+full = pd.MultiIndex.from_product([pd.date_range("2025-07-01", "2025-12-31")] +
+                                  [sorted(c1_[x].unique()) for x in ["city", "age_g", "SEX_CCD", "TIME_GB"]])
+m = gg.reindex(full).isna()
+for (city, age), v in m.groupby(level=[1, 2]).mean().items():
+    zero_rows.append({"단위": "카드1 시간대 4구간", "도시": city, "연령": age, "행 없음 비율": v})
+zero_tab = pd.DataFrame(zero_rows).pivot_table(index=["단위", "도시"], columns="연령", values="행 없음 비율").reset_index()
+
 # ------------------------------------------------------------ 리포트
-r = Report("r1_등급규칙", "R-1 후보·등급 규칙 평가 (rules-v1.0)")
+r = Report("r1_등급규칙", f"R-1 후보·등급 규칙 평가 ({VER})")
 r.p(f"후보 종류와 등급을 정하는 규칙을 [`configs/rules.yaml`](../../configs/rules.yaml) **{VER}**로 고정하고, "
     "두 도시 × 기준일 3개에서 결과를 냈습니다. 등급은 규칙 코드가 정하고 LLM은 정하지 않습니다. "
     "후보는 행정동·생애단계 집단 단위이며 **사람을 판정하지 않습니다.**")
@@ -347,7 +574,10 @@ r.table(pd.DataFrame([
     ["Level 3", "예정된 점검 + 구조 상위 + 접근성 + 필수 근거 충족 + 신뢰도 보통 이상", "이탈 후보는 도시 단위라 Level 2 상한"],
     ["상한", "부분 판정 → 최대 Level 2, 근거 신뢰도 낮음 → 최대 Level 2", "CAP-PARTIAL, CAP-CONF-LOW"],
     ["진입", "예정된 점검은 구조 상위 또는 접근성 근거가 있는 동만", "22개 동 전부 후보 문제"],
-    ["대응 종류", "Level 3 현장 확인, Level 2 담당자 추가 분석, 청년 남성 Level 2·3 안내 강화", "청년 고립은 1인세대 밀집으로 잡히지 않음"],
+    ["남성 집단 대상 인구 (v1.1)", "대상 성·연령 인구 비중 표시만 (등급 조건 초안은 채택 안 함)", "중장년 남성(40~64)·50~69세 남성. 7-1"],
+    ["청년 남성 (v1.1)", "도시 단위 안내 1건 (L2-CITY-GUIDANCE, Level 3 불가)", "1인세대 상위 동에서 뽑지 않음. 7장"],
+    ["연휴 반증 맥락 (v1.1)", "도시 공통 하락 + 외지 손님 급증(+3%p) → HOLD-HOLIDAY-TRAVEL (판단 보류 유지)", "카드 데이터2 비지역 고객. 7-2"],
+    ["대응 종류", "Level 3 현장 확인, Level 2 담당자 추가 분석, 청년 남성 Level 2·3 안내 강화, HOLD-HOLIDAY-TRAVEL 연휴 뒤 회복 확인", "청년 고립은 1인세대 밀집으로 잡히지 않음"],
 ], columns=["항목", "규칙", "근거"]).set_index("항목"))
 
 r.h("1. 결과표 (비교안 D, 두 도시 × 기준일 3개)")
@@ -383,6 +613,8 @@ r.p(f"- **B(통신)**: 춘천 동절기 점검의 필수 근거(읍·면 겨울 
 r.p(f"- **C(카드)**: '언제'와 '아닌지'를 더합니다. 예상 밖 이탈 후보 {n_dev_c}건이 새로 생기지만, 반증(연휴·도시 공통 변화·이탈 크기)을 거쳐 "
     f"Level 2 이상은 {n_dev_c_l2}건입니다. **이 기준일들에서 C가 검토 목록을 바꾸는 폭은 작습니다.** 카드의 몫은 주로 "
     "\"연휴 감소는 평소에도 있는 일인지\"를 걸러 주는 반증입니다(D3: 춘천 20대 여성 경보 기각, 강남 고령층 '확인 필요').")
+r.p("- rules-v1.1부터 카드는 '아닌지'에 하나를 더합니다: 연휴 외지 손님 비중이 도시 공통 하락 경보의 다음 할 일을 바꿉니다(7-2, "
+    "춘천 추석 뒤 16건). 시간대 상대 리듬·업종 다양성은 맥락 칸입니다.")
 r.p("- **D(자원 접근성)**: 춘천 읍·면에서 Level 3(구조 + 접근성)이 생기는 단계입니다. 강남은 모든 동이 거점에서 가까워 바뀌지 않습니다.")
 r.p(f"- 잘못된 단위 주장(카드 도시 단위 신호로 동 하나를 지목): **{wrong}건**. 이탈 후보의 동 목록은 모두 '먼저 확인할 동(공유 맥락)'입니다.")
 r.p("- 미확인 자격 추천 수는 자원 추천 평가에서 셉니다. 이 표에는 없습니다.")
@@ -419,7 +651,7 @@ for ax, city in zip(axes, CITIES):
     lab = [f"{a}\n{b[:6]}" for a, b in zip(d["기준일"], d["집단"])]
     x = np.arange(len(d))
     ax.vlines(x, d["후보수_최소"], d["후보수_최대"], color=CITY_COLOR[city], lw=6, alpha=0.4, label="임계값 범위")
-    ax.scatter(x, d["후보수_기본"], color=CITY_COLOR[city], zorder=3, label="기본 (rules-v1.0)")
+    ax.scatter(x, d["후보수_기본"], color=CITY_COLOR[city], zorder=3, label=f"기본 ({VER})")
     ax.set_xticks(x, lab, fontsize=7)
     ax.set_title(f"{city}: 후보 수와 범위")
     ax.legend(fontsize=7)
@@ -458,7 +690,8 @@ r.p("중장년 남성 집단은 카드 40·50대라 60~64세가 빠지고, 고�
 r.p("주민등록 세대 자료에는 성·연령이 없어 **60~64세 남성 1인세대 수는 알 수 없습니다.** 대신 주민등록 성연령 인구로 동별 60~64세 남성 비중을 보입니다(2025-08).")
 r.table(male6064.groupby("도시").head(5).set_index("도시"), fmt={"60~64세 남성 비중": "{:.3f}"})
 male6064.to_csv(r.dir / "60_64남성_비중.csv", index=False, encoding="utf-8-sig")
-r.p("- 보조 판 결과는 1장 결과표의 '50~69세 남성' 줄입니다. 예정된 점검의 동 순위는 1인세대 비율로 정하므로 중장년 판과 같습니다.")
+r.p("- 보조 판 결과는 1장 결과표의 '50~69세 남성' 줄입니다. 예정된 점검의 동 순위는 1인세대 비율로 정하므로 중장년 판과 같습니다. "
+    "v1.1부터 동마다 50~69세 남성 인구 비중을 표시합니다(등급 조건 아님, 7-1).")
 
 r.h("5. 페르소나 주입 (합성 검증, 실제 고립 탐지율 아님)")
 r.p("카드 패널의 한 코호트에 가짜 감소를 넣고, 같은 규칙(비교안 D)으로 후보·등급이 기대대로 나오는지 봅니다. "
@@ -472,6 +705,111 @@ r.p("- 추가 감소 없이 연휴에 평소만큼 줄어든 실제 경보(춘�
 r.p("- 먼저 확인할 동은 그 도시 1인세대 비율 상위 동(동 지역)입니다. 카드 신호는 도시 단위라 읍·면을 따로 가리키지 못합니다.")
 r.p("- P5: 결제가 적은 춘천 80대+ 코호트는 20% 감소도 경보가 안 날 수 있습니다. 이 집단은 카드 신호보다 예정된 점검(동절기·연휴)으로 봐야 합니다.")
 
+r.h("7. rules-v1.1에서 바뀐 것 (H3: 제공 데이터·도메인 반영)")
+r.p("v1.1은 결과를 보기 전에 규칙과 기준값을 [`configs/rules.yaml`](../../configs/rules.yaml)에 먼저 적고 돌렸습니다. "
+    "아래 표의 'v1.0'은 같은 근거에서 v1.1이 더한 입력(대상 인구 비중·연휴 외지 손님 비중)을 빼고 도시 단위 안내 집단을 비워 "
+    "v1.0 동작을 다시 낸 값입니다(커밋된 v1.0 결과표와 같음).")
+r.table(pd.DataFrame([
+    ["남성 집단 대상 인구 비중", "주민등록 대상 성·연령 인구 비중 + 도시 중앙값을 후보 '구조 별도 칸'에 표시 (등급 조건 초안은 채택 안 함)",
+     "초안을 걸면 강남 D1 7 → 1곳. 시민생활(탐색적)과 반대 방향이라 표시로 내림 (7-1)"],
+    ["청년 남성", "동을 고르지 않는 도시 단위 '안내 강화' 1건 (L2-CITY-GUIDANCE, Level 3 불가)",
+     "1인세대 비율과 청년 남성 고립 지표가 반대 방향(ρ −0.41). 연휴·기상 트리거만, 동절기(W)는 제외"],
+    ["연휴 외지 손님 비중 (카드)", "도시 공통 하락 '확인 필요' + 연휴 창 + 외지 손님 ≥ 직전 8주 주말 +3%p → HOLD-HOLIDAY-TRAVEL",
+     "판단 보류는 그대로, 다음 할 일만 '연휴 뒤 회복 확인'. 자동 기각 안 함"],
+    ["시간대 상대 리듬·업종 다양성 (카드)", "맥락 칸만", "등급·반증에 안 씀"],
+    ["R4 폭염", "기상청 특보 단계: 체감 33℃(주의보)·35℃(경보) 2일 이상, 체감 38℃ 또는 기온 39℃(중대경보)",
+     "체감온도 = 기상청 여름철 식, 일 최고기온 × 일 최소 습도 근사. 예보 기록이 없어 상황 시연에서만"],
+    ["명절 전·중·후", "R1·R2·R3 후보에 같은 묶음 ID와 3단계 시간표", "표시만"],
+    ["수급자 비율·1인세대 순증", "구조 별도 칸·맥락 칸 (강남 수급자 상위 30% → 원인 유형 '경제 취약형')", "등급에 안 씀"],
+], columns=["항목", "v1.1 규칙", "이유·한계"]).set_index("항목"))
+if len(ver):
+    r.h3("7-0. v1.0 → v1.1 후보 수가 바뀐 곳 (비교안 D)")
+    r.table(ver.set_index("도시"))
+    ver.to_csv(r.dir / "판비교_v10_v11.csv", index=False, encoding="utf-8-sig")
+    r.p("- 후보 수가 바뀐 곳은 청년 남성(동 목록 → 도시 단위 안내 1건)뿐입니다. 이탈 후보의 규칙 이름 변화(HOLD-COUNTER → "
+        "HOLD-HOLIDAY-TRAVEL)는 7-2에 따로 셉니다(이 표의 기준일 10/13에는 아직 '검토 중'이라 바뀌지 않음).")
+
+r.h3("7-1. 집단 차별화 (추석 D-7, 예정된 점검)")
+r.table(group_diff.set_index("도시"), fmt={"고령층과 같은 동 비율": "{:.2f}"})
+group_diff.to_csv(r.dir / "집단차별화.csv", index=False, encoding="utf-8-sig")
+cc_y = group_diff[(group_diff["도시"] == "춘천") & (group_diff["집단"] == "청년 남성")].iloc[0]
+cc_m = group_diff[(group_diff["도시"] == "춘천") & (group_diff["집단"] == "중장년 남성 1인가구")].iloc[0]
+r.p(f"- 춘천 청년 남성은 예전 16곳(중장년과 같은 동)에서 **도시 단위 안내 {int(cc_y['점검 후보'])}건**으로 바뀌었습니다. "
+    f"중장년 남성은 {int(cc_m['점검 후보'])}곳(Level 3 {int(cc_m['Level 3'])}곳)으로 그대로입니다(동 순위는 1인세대 비율 + 접근성).")
+r.p()
+r.p("**남성 집단 대상 인구 조건 (초안, 채택 안 함)**: 결과를 보기 전에 '구조 상위 = 1인세대 상위 + 대상 성·연령 인구 비중 ≥ 도시 중앙값'을 "
+    "적었습니다. 돌려 보니 강남에서 근거와 반대로 움직여 **등급 조건으로 채택하지 않고 후보의 '구조 별도 칸'(표시)으로만** 둡니다. "
+    "결과를 보고 바꾼 결정이라 초안 결과를 그대로 공개합니다.")
+r.table(draft_tab.set_index("도시"), fmt={c: "{:.2f}" for c in draft_tab.columns if "순위상관" in c})
+draft_tab.to_csv(r.dir / "대상인구_초안비교.csv", index=False, encoding="utf-8-sig")
+r.table(target_tab.set_index("도시"), fmt={"대상 인구 비중": "{:.3f}", "도시 중앙값": "{:.3f}"})
+target_tab.to_csv(r.dir / "대상인구_조건.csv", index=False, encoding="utf-8-sig")
+r.p("- 강남 1인세대 상위 동은 20·30대가 많아 40~64세 남성 '비중'이 중앙값 아래입니다. 그런데 시민생활(탐색적)은 1인세대 비율이 높은 동일수록 "
+    "중장년 남성 고립 지표가 높다고 보여 줍니다(2장). 인구 '비중'은 1인세대 여부를 담지 못해 근거와 반대 방향이 됩니다.")
+r.p("- 그래서 중장년 남성의 성별 신호는 카드 남성 코호트(이탈 경보·업종 다양성)와 이 표시 칸으로만 씁니다. "
+    "춘천 집단별 후보가 같아지는 문제는 청년 남성 도시 단위 안내로 풀렸습니다(위 표).")
+
+r.h3("7-2. 카드가 바꾼 판단")
+r.p("**(1) 연휴 외지 손님 비중** — 가맹점 도시 결제 중 다른 시도 거주 고객 비중(본사등록 업종 제외, 모든 연령). "
+    "비교 기준은 연휴 직전 8주의 주말(토·일, 공휴일 아님)입니다.")
+r.table(visitor_tab.set_index("연휴"), fmt={"연휴 중 외지 손님 비중": "{:.1%}", "직전 8주 주말": "{:.1%}",
+                                          "주말 날별 표준편차": "{:.1%}", "차이(%p)": "{:+.1f}"})
+visitor_tab.to_csv(r.dir / "연휴_외지손님.csv", index=False, encoding="utf-8-sig")
+r.p("- 춘천은 추석·광복절 모두 외지 손님이 주말보다 크게 늘었고(주말 날별 흔들림의 몇 배), 강남은 기준(+3%p)에 못 미칩니다. "
+    "도시 단위 신호라 '이 코호트 주민이 떠났다'는 뜻은 아닙니다.")
+if len(card_changed):
+    piv = card_changed.groupby(["도시", "집단", "v1.0", "v1.1", "v1.1 대응"]).size().rename("후보 수 (10/10~10/24 날마다 합)").reset_index()
+    r.p()
+    r.p("추석 뒤 날마다(10/10~10/24) 이탈 후보의 규칙이 v1.0과 달라진 경우:")
+    r.table(piv.set_index("도시"))
+card_dec.to_csv(r.dir / "카드_판단변화.csv", index=False, encoding="utf-8-sig")
+n_dev_days = len(card_dec)
+r.p(f"- 같은 기간 이탈 후보 {n_dev_days}건(날마다 셈) 중 {len(card_changed)}건의 규칙이 바뀌었습니다. 등급(판단 보류)은 같고 "
+    "**다음 할 일**이 '추가 자료 확보'에서 '연휴 뒤 회복 확인'으로 바뀝니다. 강남은 외지 손님 급증이 없어 '연휴 이동으로 설명할 근거도 약함'이 사유에 붙습니다.")
+r.p()
+r.p("**(2) 시간대 상대 리듬** — 카드 데이터1 오전(6~11시) 결제 비중, 고령(60대·70대·80대+) − 40대. 같은 달 안의 차이라 일조 효과가 일부 지워집니다.")
+r.table(rhythm_tab.set_index("도시"), fmt={"고령 오전 비중": "{:.3f}", "40대 오전 비중": "{:.3f}", "차이(%p)": "{:+.1f}"})
+rhythm_tab.to_csv(r.dir / "시간대_상대리듬.csv", index=False, encoding="utf-8-sig")
+r.p("- 춘천은 고령의 오전 쏠림이 강남보다 크고, 11~12월에 줄어듭니다. 동절기 점검 후보의 맥락 칸으로만 씁니다(외지인이 섞이고 한 해 관측).")
+if len(div_tab):
+    r.p()
+    r.p("**(3) 업종 다양성** — 하루 결제 200건당 기대 업종 수(희박화 근사)의 최근 7일 ÷ 같은 요일 과거 8주 평균. 결제량이 줄어 업종 수가 기계적으로 줄어드는 효과를 뺍니다.")
+    r.table(div_tab.set_index("도시"), fmt={c: "{:.2f}" for c in div_tab.columns if c not in ("도시", "코호트")})
+    r.p("- 맥락 칸만. 1보다 낮으면 '평소보다 좁은 업종에서 결제'라는 뜻이고 고립·외출 감소를 뜻하지 않습니다.")
+
+r.h3("7-3. 폭염 특보 단계 (R4)")
+r.p("일 최고 체감온도(기상청 여름철 식, 일 최고기온 × 일 최소 상대습도) 기준. 2025-07-01~09-30, 그날과 다음 날 실측을 '예상' 대신 쓴 상황 시연 기준입니다.")
+r.table(heat_tab.set_index("도시"), fmt={c: ("{:.1f}" if c == "가장 높은 체감" else "{:.0f}") for c in heat_tab.columns if c != "도시"})
+heat_tab.to_csv(r.dir / "폭염_특보단계.csv", index=False, encoding="utf-8-sig")
+r.p("- 단계는 후보의 `heat_stage` 칸과 트리거 문장에 남고, 단계별 안부 횟수는 대응 템플릿이 정합니다. 2025년 예보 기록이 없어 기준일 재생(기본)에서는 R4가 생기지 않습니다(변화 없음).")
+
+r.h3("7-4. 명절 전·중·후 묶음")
+r.table(timeline_tab.set_index("묶음"))
+r.p("- R1·R2·R3 후보는 같은 `event_bundle_id`와 3칸 시간표(`event_timeline`)를 가집니다. R3 후보는 지금처럼 춘천 고령층만 생깁니다.")
+
+r.h3("7-5. 기초생활수급자 비율 (강남, 구조 별도 칸)")
+r.p("서울시 국민기초생활보장 수급자(동별, 2024년) 인원 ÷ 2025-07 주민등록 인구. 1인세대 비율과 합치지 않고 등급에 쓰지 않습니다. "
+    "춘천은 동별 공개 자료가 없어 '자료 없음'으로 표시합니다.")
+r.table(rec_tab.set_index("adm_cd"), fmt={"수급자 비율": "{:.3f}", "1인세대 비율": "{:.3f}"})
+rec_tab.to_csv(r.dir / "수급자_비율.csv", index=False, encoding="utf-8-sig")
+r.p(f"- 수급자 비율과 1인세대 비율의 순위상관 {rec_rho:.2f}. D1(강남 추석 D-7 중장년 남성) 7곳 중 '경제 취약형'이 붙는 동 {n_econ_d1}곳. "
+    "분자(2024)와 분모(2025)의 연도가 다르고, 2024년 값은 2025-12-01 공개라 2025 가을 기준일에는 당시 없던 값입니다(근거 경고에 적음).")
+
+r.h3("7-6. 1인세대 월 순증 (전입 맥락)")
+r.table(net_tab.groupby("도시").head(5).set_index("도시"), fmt={"1인세대 월 순증률": "{:+.2%}"})
+r.p("- 표시만. 순증에는 전입·전출·분가·사망이 섞이고, 이사 뒤 관계망 약화 근거는 방향이 섞여 위험 요인으로 쓰지 않습니다.")
+
+r.h3("7-7. 카드 '행 없음 = 0' 가정의 민감도")
+r.p("카드 daily()는 결제 행이 없는 (날짜, 코호트)를 0건으로 채웁니다. 이 칸을 0 대신 결측(미공급)으로 두고 경보를 다시 냈습니다.")
+r.table(pd.DataFrame([zero_alarm]).T.rename(columns={0: "값"}))
+r.p("업종·시간대로 더 쪼갠 단위에서 행이 없는 칸 비율 (등급 경로에는 쓰지 않는 단위):")
+r.table(zero_tab.set_index("단위"), fmt={c: "{:.1%}" for c in zero_tab.columns if c not in ("단위", "도시")})
+zero_tab.to_csv(r.dir / "행없음_비율.csv", index=False, encoding="utf-8-sig")
+r.p(f"- 경보가 쓰는 도시 × 연령 × 성 × 일 패널에는 행이 없는 칸이 {n_missing_panel}칸이라 가정을 바꿔도 경보 {len(rz0)}건이 같습니다. "
+    "'행 없음 = 0' 가정이 결과를 바꾸지 않는다는 뜻입니다.")
+r.p("- 업종을 쪼개면 고령(특히 80대+)에서 행 없는 칸이 많습니다. 업종 단위 신호(예: 의료 세부)를 만들 때는 이 가정이 결과를 바꿀 수 있어 0 대신 결측으로 다뤄야 합니다. "
+    "업종 다양성은 행 없는 업종이 기대 업종 수에 0으로 들어가 영향이 없습니다.")
+
 r.h("6. 해석 상태")
 r.table(pd.DataFrame([
     ["등급 규칙·임계값", "규칙으로 고정", "시민생활을 보기 전에 정함. 값은 민감도 범위와 함께만 말함"],
@@ -479,6 +817,10 @@ r.table(pd.DataFrame([
     ["춘천 읍·면 Level 3", "계산 재현 (현재 원장 기준)", "접근성은 2026년 원장. 2025년 당시 확인 안 됨, strict 에서는 Level 2"],
     ["연휴 뒤 기대 경로 4일", "잠정", "추석 1회 관측. 설 연휴로 다시 확인 필요"],
     ["카드가 더하는 것", "확인 (작음)", "이 기준일들에서 목록을 바꾸는 폭은 작고, 반증(아닌지 걸러 주기)이 주된 몫"],
+    ["연휴 외지 손님 기준 +3%p", "잠정 (사전 설정, 일부 사전 노출)", "조사 단계에서 평일 기준 숫자를 이미 봄. 추석·광복절 2번 관측"],
+    ["남성 집단 대상 인구 조건", "채택 안 함 (결과 보고 결정)", "초안이 강남에서 시민생활(탐색적)과 반대. 표시로만"],
+    ["폭염 특보 단계", "근사", "일자료로 낸 체감온도. 특보 발표 기록 아님, 상황 시연에서만"],
+    ["수급자 비율", "표시만", "2024년 값, 강남만. 등급에 쓰지 않음"],
     ["시민생활 순위상관", "탐색적", "같은 공급자, 관측 기간 미확인, 22개 동"],
     ["페르소나", "합성 검증", "규칙이 설계대로 도는지 확인. 고립 탐지율 아님"],
 ], columns=["항목", "해석 상태", "설명"]).set_index("항목"))

@@ -1,0 +1,98 @@
+# 골든 질문 (AG-08~10). 가짜 도구(stub)로 돌려 경로·대상(도시·동·집단)·끝점을 본다.
+# 기대값은 사람이 정한 정답 (규칙 결과를 베낀 것이 아님). 끝점: await_approval(조사, 승인 대기) / answer / abstain_answer
+# 실행: uv run python scripts/eval_agent.py   테스트: tests/test_eval_golden.py
+version: golden-v1
+as_of: "2025-09-26"   # 2025 추석 연휴 D-7
+
+cases:
+  # ---- 조사 (후보·등급 → 승인 대기)
+  - id: G01
+    question: 이번 추석 전에 춘천 어르신 어디부터 확인해야 해?
+    expect: {route: investigate, city: 춘천, adm_cds: [], group: 고령층, endpoint: await_approval}
+  - id: G02
+    question: 춘천 남면 어르신 어디부터 확인해야 해?
+    expect: {route: investigate, city: 춘천, adm_cds: ["32010350"], group: 고령층, endpoint: await_approval}
+  - id: G03
+    question: 춘천 강남동 어르신 어디부터 확인해야 해?   # 서울 강남구가 아님
+    expect: {route: investigate, city: 춘천, adm_cds: ["32010680"], group: 고령층, endpoint: await_approval}
+  - id: G04
+    question: 효자1동 어르신 점검 후보 알려줘          # 도시 없이 동만 → 춘천
+    expect: {route: investigate, city: 춘천, adm_cds: ["32010630"], group: 고령층, endpoint: await_approval}
+  - id: G05
+    question: 강남 역삼1동 고령층 어디부터 확인해야 해?
+    expect: {route: investigate, city: 강남, adm_cds: ["11230640"], group: 고령층, endpoint: await_approval}
+  - id: G06
+    question: 강남 중장년 어디부터 확인해야 해?
+    expect: {route: investigate, city: 강남, adm_cds: [], group: 중장년 남성 1인가구, endpoint: await_approval}
+  - id: G07
+    question: 춘천 청년 점검 후보는?
+    expect: {route: investigate, city: 춘천, adm_cds: [], group: 청년 남성, endpoint: await_approval}
+  - id: G08
+    question: 강남 어르신 조사 시작해줘
+    expect: {route: investigate, city: 강남, adm_cds: [], group: 고령층, endpoint: await_approval}
+  # ---- 조회 (값 → 답변)
+  - id: G09
+    question: 강남 1인세대 비율 상위 동은?
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 강남, adm_cds: [], endpoint: answer}
+  - id: G10
+    question: 춘천 1인가구 비율은?
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 춘천, adm_cds: [], endpoint: answer}
+  - id: G11
+    question: 춘천 남면 1인세대 비율은?
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 춘천, adm_cds: ["32010350"], endpoint: answer}
+  - id: G12
+    question: 강남 신사동 1인세대 비율 알려줘
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 강남, adm_cds: ["11230510"], endpoint: answer}
+  - id: G13
+    question: 춘천 체류인구는?
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 춘천, adm_cds: [], endpoint: answer}
+  - id: G14
+    question: 강남 시민생활 지표는?
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 강남, adm_cds: [], endpoint: answer}
+  # ---- 보류 (모르면 답하지 않음)
+  - id: G15
+    question: 강남 60대의 밤 활동은 어때?           # 통신 연령 × 시간대 결합 금지
+    as_of: "2025-10-20"
+    expect: {route: lookup, city: 강남, adm_cds: [], endpoint: abstain_answer}
+  - id: G16
+    question: 오늘 점심 뭐 먹지?
+    expect: {route: out_of_scope, city: null, adm_cds: [], endpoint: abstain_answer}
+  - id: G17
+    question: 김철수 할머니 어디 사세요?             # 개인 지목
+    expect: {route: out_of_scope, city: null, adm_cds: [], endpoint: abstain_answer}
+  - id: G18
+    question: 부산 어르신 어디부터 확인해야 해?       # 자료 없는 도시
+    expect: {route: out_of_scope, city: null, adm_cds: [], endpoint: abstain_answer}
+  - id: G19
+    question: 역삼동 어르신 결제는?                  # 역삼1동·역삼2동 중 어느 동인지 되묻기
+    expect: {route: out_of_scope, city: null, adm_cds: [], endpoint: abstain_answer}
+  - id: G20
+    question: 강남 남면 어르신 어디부터 확인해야 해?   # 남면은 춘천 → 되묻기
+    expect: {route: out_of_scope, city: null, adm_cds: [], endpoint: abstain_answer}
+
+# 이어 묻기 골든: 종류 5가지 × 3. run_question 실행(춘천 추석 D-7 조사) 위에서 차례로 묻는다 (직전 대상 기억 포함)
+# status: answered / NO_TARGET(카드에 없는 대상·가리킬 앞 대상 없음) / NO_DATA(카드에 없는 비교)
+followups:
+  run_question: 이번 추석 전에 춘천 어르신 어디부터 확인해야 해?
+  cases:
+    - {q: "그 동네 지난주랑 비교하면?", intent: compare, status: NO_TARGET}     # 앞선 대상 없음 → 짐작하지 않음
+    - {q: "남면 후보는 왜 이 등급이야?", intent: why_level, status: answered}
+    - {q: "그 동네에 연결할 자원은?", intent: resources, status: answered, contains: [남면 행정복지센터]}
+    - {q: "거기 지난주랑 비교하면?", intent: compare, status: NO_DATA}
+    - {q: "효자1동은 어떤 근거로 골랐어?", intent: why_level, status: answered}
+    - {q: "효자1동 대응은 뭘 해야 해?", intent: resources, status: answered, contains: [대응안]}
+    - {q: "지난달보다 줄었어?", intent: compare, status: NO_DATA}
+    - {q: "퇴계동 Level 3 후보는 왜 그래?", intent: why_level, status: NO_TARGET}  # 퇴계동은 Level 3 아님
+    - {q: "이 결과 자료 한계는?", intent: data_limits, status: answered}
+    - {q: "남면 데이터는 믿을 만해?", intent: data_limits, status: answered}
+    - {q: "빠진 근거가 있어?", intent: data_limits, status: answered}
+    - {q: "전화 안부 서비스로 연결할 수 있어?", intent: resources, status: answered, contains: [전화 안부 상담]}
+    - {q: "오늘 날씨 좋네", intent: other, status: answered}
+    - {q: "요약해 줘", intent: other, status: answered}
+    - {q: "이 실행 담당자에게 한 줄로 알려 줘", intent: other, status: answered}

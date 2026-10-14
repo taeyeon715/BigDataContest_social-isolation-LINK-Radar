@@ -10,10 +10,13 @@
 | `seoul_living/시민생활_29개통신정보_강남_2025-07_12.csv` | 같은 데이터의 통신 지표(통화 대상자 수, 이동 등) | [서울 열린데이터광장 OA-22267](https://data.seoul.go.kr/dataList/OA-22267/F/1/datasetView.do) | 2025년 7~12월 | 공공누리 1유형(출처표시) |
 | `chuncheon/춘천_독거노인현황_20251114_cp949.csv` | 춘천 행정동 × 연령대 독거노인 수 | [공공데이터포털 15081202](https://www.data.go.kr/data/15081202/fileData.do) | 2025-11-14 기준 | 이용허락범위 제한 없음 |
 | `weather/kma_asos_daily_2025-07_12.csv` (원본 응답: `weather/raw/`, 로컬에만 두고 git으로 추적하지 않음) | 기상청 ASOS 일자료: 평균·최저·최고기온, 강수량, 신적설, 습도, 풍속. 서울(108)은 강남 대표, 춘천(101) | [공공데이터포털 기상청 지상(종관, ASOS) 일자료 조회서비스](https://www.data.go.kr/data/15059093/openapi.do). `uv run python -m bigcontest.weather`로 수집, `--offline`으로 원문에서 다시 만듦 | 2025년 7~12월 | 공공누리 1유형(출처표시) |
+| `weather/kma_asos_heat_2025-07_12.csv` (원본 응답: `weather/raw/heat-<시각>/`, git 추적 안 함) | 같은 ASOS 일자료 API의 일 최고기온·최고기온 시각·일 최소/평균 상대습도와, 이것으로 낸 **일 최고 체감온도 근사**(기상청 여름철 체감온도 식, `at_max` = 최고기온 × 최소 습도, `at_max_hi` = 최고기온 × 평균 습도). R4 폭염 특보 단계용 (rules-v1.1) | 위와 같은 ASOS 일자료 조회서비스. `uv run python -m bigcontest.weather_heat`로 수집, `--offline`으로 원문에서 다시 만듦 | 2025년 7~12월 | 공공누리 1유형(출처표시) |
+| `welfare/서울_기초생활수급자_동별_2024.csv` | 서울시 국민기초생활보장 수급자(2020 이후) 통계: 구 × 행정동 × 수급 구분(총·일반·조건부·특례·시설) 가구·인원 (원본 그대로, 서울 전체). 강남 22개 동만 씀 | [서울 열린데이터광장 DT201004O1100342020](https://data.seoul.go.kr/dataList/DT201004O1100342020/S/2/datasetView.do) (서울특별시 기본통계, 통계표 화면에서 동별·2024 CSV 내려받기) | 2024년 (자료갱신일 2025-12-01, 2025년 값은 아직 없음) | 공공누리 1유형(출처표시) |
 | `weather/openmeteo_seoul_2025-07_12.json`, `weather/openmeteo_chuncheon_2025-07_12.json` | 일별 최고·최저기온, 강수량 (서울·춘천 지점) | [Open-Meteo Historical API](https://open-meteo.com/) (재분석 자료, 비교용) | 2025년 7~12월 | CC BY 4.0 |
 | `resources/복지자원_원장.csv` | 강남·춘천 복지시설·서비스 745건 (8종 분류). 원본 12개에서 `uv run python -m bigcontest.resources.build_ledger`로 다시 만듦 (원본은 `resources/raw/원장_원본/`, git 추적 안 함. 좌표는 다시 구하지 않음) | 여러 공공데이터. 원본별 URL·SHA256은 `resources/원본_출처목록.csv` | 2026년 기준 | 각 원본 라이선스 |
 | `resources/복지자원_원장_v2.csv` (+ `resources/정정_기록.csv`) | 위 원장에 상태 칸을 붙이고 보강 자원을 뒤에 붙인 것 (원래 745건의 칸·값·행 순서 그대로). 이용 방법(`delivery_channel`), 좌표 상태(`coordinate_status`), 자격 기준(`eligibility_rule_status`), 운영 상태(`operating_status`), 운영 시간(`schedule`), 휴일 운영(`holiday_open`), 서비스 범위(`service_area`), 자원 묶음(`resource_kind`: 시설·전화 상담·제도·사업·사람), 참고(`note`), 고정 ID(`resource_id`), 원천 행 ID(`source_record_id`, API 자원만), 날짜 확인일(`last_verified`). 모르는 값은 미상. 손으로 고친 값은 정정 기록에 쌓음. `uv run python -m bigcontest.resources.ledger`로 다시 만듦 (규칙: `src/bigcontest/resources/ledger.py`) | 위 원장 + 규칙 | 2026년 기준 | 각 원본 라이선스 |
-| `resources/추가자원_원장.csv` (+ `resources/수동_추가자원.csv`, `resources/수집_기록.csv`) | 보강 자원 320건: E-Gen 휴일 운영 약국·병의원·응급의료기관, 복지로 고립 관련 제도·사업, 노인맞춤돌봄 수행기관, 공식 페이지로 넣은 지역 사업·사람 자원. `uv run python -m bigcontest.resources.sources`로 다시 받음 (원문은 `resources/raw/`, git 추적 안 함) | 공공데이터포털 15000576·15000736·15000563·15090532·15108347·15004317, 강남구·춘천시·서울시 공식 페이지 | 2026-10-14 조회 | 이용허락범위 제한 없음 (공식 페이지는 출처 표시) |
+| `resources/추가자원_원장.csv` (+ `resources/수동_추가자원.csv`, `resources/수집_기록.csv`) | 보강 자원 323건: E-Gen 휴일 운영 약국·병의원·응급의료기관, 복지로 고립 관련 제도·사업, 노인맞춤돌봄 수행기관, 공식 페이지로 넣은 지역 사업·사람 자원, 중장년 연결 묶음(고용복지+센터 2곳은 고용24 기관 찾기, 강남구중독관리통합지원센터는 강남구 보도자료, 2026-10-14 확인). `uv run python -m bigcontest.resources.sources`로 다시 받음 (원문은 `resources/raw/`, git 추적 안 함) | 공공데이터포털 15000576·15000736·15000563·15090532·15108347·15004317, 강남구·춘천시·서울시 공식 페이지 | 2026-10-14 조회 | 이용허락범위 제한 없음 (공식 페이지는 출처 표시) |
+| `resources/protective/경로당_시군집계.csv` (원본 xlsx: `resources/protective/raw/`, git 추적 안 함) | 보호 자원 칸용 춘천시 경로당 수 371곳(읍 25·면 157·동 189). 동별 목록은 공개 자료에서 찾지 못함. 춘천 무더위·한파쉼터는 미수집(행안부 쉼터 API 키 필요). 자세히 `resources/protective/README.md` | [공공데이터포털 15160212](https://www.data.go.kr/data/15160212/fileData.do) 강원 노인여가복지시설 현황 (원문 state.gwd.go.kr). `uv run python -m bigcontest.resources.protective` | 2025-12-31 기준, 2026-10-14 다시 받아 해시 같음 | 이용허락범위 제한 없음 |
 | `holidays/공휴일_2025-07_12.csv` (페이지 사본: `holidays/raw/`, git 추적 안 함) | 2025-07~12 공휴일 8일. `configs/project.yaml` 목록과 같은지 확인용 | [한국천문연구원 천문우주지식정보 2025년 월력요항](https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025) (우주항공청 관보 게재 자료). `uv run python -m bigcontest.holidays` | 2025년 | 공공 정보 (출처 표시) |
 
 ## 주의
@@ -23,7 +26,8 @@
 - **주민등록 1인세대 ≠ 1인가구**(주소만 따로 둔 경우 등이 섞임).
 - **춘천 독거노인 파일**은 일부 읍·면에서 독거노인 수가 그 동의 1인세대 수보다 많아 정의가 불분명합니다. 순위로만 씁니다.
 - **복지자원 좌표**는 키 없는 지오코더(Esri ArcGIS World Geocoder, 2026-10-13)로 얻은 탐색용 값입니다. Esri는 결과 저장을 따로 다루므로 도로명주소 좌표 API 좌표로 바꿀 예정입니다(좌표 키 승인 대기, 아직 바꾸지 않음). 지오코더 응답은 레포·제출 묶음에 넣지 않습니다.
-- **기상특보는 받지 않았습니다.** R4·R6는 ASOS 일자료로 근사합니다(폭염 최고 ≥33℃, 호우 일강수 ≥80mm, 대설 신적설 ≥5cm, 한파 최저 ≤−12℃). 특보 발표 기준과 다릅니다. 자세한 것은 `docs/데이터_설명.md`.
+- **기상특보는 받지 않았습니다.** R4·R6는 ASOS 일자료로 근사합니다. R4(rules-v1.1)는 특보 단계(일 최고 체감온도 33℃·35℃ 2일 이상, 체감 38℃ 또는 기온 39℃)를 `weather/kma_asos_heat_2025-07_12.csv`의 체감온도 근사로 냅니다. 기상청은 매시 값으로 일 최고 체감온도를 내므로 일자료 근사와 다를 수 있습니다. R6는 호우 일강수 ≥80mm, 대설 신적설 ≥5cm, 한파 최저 ≤−12℃입니다. 특보 발표 기준과 다릅니다. 자세한 것은 `docs/데이터_설명.md`.
+- **수급자 통계**는 2024년 값(2025-12-01 공개)이라 2025 가을 기준일에는 당시 없던 값입니다. 화면·근거에 이 사실을 적고, strict_as_of 기준일이 공개 전이면 쓰지 않습니다. 분모는 2025-07 주민등록 인구라 연도가 다릅니다. 등급에는 쓰지 않습니다. 춘천은 동별 공개 자료가 없습니다.
 
 ## 서울 시민생활 데이터: 기준월·관측 기간·공개일
 
@@ -56,6 +60,8 @@ API 원문은 `external/**/raw/`에 그대로 두고 git으로 올리지 않습�
 |---|---|---|---|
 | ASOS 일자료 | `weather/수집_기록.csv` | `weather/raw/asos-<시각>/` (JSON 2개 + `fetch_log.json`, 키 가림) | `uv run python -m bigcontest.weather --offline` |
 | E-Gen·복지로 (9개 출처) | `resources/수집_기록.csv` | `resources/raw/<출처>/<실행 ID>/page*.xml` | `uv run python -m bigcontest.resources.sources --offline` |
+| ASOS 체감온도용 일자료 | `weather/수집_기록_체감온도.csv` | `weather/raw/heat-<시각>/` (JSON 2개 + `fetch_log.json`, 키 가림) | `uv run python -m bigcontest.weather_heat --offline` |
+| 서울 동별 기초생활수급자 | `welfare/수집_기록.csv` (받은 날·방법·SHA256) | 원본 CSV 그대로 레포에 둠 | 통계표 화면에서 다시 내려받기 (API 없음) |
 | 공휴일 | `holidays/공휴일_2025-07_12.csv` (`checked_at`) | `holidays/raw/kasi_calendarData_2025.html` | `uv run python -m bigcontest.holidays --offline` |
 | 주민등록·시민생활 추출본 | - | 레포 밖 (제출 묶음 `02_외부데이터/E01_E02_주민등록/원본`, `E03_E04_E05_서울시민생활/원본`) | `uv run python -m bigcontest.extract_external --resident <폴더> --seoul <폴더>` |
 | 원장 745건 | `resources/원본_출처목록.csv` (SHA256) | `resources/raw/원장_원본/` (원본 12개) | `uv run python -m bigcontest.resources.build_ledger` |

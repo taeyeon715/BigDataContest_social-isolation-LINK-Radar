@@ -1,4 +1,4 @@
-"""등급 규칙표 → 기대 등급, 경계값 (configs/rules.yaml rules-v1.0). 자료 없이 도는 단위 시험.
+"""등급 규칙표 → 기대 등급, 경계값 (configs/rules.yaml rules-v1.1). 자료 없이 도는 단위 시험.
 
 - 상위 30%·절대 최소값 0.35·직선 5km·이탈 10% 경계
 - 부분 판정 / 근거 신뢰도 낮음 → Level 3 불가, 이탈은 Level 2 상한 (공유 맥락)
@@ -46,8 +46,8 @@ TEN = {f"1123{i:04d}": 0.70 - i * 0.03 for i in range(10)}  # 0.70 … 0.43
 
 def test_version_and_rule_ids_on_every_candidate():
     out = S.assign_level([sched("11230000"), sched("11230005", cid="C-2")], structs(TEN))
-    assert all(c.rule_version == rules_version() == "rules-v1.0" and c.rule_id for c in out)
-    assert all("[rules-v1.0 " in c.level_reason and "임시 기준" not in c.level_reason for c in out)
+    assert all(c.rule_version == rules_version() == "rules-v1.1" and c.rule_id for c in out)
+    assert all("[rules-v1.1 " in c.level_reason and "임시 기준" not in c.level_reason for c in out)
 
 
 @pytest.mark.parametrize("adm,level,rule", [

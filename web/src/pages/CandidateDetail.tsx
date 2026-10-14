@@ -25,6 +25,8 @@ import { PrintReport, type PrintJudgement } from '../components/PrintReport'
 import { ActionPlanView, CheckAreasView, DecisionTrace, LevelExplain, MorningChecklistView } from '../components/ReportParts'
 import { ResourcePanel, type JudgementDraft } from '../components/ResourcePanel'
 import { OutcomeForm } from '../components/OutcomeForm'
+import { ObjectionForm } from '../components/ObjectionForm'
+import { ProtectivePanel } from '../components/ProtectivePanel'
 import { Term } from '../components/Term'
 import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip , PersonName, RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
@@ -725,6 +727,14 @@ export default function CandidateDetail() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* 보호 자원 칸(낙인 완화) + 이의·정정 기록 (윤리기준 사후관리·피해구제) */}
+          {candidate && (
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2" data-testid="protective-objection">
+              <ProtectivePanel city={candidate.city} admCd={adm} />
+              <ObjectionForm city={candidate.city} candidateId={candidate.candidate_id} admCd={adm} runId={runId} />
+            </div>
           )}
 
           {lookedUp && !runId && (

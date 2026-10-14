@@ -1,0 +1,4 @@
+﻿도시,기준일,집단,후보 v1.0,후보 v1.1,L2+ v1.0,L2+ v1.1,L3 v1.0,L3 v1.1,바뀐 규칙 (후보 수)
+강남,추석 D-7,청년 남성,7,1,7,1,0,0,L2-STRUCT-TRIGGER → 없음 (7); 없음 → L2-CITY-GUIDANCE+CAP-SHARED-CONTEXT (1)
+춘천,추석 D-7,청년 남성,16,1,16,1,3,0,L2-ACCESS-TRIGGER → 없음 (8); L2-STRUCT-TRIGGER → 없음 (5); L3-STRUCT-ACCESS-TRIGGER → 없음 (3); 없음 → L2-CITY-GUIDANCE+CAP-SHARED-CONTEXT (1)
+춘천,동절기,청년 남성,10,0,10,0,3,0,L2-ACCESS-TRIGGER → 없음 (7); L3-STRUCT-ACCESS-TRIGGER → 없음 (3)

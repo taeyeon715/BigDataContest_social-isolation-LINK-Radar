@@ -226,6 +226,31 @@ class RuleCheck(_Model):
     level_if_met: CandidateLevel | None = None
 
 
+class ContextSignal(_Model):
+    """후보에 붙는 맥락 칸 (rules-v1.1). 등급·순서에 쓰지 않는다(affects_level=False). 반증 맥락은 판단 보류의 사유만 바꿈."""
+
+    name: str  # 예: 연휴 외지 손님 비중
+    value: float | int | str | None = None
+    unit: str | None = None
+    text: str  # 한 줄 설명 (값·비교·한계)
+    role: Literal["맥락", "반증 맥락", "구조 별도 칸"] = "맥락"
+    scope: str | None = None  # 도시 / 동 이름 등 (값의 단위)
+    evidence_id: str | None = None
+    affects_level: bool = False
+
+
+class TimelineStep(_Model):
+    """명절 전·중·후 묶음의 한 칸 (R1·R2·R3 를 한 사건으로)."""
+
+    phase: Literal["전", "중", "후"]
+    code: Literal["R1", "R2", "R3"]
+    label: str
+    start: date
+    end: date
+    status: Literal["지남", "지금", "예정"]
+    applies: bool = True  # 이 집단·도시에 적용되는 단계인지 (R3 는 춘천 고령층만)
+
+
 class Candidate(_Model):
     candidate_id: str
     candidate_type: CandidateType
@@ -249,7 +274,7 @@ class Candidate(_Model):
     # 등급을 정한 규칙과 조건별 충족 여부 (등급 엔진이 채움. 없으면 explain_level 은 level_reason 만 씀)
     # --- 등급 규칙(configs/rules.yaml) 칸. 모두 선택 칸 ---
     rule_id: str | None = None  # 예: L2-STRUCT-TRIGGER, L3-...+CAP-PARTIAL
-    rule_version: str | None = None  # 예: rules-v1.0
+    rule_version: str | None = None  # 예: rules-v1.1
     rule_checks: list[RuleCheck] = Field(default_factory=list)
     event_id: str | None = None  # 같은 사건이면 같은 값 (예: 강남:R1:20251003). 같은 사건으로 한 번만 만듦
     event_opened_at: date | None = None  # 후보가 생긴 날 (트리거 공개일 = 연휴 D-7, 이탈은 경보일 + 공급 지연)
@@ -259,6 +284,11 @@ class Candidate(_Model):
     # 후보 목록 응답에만 채움 (조사 전 자원 미리 보기를 좁힘). 원인 유형 → 필요 유형 (configs/need_types.yaml)
     cause_type: str | None = None
     need_types: list[str] = Field(default_factory=list)
+    # --- rules-v1.1 선택 칸 (표시용, 등급 입력 아님) ---
+    context: list[ContextSignal] = Field(default_factory=list)  # 카드 맥락·수급자 비율·1인세대 순증 등
+    event_bundle_id: str | None = None  # 명절 묶음 (예: 춘천:명절:20251003). R1·R2·R3 후보가 같은 값
+    event_timeline: list[TimelineStep] = Field(default_factory=list)  # 명절 전·중·후
+    heat_stage: str | None = None  # R4: 폭염주의보 / 폭염경보 / 폭염중대경보 (상황 시연에서만)
 
     @model_validator(mode="after")
     def _check(self) -> Candidate:
@@ -378,8 +408,37 @@ class CheckArea(_Model):
     ask: str | None = None  # 먼저 물어볼 것
 
 
+class HolidayPhase(_Model):
+    """명절 전·중·후 한 칸 (configs/action_templates.yaml holiday_phases). current 는 이 후보의 트리거 단계."""
+
+    phase: Literal["전", "중", "후"]
+    rule: str  # R1 / R2 / R3
+    label: str  # 연휴 전 / 연휴 중 / 연휴 뒤
+    window: str  # 예: 연휴 D-7 ~ 전날
+    tasks: list[str] = Field(default_factory=list)
+    contact: str | None = None  # 이 집단의 안부 횟수·방법 (예: 전화·방문 2회)
+    current: bool = False
+
+
+class LinkStep(_Model):
+    """사회적 처방형 연결 한 단계 (안내 → 연결 → 확인)."""
+
+    step: Literal["안내", "연결", "확인"]
+    text: str
+
+
+class BundleItem(_Model):
+    """연결 묶음 자원 하나 (중장년 남성: 일자리·생계 / 술·마음건강 / 사람 만남). 원장 resource_id."""
+
+    need: str
+    resource_id: str
+    name: str
+    phone: str | None = None
+
+
 class ActionPlan(_Model):
-    """대응 템플릿 5칸: 주체 / 방법 / 기한 / 확인할 영역 / 연계 자원. text 는 보고서용 한 줄."""
+    """대응 템플릿 5칸: 주체 / 방법 / 기한 / 확인할 영역 / 연계 자원. text 는 보고서용 한 줄.
+    선택 칸 (action-v2): 폭염 특보 단계별 안부 횟수, 명절 전·중·후, 사전 안부 협력자, 연결 3단계·묶음."""
 
     owner: list[str]  # 주체
     method: str  # 방법 (전화 → 방문 대상 추리기 / 청년은 안내 강화)
@@ -391,6 +450,13 @@ class ActionPlan(_Model):
     resource_note: str | None = None  # 자원이 없을 때 이유
     emergency_contacts: list[str] = Field(default_factory=list)  # 위급 시 안내 (순위 밖, 따로 한 줄)
     text: str  # 보고서용 한 줄
+    heat_stage: str | None = None  # 폭염 특보 단계 이름 (폭염주의보·경보·중대경보 / 특보 단계 확인 필요). R4 일 때만
+    contact_frequency: str | None = None  # 그 단계의 안부 횟수 + 순서 (전화 → 받지 않으면 당일 방문)
+    holiday_timeline: list[HolidayPhase] = Field(default_factory=list)  # 명절 트리거(R1·R2·R3)일 때 전·중·후 3칸
+    partners: list[str] = Field(default_factory=list)  # 사전 안부 협력자 (임대인·관리사무소·고시원 운영자)
+    partner_note: str | None = None  # 협력자에게 부탁할 것 (개인정보는 넘겨받지 않음)
+    link_steps: list[LinkStep] = Field(default_factory=list)  # 사회적 처방형 3단계 (중장년 남성)
+    bundle: list[BundleItem] = Field(default_factory=list)  # 연결 묶음 자원 (중장년 남성)
 
 
 class MorningChecklist(_Model):
@@ -459,6 +525,35 @@ class TraceStep(_Model):
     ms: float | None = Field(default=None, ge=0)
 
 
+class InvestigationItem(_Model):
+    """조사 루프(open_questions → investigate → check_findings)에서 확인한 질문 하나. 등급·반증 입력이 아님."""
+
+    key: str  # 질문 열쇠 "질문ID|도시|동"
+    qid: str  # 고정 질문 목록의 ID (investigation.CATALOG)
+    label: str  # 짧은 이름 (예: 연휴 회복 미확인)
+    question: str  # 템플릿 질문 문장
+    city: str | None = None
+    adm_cd: str | None = None
+    candidate_ids: list[str] = Field(default_factory=list)
+    tool: str  # 화이트리스트 도구 이름
+    round: int = Field(ge=1)
+    source: Literal["llm", "rule"] = "rule"  # 누가 골랐나
+    why: str | None = None  # 고른 이유 (LLM 이유는 Guard 표현 검사를 지난 것만)
+    status: Literal["answered", "unanswered", "no_data", "error", "dropped"]
+    finding: str  # 템플릿 결과 문장
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class Investigation(_Model):
+    """보고서 "추가로 확인한 것" 칸. 등급·순서·반증 결과에는 쓰지 않는다."""
+
+    rounds: int = 0
+    items: list[InvestigationItem] = Field(default_factory=list)
+    not_picked: list[str] = Field(default_factory=list)  # 고르지 않은 질문 (짧은 이름)
+    stopped: str | None = None  # 멈춘 이유 (한도·예산·남은 질문 없음)
+    note: str = "추가로 확인한 것은 등급·순서·반증 판정에 쓰지 않음 (참고용)"
+
+
 class Report(_Model):
     report_revision: int = Field(ge=1)
     evidence_card: EvidenceCard
@@ -476,6 +571,8 @@ class Report(_Model):
     round_changes: list[str] = Field(default_factory=list)
     # ---- 이 판에 반영한 검토 ID (가장 최근 검토까지 반영됐는지 API 가 확인)
     review_ids: list[str] = Field(default_factory=list)
+    # ---- 조사 루프에서 추가로 확인한 것 (등급·반증 입력 아님, 근거 ID 포함)
+    investigation: Investigation | None = None
     # ---- 배포 표시와 대외용 문구
     distribution: Literal["내부용(대외비)"] = DISTRIBUTION_INTERNAL
     external_notice: str = EXTERNAL_NOTICE
@@ -819,6 +916,9 @@ class FollowupResponse(_Model):
     guard: list[GuardResult] = Field(default_factory=list)
     abstain_reason: str | None = None
     needed_data: list[str] = Field(default_factory=list)
+    # 질문 종류 (등급 이유 / 자원 / 비교 / 자료 한계 / 기타)와 답한 대상 조건 (후보 ID·동 코드만, 질문 원문 없음)
+    intent: Literal["why_level", "resources", "compare", "data_limits", "other"] | None = None
+    target: dict[str, list[str]] | None = None
 
 
 class RunResource(ResourceRecommendation):
@@ -971,3 +1071,92 @@ class CapabilitiesResponse(_Model):
     sources: list[SourceCapability]
     forbidden_combos: list[dict[str, Any]]
 
+
+# ---------------------------------------------------------------- 보호 자원 칸 (GET /resources/protective)
+
+
+class ProtectiveItem(_Model):
+    resource_id: str
+    name: str
+    subtype: str
+    address: str | None = None
+    phone: str | None = None
+    schedule: str | None = None
+    holiday_open: str = "미상"
+    source_url: str | None = None
+    last_verified: str | None = None
+    scope: Literal["동", "도시"]  # 그 동 안 시설 / 도시 단위 안내·사람 자원
+
+
+class ProtectiveGroup(_Model):
+    group: str  # 경로당 / 더위·한파 쉼터 / 돌봄 이웃 (configs/need_types.yaml protective.groups)
+    label: str
+    in_dong: int | None = None  # 그 동 안 수 (행정동이 붙은 자원이 없는 묶음은 null = 모름)
+    city_total: int | None = None  # 도시 전체 수 (원장 또는 시군 집계)
+    items: list[ProtectiveItem] = Field(default_factory=list)
+    status: Literal["수집", "도시 집계만", "미수집"]
+    note: str | None = None
+
+
+class ProtectiveResponse(_Model):
+    """보호 자원 칸. 위험 표시가 아니라 그 동에 이미 있는 연결 자원 (등급·순위에 쓰지 않음)."""
+
+    city: City
+    adm_cd: str | None = None
+    adm_nm: str | None = None
+    groups: list[ProtectiveGroup]
+    note: str
+
+
+# ---------------------------------------------------------------- 이의·정정 기록 (POST/GET /objections)
+
+ObjectionTarget = Literal["candidate", "run"]
+# 사유 분류 (자유 글은 마스킹해서 따로)
+ObjectionReason = Literal["후보가 아님(현장 사정)", "근거 자료 오류", "등급이 맞지 않음", "자원 정보 오류", "낙인·표현 우려", "기타"]
+ObjectionStatus = Literal["접수", "검토 중", "반영", "기각"]
+MAX_OBJECTION_TEXT = 1000
+
+
+class ObjectionRequest(_Model):
+    """담당자가 후보·실행 결과에 대해 남기는 이의·정정 요청. 개인 정보는 받지 않음 (자유 글은 저장 전에 가림)."""
+
+    target_type: ObjectionTarget
+    run_id: str | None = Field(default=None, max_length=100)
+    candidate_id: str | None = Field(default=None, max_length=100)
+    city: City
+    adm_cd: str | None = Field(default=None, pattern=r"^\d{8}$")
+    reason_category: ObjectionReason
+    text: str | None = Field(default=None, max_length=MAX_OBJECTION_TEXT)
+    idempotency_key: str = Field(pattern=r"^[A-Za-z0-9:._-]{1,100}$")
+
+
+class ObjectionStatusRequest(_Model):
+    status: Literal["검토 중", "반영", "기각"]
+    resolution: str | None = Field(default=None, max_length=MAX_OBJECTION_TEXT)
+
+
+class ObjectionRecord(_Model):
+    objection_id: str
+    target_type: ObjectionTarget
+    run_id: str | None = None
+    candidate_id: str | None = None
+    city: str
+    adm_cd: str | None = None
+    reason_category: str
+    text: str | None = None  # 가린 글
+    status: ObjectionStatus
+    resolution: str | None = None  # 가린 글
+    submitted_by: str
+    resolved_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ObjectionResponse(_Model):
+    objection: ObjectionRecord
+    duplicate: bool = False
+
+
+class ObjectionListResponse(_Model):
+    items: list[ObjectionRecord]
+    total: int

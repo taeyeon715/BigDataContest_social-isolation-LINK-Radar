@@ -185,7 +185,8 @@ def test_retention_clears_old_text(dev):
     store = dev.app.state.store
     now = datetime.now(KST)
     assert purge_old_text(store, days=30, now=now) == {k: 0 for k in (
-        "runs", "reviews", "approvals", "approval_intents", "resource_judgements", "run_metadata")}
+        "runs", "reviews", "approvals", "approval_intents", "objections", "objection_resolutions",
+        "resource_judgements", "run_metadata")}
     dry = purge_old_text(store, days=30, now=now + timedelta(days=31), dry_run=True)
     assert dry["runs"] == 1 and dry["reviews"] == 1
     assert store.get_run(run_id)["question"]  # dry-run 은 그대로

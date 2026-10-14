@@ -81,11 +81,11 @@ def test_endpoint_publish_candidates():
     assert out["route"] == "investigate"
     assert "classify" not in out["path"] and "check_availability" in out["path"]
     assert out["path"][-1] == "publish_candidates"
-    # rules-v1.0: 구조 상위·접근성 기준을 못 넘는 동(가짜 퇴계동)은 예정된 점검 후보로 만들지 않음
+    # rules-v1.1: 구조 상위·접근성 기준을 못 넘는 동(가짜 퇴계동)은 예정된 점검 후보로 만들지 않음
     assert len(out["published"]["candidates"]) == 3
     levels = [c["candidate_level"] for c in out["candidates"]]
     assert levels == ["Level 3", "Level 2", "Level 2"]
-    assert all(c["rule_id"] and c["rule_version"] == "rules-v1.0" for c in out["candidates"])
+    assert all(c["rule_id"] and c["rule_version"] == "rules-v1.1" for c in out["candidates"])
     # 예정된 점검은 반증 대상이 아님
     assert all(c["counter_result"] == "해당 없음" for c in by_type(out, "scheduled_access_review"))
     # K=2: 등급은 그대로, 배정만 2건
@@ -198,7 +198,8 @@ def test_candidates_validate():
 
 def test_signal_revise_then_pass():
     out = run(scenario="confounder_timeout_once")
-    assert out["path"].count("collect_signals") == 2
+    # Guard 처치 retry_failed_tool: 전체 다시 수집이 아니라 실패한 반증 도구만 다시
+    assert out["path"].count("collect_signals") == 1 and out["path"].count("retry_tools") == 1
     assert [g["verdict"] for g in out["guard"] if g["guard"] == "guard_signal"] == ["REVISE", "PASS"]
     assert deviation(out)["counter_result"] == "통과"
 
@@ -207,7 +208,7 @@ def test_signal_revise_third_time_abstains():
     out = run(scenario="confounder_timeout_always")
     sig = [g["verdict"] for g in out["guard"] if g["guard"] == "guard_signal"]
     assert sig == ["REVISE", "REVISE", "REVISE"]  # 세 번째 REVISE 판단 → 한도 넘어 ABSTAIN
-    assert out["path"].count("collect_signals") == 3
+    assert out["path"].count("collect_signals") == 1 and out["path"].count("retry_tools") == 2
     assert "REVISE 2회 넘음" in out["abstain_reason"]
     assert out["path"][-2:] == ["abstain_report", "publish_candidates"]
     assert out["published"]["is_abstain"]
