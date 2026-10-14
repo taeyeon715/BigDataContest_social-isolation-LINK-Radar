@@ -21,6 +21,8 @@ uv run python scripts/reproduce.py --ingest        # 원본 zip 적재부터 전
 uv run python scripts/reproduce.py                 # data/interim 이 이미 있으면 적재 빼고 전부
 uv run python scripts/reproduce.py --no-raw        # 원본 없이 되는 단계만
 uv run python scripts/reproduce.py --check-hash    # 다 만든 뒤 reports/결과_해시.txt 와 비교
+uv run python scripts/reproduce.py --no-raw --check-hash                      # 새 체크아웃, 원본 없이 (w1·w2·m4·점검)
+uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # data/interim 이 있을 때 부분 재현
 ```
 
 - 단계별 성공 여부와 시간은 `reports/재현_기록.csv`에 남습니다.
@@ -46,8 +48,9 @@ uv run python scripts/reproduce.py --check-hash    # 다 만든 뒤 reports/결�
 | 13 | m4 | `notebooks/m4_risk_factors.py` | 공개 시민생활 + eda2·eda4·w1 CSV | `reports/m3_모델링결과/M4.md` | **됨** | 21초 |
 | 14 | r2 | `notebooks/r2_risk_results.py` | 1, r1·eda3·eda5·eda6·m1 | `reports/r2_위험도결과` | 안 됨 | 17초 |
 | 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | 2분 26초 |
-| 16 | 점검 | `scripts/check_no_raw.py` | — | 리포트 CSV 원천 값 열 점검 | **됨** | 1초 |
-| 17 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
+| 16 | s1 | `notebooks/s1_link_sim.py` | 1 (실제 자료 비교) | `reports/s1_LINK-Sim`, `data/sim` (가상 자료, git 제외) | 안 됨 | 3분 30초 |
+| 17 | 점검 | `scripts/check_no_raw.py` | — | 리포트 CSV 원천 값 열 점검 | **됨** | 1초 |
+| 18 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
 
 - 시간은 Windows 11 노트북(2026-10-14, rules-v1.1) 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 39분, m1 이 30분). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
 - 원본 없이도 되는 것: 자원 원장(w1), 자원 추천 평가(w2), 위험 요인 모델(M4), 점검, API·화면(가짜 데이터, `README.md` 시작하기).
@@ -55,9 +58,21 @@ uv run python scripts/reproduce.py --check-hash    # 다 만든 뒤 reports/결�
 
 ## 4. 결과 확인 (해시)
 
-- `reports/결과_해시.txt`: 리포트 CSV 66개의 sha256 (줄 끝을 LF로 맞춘 뒤). 그림(PNG)은 글꼴·라이브러리 판에 따라 바이트가 달라 비교하지 않습니다.
-- 다시 만든 뒤 `--check-hash`로 비교하면 같은 파일 / 다른 파일 / 새 파일 / 없어진 파일 수를 보여 주고, 다른 파일이 있으면 종료 코드 1입니다.
-- 이번 확인: rules-v1.1 병합 뒤 적재를 뺀 전 단계를 다시 돌렸을 때, 다른 사람이 만든 리포트 CSV(eda1~6·m1·m2·r1·w1)는 모두 커밋된 파일과 같았고 `reports/r1_등급규칙/카드_판단변화.csv` 한 개만 **행 순서**가 달랐습니다(내용은 같음). 이 파일은 커밋된 판으로 두고 해시를 만들었습니다. 실행마다 순서가 바뀔 수 있으니 다르게 나오면 정렬해 비교하세요.
+해시는 CSV를 줄 끝(LF)만 맞춘 뒤 잰 sha256입니다. 그림(PNG)은 글꼴·라이브러리 판에 따라 바이트가 달라 비교하지 않습니다. 검증 목록은 두 개입니다.
+
+| 목록 | 무엇 | 개수 | `--check-hash` 에서 |
+|---|---|---|---|
+| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개 포함 | 89 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
+| `reports/결과_해시_로컬.txt` | 레포에 올리지 않는 로컬 전용 결과: `m1_기대활동모델/예측_전체.csv`(원천 결제건수가 있어 `.gitignore`) | 1 | 파일이 있을 때만 비교, 다르면 실패. 없으면 "건너뜀" (새 체크아웃에는 없음) |
+
+- `--write-hash`는 git이 추적하는 `reports/**/*.csv`로 검증 목록을 다시 씁니다. 리포트 CSV를 새로 추가했으면 커밋한 뒤 `--write-hash`로 목록에 넣습니다. 목록 밖 CSV는 검사에서 실패하므로 빠뜨릴 수 없습니다(`tests/test_r2_results.py`가 목록 = 추적 CSV 인지 확인).
+- `reports/재현_기록.csv`(실행 시간)는 컴퓨터마다 달라 해시에서 뺍니다.
+- 새 체크아웃에서 문서의 순서로 확인한 결과 (2026-10-14):
+  - 원본 없이: `--only w1 w2 m4 s1 check_no_raw --check-hash` → 검증 목록 같음 89, 다름·새 파일·없어짐 0, 로컬 전용 건너뜀 1, 종료 코드 0. (s1 은 `data/interim`이 필요합니다. 원본이 없으면 `--no-raw --check-hash` 로 w1·w2·m4·점검만 돌려도 같은 결과입니다.)
+  - `data/interim`이 있을 때: r1·w2·r2·m3 를 다시 만들어도 커밋된 CSV와 같습니다.
+- 예전에 `reports/r1_등급규칙/카드_판단변화.csv`는 실행마다 **행 순서**가 바뀌었습니다(파이썬 집합 순서). 지금은 노트북이 도시·집단·기준일·코호트 순으로 정렬해 저장합니다. 정렬 전후 213행의 내용은 같고 순서만 바뀌었습니다.
+- 원본(대회 zip)이 필요한 단계: ingest. `data/interim`(원본을 적재한 정리본)이 필요한 단계: eda1~6, m1, m2, r1, r2, m3, s1. 원본 없이 되는 단계: w1, w2, m4, 점검. 원본은 재배포할 수 없어 새 체크아웃에는 없습니다.
+- M1 전체(`--only m1`)를 다시 돌리면 로컬 전용 `예측_전체.csv`도 다시 생기고, 그때부터 로컬 목록과 비교합니다.
 - `reports/eda5_인사이트재현`, `eda6_사전경보재평가`, `w1_자원원장`의 README 는 노트북 출력 뒤 문구를 손으로 다듬은 판이 커밋돼 있어, 다시 만들면 문장 몇 줄이 다릅니다(숫자·CSV 는 같음).
 
 ## 5. 알려진 것

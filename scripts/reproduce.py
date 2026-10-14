@@ -7,9 +7,16 @@
   uv run python scripts/reproduce.py --ingest           # 대회 원본 zip(BC_RAW_DIR)부터 적재까지 포함
   uv run python scripts/reproduce.py --check-hash       # 다 만든 뒤 리포트 CSV 해시를 reports/결과_해시.txt 와 비교
   uv run python scripts/reproduce.py --only r2 m3       # 몇 단계만
+  uv run python scripts/reproduce.py --only check_no_raw --check-hash   # 다시 만들지 않고 해시만 검사
 
 - 단계마다 걸린 시간과 성공 여부를 reports/재현_기록.csv 에 남긴다 (컴퓨터마다 다름, 해시 비교에서 뺌).
-- 해시는 reports/**/*.csv 를 줄 끝(CRLF/LF)만 맞춘 뒤 sha256 으로 잰다. 그림(PNG)은 글꼴·버전에 따라 바이트가 달라져 비교하지 않는다.
+- 해시는 CSV 를 줄 끝(CRLF/LF)만 맞춘 뒤 sha256 으로 잰다. 그림(PNG)은 글꼴·버전에 따라 바이트가 달라져 비교하지 않는다.
+- 검증 목록은 두 개다.
+  - reports/결과_해시.txt: git 에 올린(제출하는) 리포트 CSV 전부. 명시적 목록이다. --check-hash 에서
+    값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV 가 reports/ 에 새로 생기면 실패(종료 코드 1).
+  - reports/결과_해시_로컬.txt: 레포에 올리지 않는 로컬 전용 결과(M1 예측_전체.csv, 원천 결제건수가 있음).
+    파일이 있을 때만 비교하고, 없으면 "건너뜀"으로 적는다 (새 체크아웃에는 없음).
+- --write-hash 는 git 이 추적하는 reports/**/*.csv 로 검증 목록을 다시 쓴다 (git 이 없으면 로컬 전용을 뺀 전부).
 - 자원 추천 평가의 정답 세트(notebooks/w2_labels.py)는 결과를 보기 전에 고정한 입력이라 기본으로 다시 만들지 않는다 (--relabel).
 """
 
@@ -27,8 +34,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / "reports" / "결과_해시.txt"
+LOCAL_HASH_FILE = ROOT / "reports" / "결과_해시_로컬.txt"
 LOG_FILE = ROOT / "reports" / "재현_기록.csv"
 NOT_HASHED = {"재현_기록.csv"}
+# 레포에 올리지 않는 로컬 전용 결과 (.gitignore). reports 기준 상대 경로
+LOCAL_ONLY = {"m1_기대활동모델/예측_전체.csv"}
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,7 @@ STEPS: list[Step] = [
     Step("m4", (*PY, "notebooks/m4_risk_factors.py"), "none", "reports/m3_모델링결과/M4.md", "eda2·eda4·w1 CSV 사용"),
     Step("r2", (*PY, "notebooks/r2_risk_results.py"), "interim", "reports/r2_위험도결과", "r1·eda3·eda5·eda6·m1 다음"),
     Step("m3", (*PY, "notebooks/m3_models.py"), "interim", "reports/m3_모델링결과", "eda6·m1·m2·r1·w2·m4 다음"),
+    Step("s1", (*PY, "notebooks/s1_link_sim.py"), "interim", "reports/s1_LINK-Sim, data/sim (가상 자료)", "실제 자료 비교에 data/interim 필요"),
     Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트 CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]
@@ -116,14 +127,35 @@ def result_hashes(root: Path = ROOT) -> dict[str, str]:
     return out
 
 
-def write_hashes(h: dict[str, str], path: Path = HASH_FILE) -> None:
-    lines = ["# 리포트 CSV sha256 (줄 끝 LF 로 맞춘 뒤). scripts/reproduce.py --write-hash 로 만듦"]
+def tracked_csvs(root: Path = ROOT) -> set[str] | None:
+    """git 이 추적하는 reports/**/*.csv (reports 기준 상대 경로). git 을 못 쓰면 None."""
+    try:
+        out = subprocess.run(["git", "ls-files", "-z", "--", "reports"], cwd=root,
+                             capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    names = [x.decode("utf-8") for x in out.split(b"\0") if x]
+    return {n.removeprefix("reports/") for n in names if n.endswith(".csv") and Path(n).name not in NOT_HASHED}
+
+
+HEADERS = {
+    "verified": ["# 제출·추적 리포트 CSV sha256 (줄 끝 LF 로 맞춘 뒤). scripts/reproduce.py --write-hash 로 만듦",
+                 "# 명시적 목록: --check-hash 에서 값이 다르거나, 여기 있는 파일이 없거나, 여기 없는 CSV 가 생기면 실패"],
+    "local": ["# 로컬 전용 결과 CSV sha256 (레포에 올리지 않음, .gitignore). scripts/reproduce.py --write-hash 로 만듦",
+              "# 파일이 있을 때만 비교 (없으면 건너뜀). 다르면 실패"],
+}
+
+
+def write_hashes(h: dict[str, str], path: Path = HASH_FILE, kind: str = "verified") -> None:
+    lines = list(HEADERS[kind])
     lines += [f"{v}  {k}" for k, v in sorted(h.items())]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def read_hashes(path: Path = HASH_FILE) -> dict[str, str]:
     out = {}
+    if not path.exists():
+        return out
     for ln in path.read_text(encoding="utf-8").splitlines():
         if ln.startswith("#") or not ln.strip():
             continue
@@ -137,6 +169,36 @@ def compare_hashes(now: dict[str, str], ref: dict[str, str]) -> dict[str, list[s
             "다름": sorted(k for k in now if k in ref and ref[k] != now[k]),
             "새 파일": sorted(k for k in now if k not in ref),
             "없어짐": sorted(k for k in ref if k not in now)}
+
+
+def check_hashes(root: Path = ROOT, hash_file: Path = HASH_FILE, local_file: Path = LOCAL_HASH_FILE) -> tuple[bool, dict]:
+    """검증 목록: 다름·새 파일·없어짐이 하나라도 있으면 실패. 로컬 전용: 있는 파일만 비교, 다르면 실패."""
+    ref, ref_local = read_hashes(hash_file), read_hashes(local_file)
+    local_names = set(ref_local) | LOCAL_ONLY
+    allh = result_hashes(root)
+    now = {k: v for k, v in allh.items() if k not in local_names}
+    now_local = {k: v for k, v in allh.items() if k in local_names}
+    c = compare_hashes(now, ref)
+    cl = {"같음": sorted(k for k in ref_local if now_local.get(k) == ref_local[k]),
+          "다름": sorted(k for k in ref_local if k in now_local and now_local[k] != ref_local[k]),
+          "건너뜀": sorted(k for k in ref_local if k not in now_local)}
+    ok = not (c["다름"] or c["새 파일"] or c["없어짐"] or cl["다름"])
+    return ok, {"검증": c, "로컬": cl}
+
+
+def write_all_hashes(root: Path = ROOT, hash_file: Path = HASH_FILE, local_file: Path = LOCAL_HASH_FILE) -> tuple[int, int]:
+    """검증 목록 = git 추적 CSV (git 이 없으면 로컬 전용을 뺀 전부). 로컬 전용은 파일이 있으면 새 값, 없으면 기존 값 유지."""
+    now = result_hashes(root)
+    tracked = tracked_csvs(root)
+    names = (tracked if tracked is not None else set(now)) - LOCAL_ONLY
+    missing = sorted(names - set(now))
+    if missing:
+        raise SystemExit(f"추적 CSV 가 디스크에 없음: {missing}")
+    write_hashes({k: now[k] for k in names}, hash_file, "verified")
+    local = read_hashes(local_file)
+    local.update({k: v for k, v in now.items() if k in LOCAL_ONLY})
+    write_hashes(local, local_file, "local")
+    return len(names), len(local)
 
 
 def run(args) -> int:
@@ -167,17 +229,22 @@ def run(args) -> int:
         w.writeheader()
         w.writerows(log)
     if args.write_hash:
-        write_hashes(result_hashes())
-        print(f"해시 저장: {HASH_FILE.relative_to(ROOT)}")
+        n, n_local = write_all_hashes()
+        print(f"해시 저장: {HASH_FILE.relative_to(ROOT)} ({n}개), {LOCAL_HASH_FILE.relative_to(ROOT)} ({n_local}개)")
     if args.check_hash:
         if not HASH_FILE.exists():
             print("해시 파일 없음: --write-hash 로 먼저 만드세요")
             return 2
-        c = compare_hashes(result_hashes(), read_hashes())
-        print(f"해시 비교: 같음 {len(c['같음'])}, 다름 {len(c['다름'])}, 새 파일 {len(c['새 파일'])}, 없어짐 {len(c['없어짐'])}")
-        for k in c["다름"]:
-            print(f"  다름: {k}")
-        if c["다름"] or c["없어짐"]:
+        ok, res = check_hashes()
+        c, cl = res["검증"], res["로컬"]
+        print(f"해시 비교 (검증 목록): 같음 {len(c['같음'])}, 다름 {len(c['다름'])}, 새 파일 {len(c['새 파일'])}, 없어짐 {len(c['없어짐'])}")
+        for kind in ("다름", "새 파일", "없어짐"):
+            for k in c[kind]:
+                print(f"  {kind}: {k}")
+        print(f"해시 비교 (로컬 전용): 같음 {len(cl['같음'])}, 다름 {len(cl['다름'])}, 건너뜀(파일 없음) {len(cl['건너뜀'])}")
+        for k in cl["다름"]:
+            print(f"  로컬 다름: {k}")
+        if not ok:
             return 1
     return 1 if failed else 0
 
@@ -190,8 +257,9 @@ def main(argv=None) -> int:
     ap.add_argument("--relabel", action="store_true", help="자원 추천 평가 정답 세트도 다시 만듦")
     ap.add_argument("--only", nargs="+", choices=KEYS, help="이 단계만")
     ap.add_argument("--keep-going", action="store_true", help="실패해도 다음 단계 계속")
-    ap.add_argument("--write-hash", action="store_true", help="끝난 뒤 reports/결과_해시.txt 를 새로 씀")
-    ap.add_argument("--check-hash", action="store_true", help="끝난 뒤 reports/결과_해시.txt 와 비교 (다르면 종료 코드 1)")
+    ap.add_argument("--write-hash", action="store_true", help="끝난 뒤 reports/결과_해시.txt (+ _로컬) 를 새로 씀")
+    ap.add_argument("--check-hash", action="store_true",
+                    help="끝난 뒤 reports/결과_해시.txt 와 비교 (다름·새 파일·없어짐이면 종료 코드 1)")
     return run(ap.parse_args(argv))
 
 
