@@ -24,7 +24,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 인증 | `Authorization: Bearer <토큰>`. 역할은 조회 < 검토 < 승인. 조회는 읽기만. **실행 만들기(`POST /runs`)·질의응답(`POST /qa`)·이어 묻기(`POST /runs/{id}/followup`)는 LLM 비용을 쓰므로 검토 이상**, 검토 저장·현장 결과·이의·정정 남기기도 검토 이상, 승인·보류·추가 조사·이의·정정 처리는 승인 역할. 역할이 모자라면 403 `FORBIDDEN`. `/health`만 토큰 없이 열림. 토큰 설정이 없으면 개발 모드(모두 허용, 감사 actor `dev-unauthenticated`). 검토자·승인자 이름과 감사 actor는 서버가 토큰으로 정함(본문 이름은 `claimed_actor`로만 남김). 토큰 설정은 아래 "토큰 설정" |
 | 횟수 한도 | 실행 만들기·질의응답·이어 묻기는 사용자(토큰 이름)마다 `LINKRADAR_RUN_RATE`(`<횟수>/<초>`, prod 기본 `20/600`, dev 는 줄 때만) 안에서만 받음. 넘으면 429 `RATE_LIMITED` + `Retry-After`(초). 서버 메모리에만 세므로 다시 켜면 비워짐 |
 | 실행 예산 | 실행 하나의 LLM 호출 수·비용 한도는 `configs/llm.yaml`의 `budget`(`max_calls_per_run`, `max_cost_usd_per_run`). 그래프 실행·검토 반영·추가 조사·이어 묻기가 같은 예산을 나눠 씀. 넘으면 LLM을 부르지 않고 규칙·템플릿으로 대신하고 `llm_calls`에 `error_code=BUDGET_EXCEEDED`(status `fallback`)를 남김. 응답 모양은 같음 |
-| 개인정보 저장 | 질문(`runs.question`, 실행 입력)·검토 메모·자원 판정 메모·승인 메모·이의·정정 글은 **저장하기 전에** 전화번호·주민번호·이메일·상세 주소·이름+호칭을 `[전화번호]`·`[이름]` 등으로 가림. 실제 그래프에도 가린 질문만 넘기므로 체크포인트에도 원문이 없음. 가린 표시가 든 질문은 개인 지목 규칙에 걸려 `OUT_OF_SCOPE_INDIVIDUAL`로 보류(예: 도로명 주소가 든 질문도 보류됨). 조회 응답(`/runs`, `/history`, `/followups`)에도 가린 글이 나감. 보존 기한(`LINKRADAR_TEXT_RETENTION_DAYS`, 기본 365일)이 지난 질문·메모 글은 `uv run python -m api.retention --db <상태 DB>`(`--dry-run` 가능)로 비움(행은 남기고 글 칸만 NULL, 감사 `text_purged`). 이어 묻기 질문은 저장하지 않음 |
+| 개인정보 저장 | 질문(`runs.question`, 실행 입력)·검토 메모·자원 판정 메모·승인 메모·이의·정정 글은 **저장하기 전에** 전화번호·주민번호·이메일·상세 주소, 그리고 사람 이름(성+이름에 호칭·`에게`/`한테`/`께`가 붙은 것, 성+이름+조사 뒤에 연락·방문·확인 같은 행동 말이 오는 것, 연락 말 옆의 세 글자 이름, 흔한 한국 성 로마자가 든 영문 이름, 성+씨)을 `[전화번호]`·`[이름]` 등으로 가림. 지명(동 이름)과 성 글자로 시작하는 흔한 말(이번·정도·김장철 등)은 이름으로 보지 않음. 실제 그래프에는 가린 질문만 넘기므로 체크포인트에도 가린 글만 들어감. 자동 가리기는 개인정보를 줄일 뿐 모두 지운다고 보장하지 못합니다(규칙 기반이라 별명·이름만 쓴 말·드문 표기는 빠질 수 있음). 자유 글에는 개인정보를 쓰지 않는 것이 원칙입니다. 가린 표시가 든 질문은 개인 지목 규칙에 걸려 `OUT_OF_SCOPE_INDIVIDUAL`로 보류(예: 도로명 주소가 든 질문도 보류됨). 조회 응답(`/runs`, `/history`, `/followups`)에도 가린 글이 나감. 보존 기한(`LINKRADAR_TEXT_RETENTION_DAYS`, 기본 365일)이 지난 질문·메모 글은 `uv run python -m api.retention --db <상태 DB>`(`--dry-run` 가능)로 비움(행은 남기고 글 칸만 NULL, 감사 `text_purged`). 이어 묻기 질문은 저장하지 않음 |
 | 입력 한도 | 본문 64KB(넘으면 413 `PAYLOAD_TOO_LARGE`), 질문 500자, 메모 2000자, 이름 50자, 멱등 키 영문·숫자·`:._-` 100자, 목록 50개 |
 | 추적 | 응답 헤더 `X-Request-ID`, 요청마다 JSON 로그 한 줄(질문 원문·메모·토큰은 남기지 않음. 칸: 시각·경로·상태·소요 시간·`run_id`·오류 코드·actor). 감사 로그에도 질문·메모는 넣지 않음 |
 | 자료 출처 | 응답 헤더 `X-Data-Source`: `fake`(가짜 API) / `real`(실제 그래프) / `config`(설정 파일). 서버 환경 변수 `LINKRADAR_BACKEND=real`이면 실행·질의응답·이어 묻기·스냅샷과 현황·지도·후보 목록·자원 조회·후속 확인·현장 결과(실행별·모아 보기 `/outcomes/summary`)·보호 자원(`/resources/protective`)·이의·정정(`/objections`)이 모두 `real`, `/data/capabilities`만 `config` (§5). 모든 경로의 표지는 `tests/test_source_header.py`가 확인 |
@@ -263,7 +263,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 
 ### 3.6 `POST /runs`
 
-조사 실행을 시작합니다. 바로 `202 Accepted`. 검토 역할 이상, 사용자별 횟수 한도(§1). 질문은 개인정보를 가린 뒤 저장·실행합니다.
+조사 실행을 시작합니다. 바로 `202 Accepted`. 검토 역할 이상, 사용자별 횟수 한도(§1). 질문은 개인정보를 가린 뒤 저장·실행합니다(저장하는 것은 가린 글과 구조화한 요청뿐). 사람 이름이 든 질문(예: "…김철수에게 먼저 연락")은 가린 뒤 `[이름]` 표시 때문에 개인 지목으로 보아 `abstained` + `OUT_OF_SCOPE_INDIVIDUAL`입니다.
 
 요청 (`RunCreateRequest`). 질의응답 실행은 `question`이나 `candidate_id` 중 하나가 필요합니다.
 
@@ -906,7 +906,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 `POST /objections` (검토 역할 이상) → 201
 - `target_type`: `candidate`(→ `candidate_id` 필수) / `run`(→ `run_id` 필수, 없는 실행이면 `404 RUN_NOT_FOUND`)
 - `reason_category`: 후보가 아님(현장 사정) / 근거 자료 오류 / 등급이 맞지 않음 / 자원 정보 오류 / 낙인·표현 우려 / 기타
-- `text`(선택, 1000자): 저장 전에 전화번호·주민번호·이메일·상세 주소·이름+호칭을 가립니다(`mask_text`). 보존 기한이 지나면 비웁니다(`api/retention.py`)
+- `text`(선택, 1000자): 저장 전에 전화번호·주민번호·이메일·상세 주소·사람 이름을 가립니다(`mask_text`, §1 개인정보 저장과 같은 규칙. 모두 지운다고 보장하지 않음). 보존 기한이 지나면 비웁니다(`api/retention.py`)
 - `submitted_by`는 토큰으로 정한 이름 (요청 본문으로 정하지 않음)
 - `idempotency_key`: 같은 키 + 같은 내용 → 첫 기록(`duplicate=true`), 다른 내용 → `409 IDEMPOTENCY_KEY_REUSED`
 - 감사 로그: `objection_recorded`(ID·대상·도시·동·사유 분류만, 자유 글 없음), 거절은 `objection_rejected`

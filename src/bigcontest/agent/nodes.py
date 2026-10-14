@@ -36,7 +36,7 @@ from bigcontest.agent.schemas import (
     ResourceRecommendation,
     ToolResult,
 )
-from bigcontest.agent.state import card_of, pack_card, pack_report, report_of
+from bigcontest.agent.state import EvidenceIdConflict, card_of, pack_card, pack_report, report_of
 from bigcontest.agent.tools import EXTRA_TOOLS, call_tool, find_resources
 from bigcontest.agent.tools import report as R
 from bigcontest.agent.tools import signal as S
@@ -198,6 +198,59 @@ def _errors(state: dict, evidence: list[ToolResult]) -> list[dict]:
             if item not in out:
                 out.append(item)
     return out
+
+
+EVIDENCE_ID_CONFLICT = "EVIDENCE_ID_CONFLICT"
+
+
+def same_content(a: dict | ToolResult, b: dict | ToolResult) -> bool:
+    """같은 근거 ID 의 두 봉투가 같은 계산 결과인지 (JSON 모양으로 비교)."""
+    da = a.model_dump(mode="json") if isinstance(a, ToolResult) else a
+    db = b.model_dump(mode="json") if isinstance(b, ToolResult) else b
+    return da == db
+
+
+def id_conflicts(*groups) -> list[str]:
+    """여러 근거 목록에서 같은 ID 인데 내용이 다른 것 (K-01: 같은 ID 로 다른 계산을 가리키면 안 됨)."""
+    seen: dict[str, dict] = {}
+    out: list[str] = []
+    for group in groups:
+        for e in group or []:
+            d = e.model_dump(mode="json") if isinstance(e, ToolResult) else e
+            prev = seen.setdefault(d["evidence_id"], d)
+            if prev is not d and prev != d and d["evidence_id"] not in out:
+                out.append(d["evidence_id"])
+    return out
+
+
+def _conflict_errors(errors: list[dict], ids: list[str], where: str) -> list[dict]:
+    """근거 ID 충돌을 오류로 남김 (조용히 버리지 않음)."""
+    out = list(errors or [])
+    for i in ids:
+        item = {"evidence_id": i, "metric": "", "error_code": f"{EVIDENCE_ID_CONFLICT}: 같은 ID 에 다른 내용 ({where})"}
+        if item not in out:
+            out.append(item)
+    return out
+
+
+def quarantine_split(results: list[ToolResult], check=None) -> tuple[list[ToolResult], list[tuple[ToolResult, list]]]:
+    """참고용 근거 → (쓸 근거, [(격리한 근거, [(규칙·오류 코드, 사유)])]). 격리한 근거의 값은 어디에도 싣지 않는다."""
+    check = check or G.quarantine_reasons
+    keep, bad = [], []
+    for r in results:
+        why = check(r)
+        if why:
+            bad.append((r, why))
+        else:
+            keep.append(r)
+    return keep, bad
+
+
+def _quarantine_records(bad: list[tuple[ToolResult, list]], phase: str, tool_of: dict[str, str]) -> list[dict]:
+    """격리 기록 (값 없이 ID·지표·규칙만)."""
+    return [{"evidence_id": r.evidence_id, "metric": r.metric, "tool": tool_of.get(r.evidence_id), "phase": phase,
+             "rule_ids": list(dict.fromkeys(c for c, _ in why)), "reason": "; ".join(dict.fromkeys(w for _, w in why))}
+            for r, why in bad]
 
 
 def _adm_of(ev: ToolResult) -> str | None:
@@ -608,6 +661,7 @@ def collect_signals(state: dict) -> dict:
     asked: list[str] = []
     ctxs = []
     made_by: dict[str, str] = {}  # 근거 ID → "도구|도시" (Guard 처치: 실패한 도구만 다시)
+    quarantined: list[dict] = []
     for city in cities:
         ctx = _ctx(state, rev, city)
         ctxs.append(ctx)
@@ -617,11 +671,16 @@ def collect_signals(state: dict) -> dict:
             made_by.update({e.evidence_id: f"{name}|{city}" for e in got})
         for r in (r for r in runs if r["city"] == city):
             got = call_tool(r["tool"], ctx)
+            # 선택 도구(LLM·담당자가 고른 추가 도구)의 작은 칸은 격리: 그 근거만 빼고 실행은 계속 (K-05).
+            # 필수 근거의 작은 칸은 그대로 신호 Guard 가 보류. 폐기 지표 등은 Guard 처치(drop_evidence)가 뺌
+            got, bad = quarantine_split(got, small_cell_problems)
+            quarantined += _quarantine_records(bad, "collect_signals", {b.evidence_id: r["tool"] for b, _ in bad})
             evidence += got
             made_by.update({e.evidence_id: f"{r['tool']}|{city}" for e in got})
             if r["requested"]:
                 asked += [e.evidence_id for e in got]
     return {
+        "quarantine": quarantined,
         "evidence": _dump(evidence),
         "evidence_revision": rev,
         "evidence_tools": made_by,
@@ -959,6 +1018,11 @@ def retry_tools(state: dict) -> dict:
 # ---------------------------------------------------------------- 조사 루프 (investigation.py, AG-03)
 
 
+def small_cell_problems(ev: ToolResult) -> list[tuple[str, str]]:
+    """선택 도구 근거의 격리 사유: G-08 작은 칸·비공개 값만."""
+    return [(r, w) for r, w in G.evidence_problems(ev) if r == "G-08"]
+
+
 def _inv_cfg() -> dict:
     return dict((llm_config().get("slots") or {}).get("investigate") or {})
 
@@ -1032,6 +1096,8 @@ def investigate(state: dict) -> dict:
     cohort_of = {c["candidate_id"]: c.get("analysis_cohort") for c in state.get("candidates") or []}
     req = _req(state)
     new_ev: list[ToolResult] = []
+    quarantined = list(state.get("quarantine") or [])
+    q_seen = {(x["evidence_id"], x["phase"]) for x in quarantined}
     ctxs, cache = [], {}
     for p in picks:
         q = by_key[p["key"]]
@@ -1042,30 +1108,57 @@ def investigate(state: dict) -> dict:
             if q["tool"] == "find_resources":
                 env, found = find_resources(ctx, q.get("adm_cd"), req.group if req else None,
                                             need_type=INV.MEDICAL_NEED)
-                cache[sig] = ([env], len([r for r in found if r.get("city") == q["city"]]))
+                raw, n = [env], len([r for r in found if r.get("city") == q["city"]])
             else:
-                cache[sig] = (call_tool(q["tool"], ctx), None)
-        results, n = cache[sig]
+                raw, n = call_tool(q["tool"], ctx), None
+            # 신호 Guard 에 걸리는 조사 근거(작은 칸·폐기 지표·지표 뜻 바꾸기·도구 오류)는 격리:
+            # 그 근거만 쓰지 않고 실행은 계속 (K-05). 값은 어디에도 싣지 않음
+            keep, bad = quarantine_split(raw)
+            cache[sig] = (keep, n, bad)
+            for rec_ in _quarantine_records(bad, "investigate", {b.evidence_id: q["tool"] for b, _ in bad}):
+                if (rec_["evidence_id"], rec_["phase"]) not in q_seen:
+                    quarantined.append(rec_)
+                    q_seen.add((rec_["evidence_id"], rec_["phase"]))
+        results, n, bad = cache[sig]
         new_ev += results
         # 질문한 후보의 집단에 드는 근거만 답으로 봄 (예: 20대 남성 연휴 근거는 고령층 후보의 답이 아님)
         cohorts = {cohort_of.get(cid) for cid in q.get("candidate_ids") or []} - {None}
         fit = [r for r in results if not cohorts or any(cohort_fits(r.analysis_cohort, co) for co in cohorts)]
-        status, finding, ids = INV.judge(q, fit, n)
+        bad_fit = [(r, why) for r, why in bad
+                   if not cohorts or any(cohort_fits(r.analysis_cohort, co) for co in cohorts)]
+        hint = INV.BY_ID[q["qid"]].metric_hint
+        if bad_fit and not [r for r in fit if not hint or hint in (r.metric or "")]:
+            # 답이 될 근거가 모두 격리됨 → "확인 못 함" + 사유 코드
+            codes = list(dict.fromkeys(c for _, why in bad_fit for c, _ in why))
+            status, finding, ids = INV.quarantined(codes)
+            reason_code = codes[0]
+        else:
+            status, finding, ids = INV.judge(q, fit, n)
+            reason_code = None
         items.append({**{f: q.get(f) for f in ("key", "qid", "label", "question", "city", "adm_cd", "candidate_ids",
                                                  "tool")},
                       "round": rnd, "source": source, "why": p.get("why"), "status": status, "finding": finding,
-                      "evidence_ids": ids})
+                      "evidence_ids": ids, **({"reason_code": reason_code} if reason_code else {})})
     rounds.append({"round": rnd, "source": source, "reason": str(reason or "")[:200], "picked": [p["key"] for p in picks]})
-    have = {e["evidence_id"] for e in state.get("investigation_evidence") or []}
     merged = list(state.get("investigation_evidence") or [])
+    by_id = {e["evidence_id"]: e for e in merged}
+    conflicts: list[str] = []
     for e in new_ev:
-        if e.evidence_id not in have:
-            merged.append(e.model_dump(mode="json"))
-            have.add(e.evidence_id)
+        d = e.model_dump(mode="json")
+        if e.evidence_id not in by_id:
+            merged.append(d)
+            by_id[e.evidence_id] = d
+        elif by_id[e.evidence_id] != d and e.evidence_id not in conflicts:
+            conflicts.append(e.evidence_id)  # 같은 ID 에 다른 계산: 버리지 않고 오류로 남김
+    # 등급 입력 근거(evidence)와 ID 가 같은데 내용이 다른 것도 오류 (K-01)
+    conflicts += [i for i in id_conflicts(state.get("evidence") or [], merged) if i not in conflicts]
     stopped = None if picks else ("LLM 이 더 확인할 질문이 없다고 봄" if source == "llm" else "고를 질문 없음")
-    return {"investigation": {**inv, "rounds": rounds, "items": items, "stopped": stopped},
-            "investigation_evidence": merged, "llm_log": _log(state, init_rec, rec),
-            "tool_timings": _timings(state, *ctxs, phase="investigate")}
+    upd = {"investigation": {**inv, "rounds": rounds, "items": items, "stopped": stopped},
+           "investigation_evidence": merged, "llm_log": _log(state, init_rec, rec), "quarantine": quarantined,
+           "tool_timings": _timings(state, *ctxs, phase="investigate")}
+    if conflicts:
+        upd["errors"] = _conflict_errors(state.get("errors") or [], conflicts, "조사 근거")
+    return upd
 
 
 def check_findings(state: dict) -> dict:
@@ -1170,6 +1263,7 @@ def match_resources(state: dict) -> dict:
     known = {e.evidence_id for e in evidence}
     resources: list[dict] = []
     ctxs = []
+    conflicts: list[str] = []
     for c in _candidates(state):
         if c.candidate_level not in ("Level 2", "Level 3"):
             continue
@@ -1191,7 +1285,15 @@ def match_resources(state: dict) -> dict:
         if env.evidence_id not in known:
             evidence.append(env)
             known.add(env.evidence_id)
-    return {"resources": resources, "evidence": _dump(evidence), "tool_timings": _timings(state, *ctxs)}
+        else:
+            prev = next(e for e in evidence if e.evidence_id == env.evidence_id)
+            if not same_content(prev, env) and env.evidence_id not in conflicts:
+                conflicts.append(env.evidence_id)  # 같은 ID 에 다른 계산: 버리지 않고 오류로 남김 (K-01)
+    upd = {"resources": resources, "evidence": _dump(evidence), "tool_timings": _timings(state, *ctxs)}
+    conflicts += [i for i in id_conflicts(evidence, state.get("investigation_evidence") or []) if i not in conflicts]
+    if conflicts:
+        upd["errors"] = _conflict_errors(state.get("errors") or [], conflicts, "자원 근거")
+    return upd
 
 
 # ---------------------------------------------------------------- 근거 카드 · 보고서
@@ -1240,9 +1342,14 @@ def investigation_card_evidence(state: dict, evidence: list[ToolResult], cands: 
     want = {i for it in (sec or {}).get("items") or [] for i in it.get("evidence_ids") or []}
     have = {e.evidence_id for e in evidence}
     cohorts = {c.analysis_cohort for c in cands}
+    base = {e.evidence_id: e for e in evidence}
     out = []
     for e in _inv_evidence(state):
-        if e.evidence_id in want and e.evidence_id not in have                 and (not cohorts or any(cohort_fits(e.analysis_cohort, co) for co in cohorts)):
+        if e.evidence_id in want and e.evidence_id in base and not same_content(base[e.evidence_id], e):
+            # 같은 ID 로 다른 계산을 인용하면 보고서가 엉뚱한 근거 표를 열게 됨 (K-01). 조용히 넘기지 않음
+            raise EvidenceIdConflict(f"조사 근거와 등급 근거의 ID 가 같은데 내용이 다름: {e.evidence_id}")
+        if e.evidence_id in want and e.evidence_id not in have \
+                and (not cohorts or any(cohort_fits(e.analysis_cohort, co) for co in cohorts)):
             out.append(e)
             have.add(e.evidence_id)
     return out
@@ -1693,6 +1800,19 @@ def report_trace(state: dict) -> list[dict]:
     return [{k: v for k, v in t.items() if k not in ("started_at", "ms")} for t in state.get("decision_trace") or []]
 
 
+def _trace_quarantine(step: dict, before: dict, upd: dict, phase: str) -> None:
+    """이 노드에서 새로 격리한 근거를 판단 기록에 남김 (값 없이 ID·지표·규칙, K-05)."""
+    old = {(x["evidence_id"], x["phase"]) for x in before.get("quarantine") or []}
+    new = [x for x in upd.get("quarantine") or [] if x["phase"] == phase and (x["evidence_id"], x["phase"]) not in old]
+    if not new:
+        return
+    step["rule_ids"] = list(dict.fromkeys(list(step.get("rule_ids") or []) + [c for x in new for c in x["rule_ids"]]))
+    step["inputs"] = {**(step.get("inputs") or {}), "quarantined": [
+        {k: x.get(k) for k in ("evidence_id", "metric", "tool", "rule_ids")} for x in new][:8]}
+    note = f"격리 {len(new)}건: 신호 Guard 에 걸린 참고 근거만 빼고 계속 (등급 입력 아님)"
+    step["reason"] = _short(f"{step['reason']} · {note}" if step.get("reason") else note)
+
+
 def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: str, ms: float) -> dict:
     """노드 한 번의 판단 기록 (질문 원문·개인정보 없음). graph._node 가 부른다.
     {node, choice, next, source, rule_ids, reason, inputs, changed, started_at, ms}"""
@@ -1751,6 +1871,8 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
         else:
             step["choice"] = ", ".join(tools)
         step["inputs"] |= {"errors": len(upd.get("errors") or []) - len(before.get("errors") or [])}
+        if name == "collect_signals":
+            _trace_quarantine(step, {}, upd, "collect_signals")
         if upd.get("abstain_reason"):
             step["reason"] = _short(upd["abstain_reason"])
     elif name in ("classify_candidate", "counter_evidence"):
@@ -1807,6 +1929,7 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
         else:
             step["choice"] = "건너뜀"
             step["reason"] = _short(inv.get("stopped"))
+        _trace_quarantine(step, before, upd, "investigate")
     elif name == "check_findings":
         inv = upd.get("investigation") or {}
         items = inv.get("items") or []
@@ -1814,7 +1937,7 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
         step["reason"] = _short(None if inv.get("continue") else inv.get("stopped"))
         step["inputs"] = {"rounds": len(inv.get("rounds") or []), "items": [
             {k: i.get(k) for k in ("label", "question", "city", "adm_cd", "tool", "round", "source", "why", "status",
-                                   "finding", "evidence_ids")} for i in items][:8]}
+                                   "finding", "evidence_ids", "reason_code")} for i in items][:8]}
     elif name == "assign_level":
         cands = st.get("candidates") or []
         step["choice"] = _count(cands, lambda c: c.get("candidate_level"))

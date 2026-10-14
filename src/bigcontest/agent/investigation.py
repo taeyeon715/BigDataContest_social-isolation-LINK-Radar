@@ -25,7 +25,11 @@ _HOLIDAY = re.compile(r"연휴|추석|설날|설 |명절|공휴일")
 WINTER_MONTHS = (11, 12, 1, 2)
 HEAT_MONTHS = (6, 7, 8)
 STATUS_KO = {"answered": "풀림", "unanswered": "여전히 모름", "no_data": "자료 없음", "error": "도구 오류",
-             "dropped": "Guard 가 뺌"}
+             "dropped": "Guard 가 뺌", "quarantined": "확인 못 함"}
+# 격리 사유 코드 → 짧은 설명 (K-05). 근거 값은 싣지 않는다
+QUARANTINE_KO = {"G-08": "작은 칸(인원이 적어 공개하지 않음)", "G-11": "폐기한 지표", "G-14": "지표 뜻 바꾸기",
+                 "TOOL_ERROR": "도구 오류", "TOOL_TIMEOUT": "도구 시간 초과", "TOOL_IO": "도구 입출력 오류",
+                 "DATA_UNAVAILABLE": "자료 없음"}
 
 
 @dataclass(frozen=True)
@@ -191,6 +195,13 @@ def judge(q: dict, results: list[ToolResult], n_items: int | None = None) -> tup
     return "unanswered", f"{rel[0].metric}: 값 없음" + (f" ({why})" if why else ""), ids
 
 
+def quarantined(codes: list[str]) -> tuple[str, str, list[str]]:
+    """답이 될 근거가 모두 신호 Guard 에 걸려 격리됨 → ("quarantined", "확인 못 함" 문장, 근거 ID 없음).
+    격리한 근거는 근거 표·보고서에 넣지 않으므로 인용도 없다. 등급·실행 끝 상태는 바뀌지 않는다."""
+    why = ", ".join(f"{c} {QUARANTINE_KO.get(c, '검사 실패')}" for c in codes) or "검사 실패"
+    return "quarantined", f"확인 못 함: 근거가 검사에 걸려 쓰지 않음 ({why})", []
+
+
 def section(inv: dict | None, kept_candidates: set[str] | None = None) -> dict | None:
     """상태의 조사 기록 → 보고서 "추가로 확인한 것" (schemas.Investigation 모양).
     kept_candidates 가 있으면 남은 후보(동으로 거른 뒤)와 관련된 질문만."""
@@ -202,7 +213,7 @@ def section(inv: dict | None, kept_candidates: set[str] | None = None) -> dict |
     not_picked = [q["label"] + (f" ({q['city']})" if q.get("city") else "") for q in inv.get("questions") or []
                   if q["key"] not in tried][:8]
     fields = ("key", "qid", "label", "question", "city", "adm_cd", "candidate_ids", "tool", "round", "source", "why",
-              "status", "finding", "evidence_ids")
+              "status", "finding", "evidence_ids", "reason_code")
     return {"rounds": len(inv.get("rounds") or []), "items": [{k: i.get(k) for k in fields} for i in items],
             "not_picked": not_picked, "stopped": inv.get("stopped"),
             "note": "추가로 확인한 것은 등급·순서·반증 판정에 쓰지 않음 (참고용)"}

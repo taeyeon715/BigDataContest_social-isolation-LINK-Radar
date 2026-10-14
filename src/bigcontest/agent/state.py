@@ -71,6 +71,8 @@ class AgentState(TypedDict, total=False):
     investigation_evidence: list[dict]  # 조사 루프 도구가 낸 근거. 등급·반증 입력(evidence)과 따로 둔다
     evidence_tools: dict[str, str]  # 근거 ID → "도구|도시" (Guard 처치: 실패한 도구만 다시)
     remedy: dict | None  # 마지막 Guard 처치 {remedy, rule_ids, targets}
+    # ---- K-05 격리
+    quarantine: list[dict]  # 신호 Guard 에 걸려 쓰지 않은 참고 근거 {evidence_id, metric, tool, phase, rule_ids, reason} (값 없음)
 
 
 EXTRA_FIELDS = (
@@ -79,7 +81,7 @@ EXTRA_FIELDS = (
     "tools_backend", "monitor_cities", "run_meta_dir", "run_meta", "decision_trace",
     "tool_timings", "focus", "extra_plan", "prev_round", "review", "scope_candidate_ids",
     "extra_runs", "requested_evidence_ids", "place_scope",
-    "investigation", "investigation_evidence", "evidence_tools", "remedy",
+    "investigation", "investigation_evidence", "evidence_tools", "remedy", "quarantine",
 )
 DEFAULT_TOOLS_BACKEND = "real"
 STUB_SNAPSHOT_ID = "snap-stub-0001"
@@ -169,6 +171,7 @@ def initial_state(
         "investigation_evidence": [],
         "evidence_tools": {},
         "remedy": None,
+        "quarantine": [],
     }
 
 
@@ -177,6 +180,10 @@ def initial_state(
 # 근거(ToolResult)는 상태의 `evidence` 에만 둔다. `evidence_card` 에는 근거 대신 근거 ID 목록(`evidence_ids`)을,
 # `report` 에는 카드 대신 카드 ID(`card_id`)만 둔다. 카드·보고서 전체가 필요하면 card_of·report_of 로 다시 짠다.
 # 예전 체크포인트(카드·보고서 안에 근거가 통째로 들어 있음)도 그대로 읽는다.
+
+
+class EvidenceIdConflict(ValueError):
+    """같은 근거 ID 가 서로 다른 내용(다른 계산)을 가리킴 (K-01). 어느 쪽을 골라도 인용이 틀릴 수 있어 멈춘다."""
 
 
 def pack_card(card) -> dict:
@@ -201,10 +208,17 @@ def card_dict(state: dict) -> dict | None:
     if "evidence" in packed:
         return packed
     by_id: dict[str, dict] = {}
-    # 등급 입력 근거 + 조사 루프 근거 ("추가로 확인한 것"에 인용한 것만 카드에 들어 있음)
+    clash: set[str] = set()
+    # 등급 입력 근거 + 조사 루프 근거 ("추가로 확인한 것"에 인용한 것만 카드에 들어 있음).
+    # 같은 ID 에 다른 내용이 있으면 한쪽을 조용히 고르지 않고 오류 (근거 ID 는 계산 인자까지 담으므로 생기면 안 됨)
     for e in list(state.get("evidence") or []) + list(state.get("investigation_evidence") or []):
-        by_id.setdefault(e["evidence_id"], e)
+        prev = by_id.setdefault(e["evidence_id"], e)
+        if prev is not e and prev != e:
+            clash.add(e["evidence_id"])
     ids = list(packed.get("evidence_ids") or [])
+    bad = [i for i in ids if i in clash]
+    if bad:
+        raise EvidenceIdConflict(f"같은 근거 ID 에 서로 다른 내용: {bad[:5]}")
     missing = [i for i in ids if i not in by_id]
     if missing:
         raise KeyError(f"상태 근거에 없는 카드 근거 ID: {missing[:5]}")

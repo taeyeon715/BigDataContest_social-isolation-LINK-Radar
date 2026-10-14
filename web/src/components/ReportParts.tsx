@@ -271,9 +271,11 @@ export type ExtraCheckItem = {
   round: number
   source?: 'llm' | 'rule' | null
   why?: string | null
-  status: 'answered' | 'unanswered' | 'no_data' | 'error' | 'dropped'
+  status: 'answered' | 'unanswered' | 'no_data' | 'error' | 'dropped' | 'quarantined'
   finding: string
   evidence_ids: string[]
+  /** 확인 못 함(quarantined)의 사유 코드 (G-08·G-11·G-14·도구 오류 코드) */
+  reason_code?: string | null
 }
 
 export type ExtraChecksData = {
@@ -290,6 +292,7 @@ const STATUS_VIEW: Record<ExtraCheckItem['status'], { label: string; cls: string
   no_data: { label: '자료 없음', cls: 'bg-canvas text-ink-600' },
   error: { label: '도구 오류', cls: 'bg-caution-soft text-ink-900' },
   dropped: { label: '검사에서 뺌', cls: 'bg-canvas text-ink-600' },
+  quarantined: { label: '확인 못 함', cls: 'bg-canvas text-ink-600' },
 }
 
 /** 판단 기록에서 조사 루프 결과를 꺼냄 (마지막 check_findings 칸). 보고서에 investigation 이 없을 때 씀 */

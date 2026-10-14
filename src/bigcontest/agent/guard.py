@@ -584,18 +584,8 @@ def check_signal(
         hits.add("", abstain_reason, "ABSTAIN")
 
     for ev in list(evidence) + list(extra or []):
-        # G-08 작은 칸: 인원 칸 값, 또는 비율의 분모(사람·세대 수)가 기준보다 작음
-        why = small_cell(ev)
-        if why:
-            hits.add("G-08", f"{ev.evidence_id}: {why}")
-        if ev.value_state == "suppressed" and ev.value is not None:
-            hits.add("G-08", f"{ev.evidence_id}: 비공개 값을 출력하려 함")
-        # G-11 폐기 지표
-        if ev.metric in cfg["deprecated_metrics"]:
-            hits.add("G-11", f"{ev.evidence_id}: 폐기한 지표 '{ev.metric}'")
-        # G-14 지표 뜻 바꾸기 (근거가 주장하는 내용)
-        for claim in _meaning_claims(ev):
-            hits.add("G-14", f"{ev.evidence_id}: '{claim}'")
+        for rule_id, why in evidence_problems(ev):
+            hits.add(rule_id, f"{ev.evidence_id}: {why}")
     for ev in evidence:
         # G-06 다시 하면 풀릴 반증 오류
         if ev.status == "ERROR" and ev.metric.startswith("반증") and ev.error_code in cfg["retriable_error_codes"]:
@@ -612,6 +602,35 @@ def check_signal(
         if c["candidate_type"] == deviation and (c.get("counter_result") in (None, "해당 없음") or not c.get("counter_reason")):
             hits.add("G-06", f"{c['candidate_id']}: 반증 검토 기록 없음")
     return hits.result(attempt)
+
+
+def evidence_problems(ev: ToolResult) -> list[tuple[str, str]]:
+    """근거 하나의 신호 Guard 문제 (규칙 ID, 사유). check_signal 과 조사 근거 격리(quarantine_reasons)가 같이 쓴다.
+    G-08 작은 칸·비공개 값, G-11 폐기 지표, G-14 지표 뜻 바꾸기."""
+    cfg = rules()
+    out: list[tuple[str, str]] = []
+    # G-08 작은 칸: 인원 칸 값, 또는 비율의 분모(사람·세대 수)가 기준보다 작음
+    why = small_cell(ev)
+    if why:
+        out.append(("G-08", why))
+    if ev.value_state == "suppressed" and ev.value is not None:
+        out.append(("G-08", "비공개 값을 출력하려 함"))
+    # G-11 폐기 지표
+    if ev.metric in cfg["deprecated_metrics"]:
+        out.append(("G-11", f"폐기한 지표 '{ev.metric}'"))
+    # G-14 지표 뜻 바꾸기 (근거가 주장하는 내용)
+    for claim in _meaning_claims(ev):
+        out.append(("G-14", f"'{claim}'"))
+    return out
+
+
+def quarantine_reasons(ev: ToolResult) -> list[tuple[str, str]]:
+    """참고용 근거(조사 루프 근거)를 쓰지 않고 격리할 이유 (규칙 ID 또는 오류 코드, 사유). 빈 목록이면 써도 됨.
+    신호 Guard 문제(evidence_problems) + 도구 오류(status ERROR)."""
+    out = evidence_problems(ev)
+    if ev.status == "ERROR":
+        out.append((ev.error_code or "TOOL_ERROR", "도구 오류"))
+    return out
 
 
 def small_cell(ev: ToolResult) -> str | None:
@@ -635,19 +654,11 @@ def small_cell(ev: ToolResult) -> str | None:
 
 
 def _person_names(text: str) -> list[str]:
-    """성 + 두 글자 이름 + 호칭 (김철수 할머니, 박영희님), 성 + 씨 (김씨, 김 씨). 지명·집단 말은 뺌."""
-    cfg = rules()["individual"]
-    sur = cfg["surnames"]
-    hon = cfg["honorifics"]
-    out = []
-    for m in re.finditer(rf"(?<![가-힣])([{sur}][가-힣]{{2}})\s*{hon}", text):
-        name = m.group(1)
-        if name in cfg["not_names"] or name[-1] in cfg["not_name_endings"]:
-            continue
-        out.append(m.group(0))
-    for m in re.finditer(rf"(?<![가-힣])[{sur}]\s?씨(?![가-힣])", text):
-        out.append(m.group(0))
-    return out
+    """사람 이름 표현 (agent/pii.py: 이름+호칭, 이름+에게·한테·께, 이름+조사+행동 말, 연락 말 옆 세 글자 이름,
+    영문 이름, 성+씨). guard_rules.yaml individual.not_names 도 이름이 아닌 말로 본다. 모든 이름을 찾는다고 보장하지 않음."""
+    from bigcontest.agent.pii import find_names
+
+    return find_names(text, tuple(rules()["individual"].get("not_names") or ()))
 
 
 def individual_target(question: str | None) -> list[str]:
@@ -664,17 +675,18 @@ def individual_target(question: str | None) -> list[str]:
 
 
 def mask_pii(text: str | None) -> tuple[str, int]:
-    """LLM 에 보내기 전에 전화번호·주민번호·이메일·상세 주소·이름+호칭을 가림. (가린 문장, 가린 개수)."""
+    """LLM 에 보내기·저장하기 전에 전화번호·주민번호·이메일·상세 주소·사람 이름(pii.find_names)을 가림.
+    (가린 문장, 가린 개수). 규칙 기반이라 모든 개인정보를 지운다고 보장하지 않는다."""
     if not text:
         return text or "", 0
     n = 0
     for item in rules()["pii_mask"]:
         text, k = re.subn(item["pattern"], f"[{item['label']}]", text)
         n += k
-    for name in _person_names(text):
-        k = text.count(name)
-        text = text.replace(name, "[이름]")
-        n += k
+    from bigcontest.agent.pii import mask_names
+
+    text, k = mask_names(text, tuple(rules()["individual"].get("not_names") or ()))
+    n += k
     return text, n
 
 

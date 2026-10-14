@@ -16,7 +16,7 @@ ID: `COUNT+1` 대신 시각 + 무작위 값(`new_id`). 행을 지워도 겹치�
 
 개인정보: 질문(runs.question, run_metadata 의 inputs.question)·검토 메모·자원 판정 메모·승인 메모·승인 의도 메모·
 이의·정정 글(objections.text·resolution)은
-저장하기 전에 `mask_text`(guard.mask_pii: 전화번호·주민번호·이메일·상세 주소·이름+호칭)로 가린다. 원문은 저장하지
+저장하기 전에 `mask_text`(guard.mask_pii: 전화번호·주민번호·이메일·상세 주소·사람 이름, agent/pii.py)로 가린다. 원문은 저장하지
 않는다. 보존 기한이 지난 글은 api/retention.py 가 지운다.
 """
 
