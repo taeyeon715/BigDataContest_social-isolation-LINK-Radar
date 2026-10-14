@@ -144,7 +144,7 @@ flowchart LR
 | 질의응답 | "이번 추석 전에 춘천은 어디부터?" | 질문 해석 → 데이터로 답할 수 있는지 검사 → 조사 또는 보류 | `check_request_contract` |
 | 승인 | 승인 / 보류 / 추가 조사 | 보고서 판과 맞을 때만 기록, 한 번만 | — |
 
-도구는 모두 **21개**이고, 전부 정해진 계산을 하는 Python 코드입니다. 목록은 [에이전트 설계](docs/에이전트_설계.md) §5에 있습니다.
+도구는 모두 **21개**이고, 전부 정해진 계산을 하는 Python 코드입니다. 대부분은 그래프가 정해진 순서로 부르고, LLM이 고를 수 있는 것은 **추가 조사 도구 5개**(`get_mobility_layer`·`get_validation_reference`·`calc_holiday_gap`·`calc_winter_contraction`·`calc_heat_response`)뿐입니다. 실행 기록 파일을 쓰는 `write_run_metadata`는 스크립트 경로에서만 돌고, API 경로는 실행 입력·스냅샷을 상태 DB(`run_metadata` 표)에 남깁니다(코드 커밋 칸은 아직 비어 있음). 목록은 [에이전트 설계](docs/에이전트_설계.md) §5에 있습니다.
 
 ---
 
@@ -187,7 +187,7 @@ flowchart LR
 flowchart TB
     U(["복지 담당자"]) --> WEB["React 대시보드"]
     WEB --> API["FastAPI<br/>실행·승인·메모 기록"]
-    API <--> DB[("SQLite<br/>체크포인트·승인")]
+    API <--> DB[("SQLite 2개<br/>실행·승인·가린 메모 / 체크포인트")]
     API --> AG
 
     subgraph AG["에이전트 (LangGraph)"]
@@ -200,10 +200,10 @@ flowchart TB
         G2 --> AP["승인 대기"]
     end
 
-    AG <-.설명 문장만.-> LLM["Claude<br/>Sonnet 5.5 · Haiku 5.5<br/>없으면 템플릿"]
+    AG <-.질문 해석·추가 조사 선택·설명 문장.-> LLM["Claude<br/>Sonnet 5.5 · Haiku 5.5<br/>없으면 템플릿"]
     AG --> T["도구 21개<br/>Data · Signal · Welfare · Report"]
-    T --> SNAP[("분석 스냅샷<br/>버전 고정 · 읽기만")]
-    BATCH["배치<br/>정리·신호·규칙"] --> SNAP
+    T --> SNAP[("정리된 데이터 data/interim · external<br/>파일 해시로 버전 고정 · 읽기만")]
+    BATCH["적재<br/>bigcontest.ingest"] --> SNAP
 ```
 
 <details>
@@ -322,7 +322,14 @@ JUSO_SEARCH_KEY=...      # 도로명주소 검색
 JUSO_COORD_KEY=...       # 도로명주소 좌표제공
 ```
 
-API 인증(선택): `LINKRADAR_API_TOKEN=<토큰>`을 주면 인증이 켜지고, 화면은 `VITE_API_TOKEN`으로 같은 토큰을 보냅니다. 역할·여러 토큰 설정은 [API 명세](docs/API_명세.md) §1에 있습니다.
+API 인증(선택): 토큰을 주면 인증이 켜집니다. 역할은 조회 < 검토 < 승인이고, 실행·질의응답·이어 묻기(LLM 비용)는 검토 이상입니다.
+
+- `LINKRADAR_API_TOKENS_FILE=<yaml>`: 사람마다 토큰과 이름·역할을 적은 파일(레포에 올리지 않음). 검토·승인 기록은 이 이름으로 남습니다.
+- `LINKRADAR_API_TOKEN=<토큰>`: 여럿이 같이 쓰는 공용 토큰. 기본 역할은 **조회**이고 기록 이름은 `공용:<이름>`입니다.
+
+> ⚠ 화면을 빌드할 때 `VITE_API_TOKEN`에 넣은 토큰은 JS 파일에 그대로 들어가 **화면을 여는 누구나 볼 수 있습니다.** 조회 역할 공용 토큰만 넣으세요. 운영(파일럿)에서는 번들에 토큰을 넣지 말고 앞단 프록시(nginx 등)에서 기관 로그인(SSO·LDAP)을 거친 뒤 사람별 토큰을 붙이는 방식을 권합니다. `LINKRADAR_ENV=prod`에서는 공용 토큰에 검토·승인 역할을 주면 서버가 켜지지 않습니다.
+
+질문·메모는 개인정보를 가린 뒤 저장하고, 보존 기한(기본 365일)이 지나면 `uv run python -m api.retention --db data/state/linkradar.sqlite`로 비웁니다. 자세한 것은 [API 명세](docs/API_명세.md) §1에 있습니다.
 </details>
 
 ---

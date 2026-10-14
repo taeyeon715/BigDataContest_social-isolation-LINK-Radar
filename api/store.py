@@ -13,6 +13,10 @@
 - 조회(GET)는 처리할 예약이 없으면 쓰기 트랜잭션을 열지 않는다 (RunService.advance).
 
 ID: `COUNT+1` 대신 시각 + 무작위 값(`new_id`). 행을 지워도 겹치지 않는다.
+
+개인정보: 질문(runs.question, run_metadata 의 inputs.question)·검토 메모·자원 판정 메모·승인 메모·승인 의도 메모는
+저장하기 전에 `mask_text`(guard.mask_pii: 전화번호·주민번호·이메일·상세 주소·이름+호칭)로 가린다. 원문은 저장하지
+않는다. 보존 기한이 지난 글은 api/retention.py 가 지운다.
 """
 
 from __future__ import annotations
@@ -165,6 +169,15 @@ def new_id(prefix: str, now: datetime) -> str:
     return f"{prefix}-{now:%Y%m%d-%H%M%S}-{secrets.token_hex(4)}"
 
 
+def mask_text(text: str | None) -> str | None:
+    """저장 전 개인정보 가리기 (가린 글만 저장). 이미 가린 글을 다시 넣어도 같음."""
+    if not text:
+        return text
+    from bigcontest.agent.guard import mask_pii
+
+    return mask_pii(text)[0]
+
+
 def _row(r: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(r) if r is not None else None
 
@@ -233,6 +246,8 @@ class Store:
         return new_id("run", now)
 
     def insert_run(self, **row: Any) -> None:
+        if row.get("question"):
+            row["question"] = mask_text(row["question"])
         cols = ", ".join(row)
         qs = ", ".join("?" for _ in row)
         self._exec(f"INSERT INTO runs ({cols}) VALUES ({qs})", *row.values())
@@ -276,6 +291,8 @@ class Store:
 
     def insert_run_metadata(self, run_id: str, snapshot_id: str, cleaning_rule_version: str, rule_version: str | None,
                             ledger_version: str | None, body: dict, now: datetime) -> None:
+        if (body.get("inputs") or {}).get("question"):
+            body = {**body, "inputs": {**body["inputs"], "question": mask_text(body["inputs"]["question"])}}
         self._exec(
             "INSERT INTO run_metadata (run_id, snapshot_id, code_commit, code_dirty, cleaning_rule_version, rule_version,"
             " ledger_version, body, created_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING",
@@ -339,11 +356,11 @@ class Store:
         self._exec(
             "INSERT INTO reviews (review_id, run_id, reviewer, checked_evidence_ids, memo, follow_up_on,"
             " report_revision_before, report_revision_after, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            review_id, run_id, reviewer, json.dumps(checked, ensure_ascii=False), memo, follow_up_on, before, after,
-            now.isoformat())
+            review_id, run_id, reviewer, json.dumps(checked, ensure_ascii=False), mask_text(memo), follow_up_on, before,
+            after, now.isoformat())
         for j in judgements:
             self._exec("INSERT INTO resource_judgements (review_id, resource_id, judgement, memo) VALUES (?,?,?,?)",
-                       review_id, j["resource_id"], j["judgement"], j.get("memo"))
+                       review_id, j["resource_id"], j["judgement"], mask_text(j.get("memo")))
 
     def list_reviews(self, run_id: str) -> list[dict[str, Any]]:
         # 같은 시각이면 넣은 순서(rowid). review_id 끝자리는 무작위라 순서로 쓰지 않음 (현장 확인 결과 seq 와 같은 이유)
@@ -373,7 +390,7 @@ class Store:
         self._exec(
             "INSERT INTO approvals (approval_id, run_id, idempotency_key, decision, report_revision, approver, memo,"
             " created_at) VALUES (?,?,?,?,?,?,?,?)",
-            approval_id, run_id, key, decision, report_revision, approver, memo, now.isoformat())
+            approval_id, run_id, key, decision, report_revision, approver, mask_text(memo), now.isoformat())
 
     def list_approvals(self, run_id: str | None = None) -> list[dict[str, Any]]:
         if run_id:
@@ -409,7 +426,7 @@ class Store:
         self._exec(
             "INSERT INTO approval_intents (idempotency_key, run_id, approval_id, decision, report_revision, approver,"
             " memo, actor, audit_extra, focus, state, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'pending',?,?)",
-            key, run_id, approval_id, decision, report_revision, approver, memo, actor,
+            key, run_id, approval_id, decision, report_revision, approver, mask_text(memo), actor,
             json.dumps(audit_extra, ensure_ascii=False), json.dumps(focus, ensure_ascii=False) if focus else None,
             now.isoformat(), now.isoformat())
         return self.get_intent(key)

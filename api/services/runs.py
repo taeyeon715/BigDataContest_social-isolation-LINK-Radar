@@ -417,7 +417,7 @@ class RunService:
                     adm_cd=c.get("adm_cd") or ((c.get("check_first_adm") or [None])[0]),
                     group_label=c.get("service_eligibility_group"), trigger_code=O.trigger_code_of(c),
                     event_id=c.get("event_id"), **{k: body[k] for k in O.COUNT_FIELDS},
-                    recorded_by=who.name, idempotency_key=req.idempotency_key, created_at=now.isoformat())
+                    recorded_by=who.record_name(), idempotency_key=req.idempotency_key, created_at=now.isoformat())
                 # 건수는 개인 정보가 아니라 감사 로그에 그대로 둠 (고쳐 적은 흐름을 볼 수 있게)
                 self.store.audit(who.actor(), "outcome_recorded", run_id,
                                  {"outcome_id": oid, "candidate_id": req.candidate_id,
@@ -445,7 +445,7 @@ class RunService:
     @staticmethod
     def _who(who: Identity, claimed: str) -> tuple[str, str, dict]:
         """(기록할 이름, 감사 actor, 감사 detail 추가분)."""
-        name = who.name if who.authenticated else claimed
+        name = who.record_name() if who.authenticated else claimed
         extra = {"claimed_actor": claimed} if claimed != who.actor() else {}
         return name, who.actor(), extra
 

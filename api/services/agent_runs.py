@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import Any, Callable
 
+from bigcontest.agent.budget import BUDGET_EXCEEDED, run_budget
 from bigcontest.agent.graph import Agent
 from bigcontest.agent.state import card_of, report_dict
 from bigcontest.agent.schemas import (
@@ -59,7 +60,7 @@ from api.auth import DEV_IDENTITY, Identity
 from api.errors import ApiError, not_awaiting
 from api.models import RunListResponse, RunSummary
 from api.services.runs import RunService
-from api.store import Store, new_id
+from api.store import Store, mask_text, new_id
 
 log = logging.getLogger("linkradar.api")
 SELECTION_BUDGET = 2
@@ -173,6 +174,21 @@ class AgentRunService(RunService):
     def _values(self, run_id: str) -> dict:
         return self.agent.status(run_id)["values"] or {}
 
+    def _budget(self, run_id: str):
+        """이 실행의 LLM 예산 (configs/llm.yaml budget). 이미 llm_calls 에 옮긴 호출 수·비용에서 시작하고,
+        아직 옮기지 않은 그래프 기록(llm_log)은 그래프 상태에서 더함."""
+        row = self.store._one(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(cost_usd), 0) AS c FROM llm_calls WHERE run_id = ? AND node != 'init'"
+            " AND COALESCE(error_code, '') != ?", run_id, BUDGET_EXCEEDED)
+        calls, cost = int(row["n"]), float(row["c"])
+        try:
+            log_ = (self._values(run_id).get("llm_log") or []) if self.agent.exists(run_id) else []
+        except Exception:  # noqa: BLE001 — 예산 계산이 실행을 막지 않게
+            log_ = []
+        unsynced = [r for r in log_[self.store.count_llm_calls(run_id):]
+                    if r.get("slot") != "init" and r.get("error_code") != BUDGET_EXCEEDED]
+        return run_budget(calls + len(unsynced), cost + sum(float(r.get("cost_usd") or 0) for r in unsynced))
+
     # ------------------------------------------------------------------ 시작
 
     def create(self, req: RunCreateRequest, who: Identity = DEV_IDENTITY) -> RunAccepted:
@@ -190,7 +206,9 @@ class AgentRunService(RunService):
                 raise ApiError(400, "CANDIDATE_NOT_IN_RUN",
                                "같은 정기 감시 실행·같은 도시의 후보가 아닙니다: " + ", ".join(bad[:5]))
             scope = list(dict.fromkeys([req.candidate_id, *req.candidate_ids]))
-        inputs = {"mode": req.mode, "question": question, "city": city, "as_of": req.as_of.isoformat(),
+        # 그래프에도 가린 질문만 넘김 → 체크포인트·실행 기록 어디에도 원문이 남지 않음. 가린 표시([이름]·[상세주소] 등)는
+        # 개인 지목 규칙에 걸리므로 이름·주소가 든 질문은 그대로 판단 보류(OUT_OF_SCOPE_INDIVIDUAL)
+        inputs = {"mode": req.mode, "question": mask_text(question), "city": city, "as_of": req.as_of.isoformat(),
                   "analysis_mode": req.analysis_mode, "snapshot_id": snap.snapshot_id, "llm": self.llm,
                   "tools_backend": self.tools_backend, "selection_budget": SELECTION_BUDGET,
                   "candidate_id": req.candidate_id, "source_run_id": source_run, "scope_candidate_ids": scope}
@@ -252,11 +270,13 @@ class AgentRunService(RunService):
             with self.store.tx():
                 self.store.update_run(run_id, self.clock(), status="running")
             try:
-                self.agent.start(run_id, inp["mode"], inp["as_of"], question=inp["question"],
-                                 analysis_mode=inp["analysis_mode"], snapshot_id=inp["snapshot_id"], llm=inp["llm"],
-                                 selection_budget=inp["selection_budget"], tools_backend=inp["tools_backend"],
-                                 city=inp["city"] if inp["mode"] == "monitoring" else None,
-                                 scope_candidate_ids=inp.get("scope_candidate_ids"))
+                with self._budget(run_id):
+                    self.agent.start(run_id, inp["mode"], inp["as_of"], question=inp["question"],
+                                     analysis_mode=inp["analysis_mode"], snapshot_id=inp["snapshot_id"],
+                                     llm=inp["llm"], selection_budget=inp["selection_budget"],
+                                     tools_backend=inp["tools_backend"],
+                                     city=inp["city"] if inp["mode"] == "monitoring" else None,
+                                     scope_candidate_ids=inp.get("scope_candidate_ids"))
             except Exception:  # noqa: BLE001 — 사유는 로그에만 (API 명세 §4)
                 log.exception("agent start failed", extra={"run_id": run_id})
                 with self.store.tx():
@@ -425,7 +445,9 @@ class AgentRunService(RunService):
                 payload = self._review_payload(run_id)
                 v = self._values(run_id)
                 if set(payload["review_ids"]) - set((v.get("report") or {}).get("review_ids") or []):
-                    res = self.agent.review(run_id, payload, v.get("report_revision"), key=payload["review_ids"][-1])
+                    with self._budget(run_id):
+                        res = self.agent.review(run_id, payload, v.get("report_revision"),
+                                                key=payload["review_ids"][-1])
                     if res["status"] not in ("accepted", "duplicate"):
                         log.warning("review resume %s", res.get("code") or res["status"])
                     self._sync(run_id, "review_changed")
@@ -503,8 +525,9 @@ class AgentRunService(RunService):
         """승인·보류 의도 하나를 끝까지: 그래프 재개 → API 승인·확정 기록 → 상태 맞춤. 승인 ID 를 돌려줌.
         그래프가 거절하면 의도를 rejected 로 두고 오류를 냄 (거절 감사 로그와 함께)."""
         run_id, key = it["run_id"], it["idempotency_key"]
-        res = self.agent.approve(run_id, it["decision"], it["report_revision"], approver=it["approver"],
-                                 idempotency_key=key)
+        with self._budget(run_id):
+            res = self.agent.approve(run_id, it["decision"], it["report_revision"], approver=it["approver"],
+                                     idempotency_key=key)
         if res["status"] not in ("accepted", "duplicate"):
             code = res.get("code") or "RUN_NOT_AWAITING_APPROVAL"
             if code == "RUN_NOT_AWAITING_APPROVAL":
@@ -614,8 +637,9 @@ class AgentRunService(RunService):
         from bigcontest.agent.nodes import make_plan
 
         v = self._values(run_id)
-        plan, recs = make_plan({"candidates": v.get("candidates") or [], "llm": v.get("llm"),
-                                "llm_log": v.get("llm_log") or []}, focus)
+        with self._budget(run_id):
+            plan, recs = make_plan({"candidates": v.get("candidates") or [], "llm": v.get("llm"),
+                                    "llm_log": v.get("llm_log") or []}, focus)
         return {"candidate_ids": list(focus.get("candidate_ids") or []), "tools": list(focus.get("tools") or []),
                 "counter_checks": list(focus.get("counter_checks") or []), "memo_given": bool(focus.get("memo")),
                 "plan": plan, "plan_llm_log": recs}
@@ -657,15 +681,16 @@ class AgentRunService(RunService):
                 **({"focus": focus} if focus else {})}
         with self._lock(run_id):
             try:
-                res = self.agent.approve(run_id, "more", rev, approver=name, idempotency_key=key, focus=focus)
-                st = self.agent.status(run_id)
-                if res["status"] == "duplicate" and st["waiting"] \
-                        and (st["interrupt"] or {}).get("report_revision") == rev:
-                    # 키는 차지했지만 재개가 끝나지 않음 (재시작 복구): 같은 범위·계획으로 이어 감
-                    self.agent.resume_pending(run_id, resp)
-                elif not st["waiting"] and st["next"]:
-                    # 재개했지만 회차 도중에 멈춘 체크포인트: 남은 노드를 이어서 (계획은 상태에 있음)
-                    self.agent.continue_run(run_id)
+                with self._budget(run_id):
+                    res = self.agent.approve(run_id, "more", rev, approver=name, idempotency_key=key, focus=focus)
+                    st = self.agent.status(run_id)
+                    if res["status"] == "duplicate" and st["waiting"] \
+                            and (st["interrupt"] or {}).get("report_revision") == rev:
+                        # 키는 차지했지만 재개가 끝나지 않음 (재시작 복구): 같은 범위·계획으로 이어 감
+                        self.agent.resume_pending(run_id, resp)
+                    elif not st["waiting"] and st["next"]:
+                        # 재개했지만 회차 도중에 멈춘 체크포인트: 남은 노드를 이어서 (계획은 상태에 있음)
+                        self.agent.continue_run(run_id)
             except Exception:  # noqa: BLE001
                 log.exception("extra round failed", extra={"run_id": run_id})
                 with self.store.tx():
@@ -738,6 +763,7 @@ class AgentRunService(RunService):
         snap = self.snapshots.active()
         now = self.clock()
         q = req.question if (req.city is None or req.city in req.question) else f"{req.city} {req.question}"
+        q = mask_text(q)  # 저장·그래프 모두 가린 질문 (create 와 같음)
         inputs = {"mode": "qa", "question": q, "city": req.city, "as_of": req.as_of.isoformat(),
                   "analysis_mode": req.analysis_mode, "snapshot_id": snap.snapshot_id, "llm": self.llm,
                   "tools_backend": self.tools_backend, "selection_budget": SELECTION_BUDGET,
@@ -767,5 +793,6 @@ class AgentRunService(RunService):
         run = self.advance(run_id)
         if run["status"] in ("queued", "running") or self.store.latest_report(run_id) is None:
             raise ApiError(409, "RUN_NOT_READY", "보고서가 나온 실행에만 이어 물을 수 있습니다.")
-        out = self.agent.followup(run_id, req.question, llm=self._inputs(run_id).get("llm"))
+        with self._budget(run_id):
+            out = self.agent.followup(run_id, req.question, llm=self._inputs(run_id).get("llm"))
         return self._followup_out(run_id, out, who)

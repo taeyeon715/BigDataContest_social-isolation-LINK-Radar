@@ -216,7 +216,15 @@ def test_token_required_except_health(secured):
 
 
 def test_roles_enforced_and_actor_from_token(secured):
-    run_id = secured.post("/runs", json=RUN, headers=H["view"]).json()["run_id"]
+    # 조회 역할은 실행·질의응답을 만들 수 없음 (LLM 비용, SA-04)
+    r = secured.post("/runs", json=RUN, headers=H["view"])
+    assert r.status_code == 403 and r.json()["error_code"] == "FORBIDDEN"
+    assert secured.post("/qa", json={"question": "강남 1인세대 비율 상위 동은?", "as_of": "2025-10-20"},
+                        headers=H["view"]).status_code == 403
+    assert secured.get("/runs", headers=H["view"]).json()["items"] == []
+    run_id = secured.post("/runs", json=RUN, headers=H["review"]).json()["run_id"]
+    f = secured.post(f"/runs/{run_id}/followup", json={"question": "왜 이 등급이야?"}, headers=H["view"])
+    assert f.status_code == 403
     r = secured.post(f"/runs/{run_id}/review", json=REVIEW, headers=H["view"])
     assert r.status_code == 403 and r.json()["error_code"] == "FORBIDDEN"
     assert secured.post(f"/runs/{run_id}/review", json=REVIEW, headers=H["review"]).status_code == 200
@@ -228,7 +236,7 @@ def test_roles_enforced_and_actor_from_token(secured):
     assert hist["reviews"][0]["reviewer"] == "worker-01"  # 본문의 "아무개"가 아니라 토큰 이름
     assert hist["approvals"][0]["approver"] == "lead-01"
     rows = {x["action"]: x for x in _audit(secured, run_id)}
-    assert rows["run_created"]["actor"] == "viewer-01"
+    assert rows["run_created"]["actor"] == "worker-01"
     assert rows["review_saved"]["actor"] == "worker-01"
     assert json.loads(rows["review_saved"]["detail"])["claimed_actor"] == "아무개"
     assert rows["approval_received"]["actor"] == "lead-01"
@@ -257,12 +265,18 @@ def test_auth_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LINKRADAR_API_TOKEN", "s3cret")
     monkeypatch.setenv("LINKRADAR_API_USER", "demo-lead")
     a = Auth.from_env()
-    assert a.identify("Bearer s3cret") == Identity("demo-lead", "승인", True)
+    # 공용 토큰(화면 번들에 들어가는 토큰)의 기본 역할은 조회, 기록 이름은 "공용:" 표시
+    who = a.identify("Bearer s3cret")
+    assert who == Identity("demo-lead", "조회", True, shared=True) and who.actor() == "공용:demo-lead"
+    monkeypatch.setenv("LINKRADAR_API_ROLE", "승인")
+    assert Auth.from_env().identify("Bearer s3cret").role == "승인"
+    monkeypatch.delenv("LINKRADAR_API_ROLE")
     f = tmp_path / "tokens.yaml"
     f.write_text("tokens:\n  t-w: {name: worker-02, role: 검토}\n", encoding="utf-8")
     monkeypatch.setenv("LINKRADAR_API_TOKENS_FILE", str(f))
     a = Auth.from_env()
     assert a.identify("Bearer t-w").role == "검토" and a.identify("Bearer s3cret").name == "demo-lead"
+    assert not a.identify("Bearer t-w").shared and a.identify("Bearer t-w").actor() == "worker-02"
     f.write_text("tokens:\n  t-x: {name: x, role: 관리자}\n", encoding="utf-8")
     with pytest.raises(ValueError):
         Auth.from_env()
