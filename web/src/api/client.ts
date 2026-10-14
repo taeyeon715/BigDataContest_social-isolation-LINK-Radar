@@ -112,7 +112,7 @@ function noteForbidden(method: string, path: string) {
 
 // 응답 헤더 X-Data-Source 를 경로 종류별로 기억한다. 같은 서버라도 현황·지도는 가짜, 실행은 실제일 수 있어
 // 화면마다 자기가 부른 경로의 출처를 띠로 보인다 (Layout 의 SourceBadge).
-export type Source = 'fake' | 'config' | 'real'
+export type Source = 'fake' | 'config' | 'real' | 'synthetic'
 /** 경로 첫 마디: overview / map / candidates / resources / runs / qa / snapshots ... (/runs/{id}/resources 는 runs) */
 export function sourceKind(path: string): string {
   return path.replace(/^\//, '').split(/[/?]/)[0] || 'root'
@@ -127,7 +127,7 @@ export function onDataSource(fn: () => void): () => void {
   return () => listeners.delete(fn)
 }
 export function noteSource(path: string, h: string | null) {
-  if (h !== 'fake' && h !== 'real' && h !== 'config') return
+  if (h !== 'fake' && h !== 'real' && h !== 'config' && h !== 'synthetic') return
   const k = sourceKind(path)
   if (sources.get(k) !== h) {
     sources.set(k, h)

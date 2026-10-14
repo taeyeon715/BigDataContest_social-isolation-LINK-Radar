@@ -77,19 +77,20 @@ export function useDataSources(kinds: string[]): { kind: string; source: Source 
   })
 }
 
-/** 화면마다 작은 출처 띠: 실제 데이터 / 가짜 데이터 (경로마다 다르면 나눠서) */
+/** 화면마다 작은 출처 띠: 실제 데이터 / 가상 데이터(LINK-Sim) / 가짜 데이터 (경로마다 다르면 나눠서) */
 export function SourceBadge({ kinds }: { kinds: string[] }) {
   const list = useDataSources(kinds)
   if (list.length === 0) return null
   const same = list.every((x) => x.source === list[0].source)
-  const tone = (s: Source) => (s === 'real' ? 'bg-okay-soft text-okay' : 'bg-caution text-white')
-  const word = (s: Source) => (s === 'real' ? '실제 데이터' : '가짜 데이터')
+  const tone = (s: Source) => (s === 'real' ? 'bg-okay-soft text-okay' : s === 'synthetic' ? 'bg-brand-50 text-brand-700' : 'bg-caution text-white')
+  const word = (s: Source) => (s === 'real' ? '실제 데이터' : s === 'synthetic' ? '가상 데이터(LINK-Sim)' : '가짜 데이터')
   return (
     <div className="flex flex-wrap gap-1 print:hidden" data-testid="source-badge">
       {same ? (
         <span className={`chip text-xs font-semibold ${tone(list[0].source)}`} title="응답 헤더 X-Data-Source">
           {word(list[0].source)}
           {list[0].source === 'fake' && ' · 화면 확인용, 분석 결과 아님'}
+          {list[0].source === 'synthetic' && ' · 합성 자료, 실제 지역 결과 아님'}
         </span>
       ) : (
         list.map((x) => (

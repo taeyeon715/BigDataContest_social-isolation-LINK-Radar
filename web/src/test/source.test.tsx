@@ -29,3 +29,11 @@ describe('출처 띠', () => {
     expect(screen.getByTestId('source-badge')).not.toHaveTextContent('가짜')
   })
 })
+
+describe('가상 데이터 출처 띠', () => {
+  it('synthetic 헤더를 가상 데이터로 보인다', async () => {
+    const { noteSource, dataSources } = await import('../api')
+    noteSource('/overview', 'synthetic')
+    expect(dataSources().get('overview')).toBe('synthetic')
+  })
+})
