@@ -18,6 +18,7 @@
 | [M1 기대 활동 모델](m1_기대활동모델/README.md) | 2 |
 | [M2 대리 과제 B (보조 과제)](m2_대리과제B/README.md) | 1 |
 | [R-1 후보·등급 규칙 평가 (rules-v1.1)](r1_등급규칙/README.md) | 1 |
+| [S-1 LINK-Sim: 페르소나 기반 가상 데이터 (합성)](s1_LINK-Sim/README.md) | 3 |
 | [W-1 자원 원장 보강](w1_자원원장/README.md) | 0 |
 
 ## 그림 모음
@@ -86,3 +87,10 @@
 | | |
 |---|---|
 | <a href="r1_등급규칙/README.md"><img src="r1_등급규칙/figs/후보수_범위.png" width="420"></a><br>기준일·집단별 후보 수 (점 = 기본, 막대 = 임계값 범위) <sub>(3. 민감도와 후보 수 범위)</sub> |  |
+
+### [S-1 LINK-Sim: 페르소나 기반 가상 데이터 (합성)](s1_LINK-Sim/README.md)
+
+| | |
+|---|---|
+| <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/요일_모양.png" width="420"></a><br>요일 모양 실제 vs 합성 <sub>(2. 충실도 (fidelity))</sub> | <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/시계열_예시.png" width="420"></a><br>코호트 시계열 예시 (세로선 = 공휴일). 수준은 맞추지 않으므로 평균을 뺀 log로 비교 <sub>(2. 충실도 (fidelity))</sub> |
+| <a href="s1_LINK-Sim/README.md"><img src="s1_LINK-Sim/figs/최소감지_곡선.png" width="420"></a><br>코호트 안 고립 비율별 탐지율 (합성) <sub>(4. (a) 정답 있는 평가)</sub> |  |
