@@ -37,7 +37,7 @@ export default {
         'hero-num': ['44px', '52px'],
       },
       backgroundImage: {
-        hero: 'linear-gradient(135deg, #2F5BD3 0%, #3E6FE6 55%, #6C93F0 100%)',
+        hero: 'linear-gradient(135deg, #2449AE 0%, #2F5BD3 55%, #3A64D8 100%)', // 오른쪽 끝도 흰 글자 대비 5.2:1 (FE-11),
         holdstripe: 'repeating-linear-gradient(135deg, #E6E8EC 0 6px, #F4F5F7 6px 12px)',
       },
       spacing: { gutter: '24px' },

@@ -106,11 +106,11 @@ function FilterBar() {
   const { city, as_of, set } = useFilters()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex rounded-pill bg-white/15 p-1" role="group" aria-label="도시">
+      <div className="flex rounded-pill bg-ink-900/25 p-1" role="group" aria-label="도시">
         {CITIES.map((c) => (
           <button
             key={c}
-            className={`rounded-pill px-4 py-1.5 text-sm font-semibold ${c === city ? 'bg-white text-brand-700' : 'text-white hover:bg-white/10'}`}
+            className={`rounded-pill px-4 py-1.5 text-sm font-semibold ${c === city ? 'bg-white text-brand-700' : 'text-white hover:bg-ink-900/40'}`}
             onClick={() => set({ city: c })}
             aria-pressed={c === city}
           >
@@ -118,7 +118,7 @@ function FilterBar() {
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 rounded-pill bg-white/15 px-3 py-1.5 text-sm text-white">
+      <label className="flex items-center gap-2 rounded-pill bg-ink-900/25 px-3 py-1.5 text-sm text-white">
         기준일
         <input
           type="date"
@@ -132,7 +132,7 @@ function FilterBar() {
       </label>
       <div className="flex flex-wrap gap-1">
         {PRESETS.map((p) => (
-          <button key={p.label} className="rounded-pill border border-white/40 px-3 py-1 text-xs text-white hover:bg-white/10" onClick={() => set({ city: p.city, as_of: p.as_of })}>
+          <button key={p.label} className="rounded-pill border border-white/70 px-3 py-1 text-xs text-white hover:bg-ink-900/40" onClick={() => set({ city: p.city, as_of: p.as_of })}>
             {p.label}
           </button>
         ))}

@@ -1,6 +1,6 @@
 import { OUTCOME_FIELDS, OUTCOME_LABEL, api, type City, type OutcomeField, type OutcomeSummaryRow } from '../api'
 import { useAsync } from '../lib/useAsync'
-import { Card, Empty, Loading } from './ui'
+import { Card, Empty, ErrorBox, Loading } from './ui'
 
 /** 모아 보기 칸: 서버가 숨긴(10 미만) 칸은 숫자 없이 "10 미만" */
 export function cellText(row: OutcomeSummaryRow, f: OutcomeField): string {
@@ -24,14 +24,14 @@ const TRIGGER_KO: Record<string, string> = {
 
 /** 현황: 현장 확인 결과 모아 보기 (트리거별). 승인된 조사 실행에 적은 건수만, 10 미만 칸은 숫자 없이 */
 export function OutcomeSummaryCard({ city }: { city: City }) {
-  const s = useAsync(() => api.outcomeSummary({ city, by: 'trigger' }), [city])
+  const s = useAsync((signal) => api.outcomeSummary({ city, by: 'trigger' }, { signal }), [city])
   const rows = s.data?.rows ?? []
   return (
     <Card title="현장 확인 결과" right={<span className="text-xs text-ink-600">승인된 조사에 적은 건수 · 트리거별</span>}>
       <div data-testid="outcome-summary">
-        {s.loading && !s.data ? (
-          <Loading />
-        ) : s.error || rows.length === 0 ? (
+        {!s.data ? (
+          s.error ? <ErrorBox error={s.error} onRetry={s.reload} /> : <Loading onRetry={s.reload} />
+        ) : rows.length === 0 ? (
           <Empty>아직 적은 현장 확인 결과가 없습니다. 승인한 조사의 완료 카드에서 적을 수 있습니다.</Empty>
         ) : (
           <div className="overflow-x-auto">

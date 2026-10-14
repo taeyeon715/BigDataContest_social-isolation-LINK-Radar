@@ -4,16 +4,14 @@ import { api, type RunHistoryResponse } from '../api'
 import { PageBody, PageHero } from '../components/Layout'
 import { Badge, Card, Empty, ErrorBox, Loading } from '../components/ui'
 import { useFilters } from '../lib/filters'
-import { MODE_LABEL, PHASE_LABEL, fmtTime } from '../lib/labels'
+import { DECISION_LABEL as DECISION, MODE_LABEL, PHASE_LABEL, REVISION_REASON_LABEL as REASON, fmtTime } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
 
-const DECISION = { approved: '승인', held: '보류', more: '추가 조사' } as const
-const REASON = { initial: '처음', review_changed: '검토 변경', guard_revise: 'Guard 수정', extra_round: '추가 조사' } as Record<string, string>
 
 function HistoryRow({ runId }: { runId: string }) {
-  const h = useAsync<RunHistoryResponse>(() => api.history(runId), [runId])
-  if (h.loading) return <Loading />
-  if (h.error) return <ErrorBox error={h.error} />
+  const h = useAsync<RunHistoryResponse>((signal) => api.history(runId, { signal }), [runId])
+  if (h.error) return <ErrorBox error={h.error} onRetry={h.reload} />
+  if (!h.data) return <Loading onRetry={h.reload} />
   const d = h.data!
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -63,7 +61,7 @@ function HistoryRow({ runId }: { runId: string }) {
 
 export default function Runs() {
   const { query } = useFilters()
-  const runs = useAsync(() => api.runs(undefined, 100), [])
+  const runs = useAsync((signal) => api.runs(undefined, 100, { signal }), [])
   const [open, setOpen] = useState<string | null>(null)
   return (
     <>

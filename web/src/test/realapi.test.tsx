@@ -3,9 +3,10 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError, type Candidate, type FollowupResponse, type Report } from '../api'
+import { api, ApiError, APPROVER_NAME, type Candidate, type FollowupResponse, type Report } from '../api'
 import { ApprovalPanel, approvalBlock, regenerating, remainingRounds } from '../components/ApprovalPanel'
 import { FollowupPanel } from '../components/FollowupPanel'
+import { evidenceLine } from '../components/EvidenceTable'
 import { buildFocus } from '../components/MoreForm'
 import { ERROR_TEXT, errorText, roundChangesView, splitReason } from '../lib/labels'
 import CandidateDetail, { uniqueResources } from '../pages/CandidateDetail'
@@ -184,7 +185,7 @@ describe('후보 상세: 실제 API 계약', () => {
     expect(approve).toHaveBeenCalledWith('run-1', {
       decision: 'more',
       report_revision: 1,
-      approver: 'lead-01',
+      approver: APPROVER_NAME,
       idempotency_key: 'run-1:more:1',
       memo: null,
       focus: { candidate_ids: ['C-20250926-501'], tools: ['calc_winter_contraction'] },
@@ -196,7 +197,7 @@ describe('후보 상세: 실제 API 계약', () => {
     vi.spyOn(api, 'report').mockResolvedValue(reportOf(1) as never)
     const { resources, runResources } = mountDetail()
     expect(await screen.findByText('외로움안녕120')).toBeInTheDocument()
-    expect(runResources).toHaveBeenCalledWith('run-1')
+    expect(runResources).toHaveBeenCalledWith('run-1', expect.anything())
     expect(resources).not.toHaveBeenCalled()
     expect(screen.getByTestId('resource-scope')).toHaveTextContent('이 조사에 묶인 목록')
   })
@@ -221,7 +222,7 @@ describe('후보 상세: 실제 API 계약', () => {
     const keep = REPORT_501.evidence_card.evidence[0].evidence_id
     mountDetail({ checked: [keep, 'EV-GONE'] })
     await screen.findByText('보고서 1판')
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: `${keep} 확인함` })).toBeChecked())
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: `${evidenceLine(REPORT_501.evidence_card.evidence[0]).head} 확인함` })).toBeChecked())
     await userEvent.click(screen.getByRole('button', { name: '검토 저장' }))
     expect(review).toHaveBeenCalledWith('run-1', expect.objectContaining({ checked_evidence_ids: [keep] }))
   })

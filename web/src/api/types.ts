@@ -498,6 +498,7 @@ export interface ApproveResponse {
   report_revision: number
   approval_id: string
   duplicate: boolean
+  approver?: string // 서버가 기록한 승인자 (인증을 켜면 토큰의 이름). 옛 서버는 없음 → 이력의 approver 를 씀
 }
 
 export interface QARequest {

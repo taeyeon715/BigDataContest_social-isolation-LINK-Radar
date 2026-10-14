@@ -65,52 +65,94 @@ export function preChecks(p: { evidenceIds: string[]; checked: Set<string>; reso
 /** 승인 기록 (완료 카드용) */
 export type ApprovalDone = { report_revision: number; approver: string; created_at: string } | null
 
-/** 미충족 항목이 있을 때 "그래도 승인" 확인창 */
-function ConfirmDialog({ unmet, onOk, onCancel }: { unmet: PreCheck[]; onOk: () => void; onCancel: () => void }) {
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** Tab / Shift+Tab 이 container 밖으로 나가지 않게 (처음 ↔ 끝 돌기). 처리했으면 true */
+export function trapTab(container: HTMLElement, e: { key: string; shiftKey: boolean; preventDefault: () => void }): boolean {
+  if (e.key !== 'Tab') return false
+  const items = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
+  if (items.length === 0) return false
+  const first = items[0]
+  const last = items[items.length - 1]
+  const active = document.activeElement as HTMLElement | null
+  const inside = !!active && container.contains(active)
+  if (e.shiftKey && (active === first || !inside)) {
+    e.preventDefault()
+    last.focus()
+    return true
+  }
+  if (!e.shiftKey && (active === last || !inside)) {
+    e.preventDefault()
+    first.focus()
+    return true
+  }
+  return false
+}
+
+/** 미충족 항목이 있을 때 "그래도 승인" 확인창. 브라우저 기본 <dialog>(showModal)로 뒤 화면을 막고,
+ * Tab 은 창 안에서만 돌며, 닫으면 연 버튼으로 포커스를 돌려줌 (FE-05) */
+export function ConfirmDialog({ unmet, onOk, onCancel }: { unmet: PreCheck[]; onOk: () => void; onCancel: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
-  const cancel = useRef(onCancel)
-  cancel.current = onCancel
   useEffect(() => {
-    cancelRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancel.current()
+    const d = ref.current
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (d) {
+      if (typeof d.showModal === 'function') {
+        if (!d.open) d.showModal()
+      } else d.setAttribute('open', '') // jsdom 등 showModal 이 없는 환경
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    cancelRef.current?.focus()
+    return () => {
+      if (d?.open && typeof d.close === 'function') d.close()
+      if (opener && opener.isConnected) opener.focus()
+    }
   }, [])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 px-4">
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-body"
-        className="w-full max-w-md rounded-card bg-surface p-6 shadow-lift"
-      >
-        <h2 id="confirm-title" className="text-base font-bold text-ink-900">
-          아직 끝나지 않은 확인이 있습니다
-        </h2>
-        <div id="confirm-body" className="mt-2 text-ink-800">
-          <ul className="list-disc pl-5">
-            {unmet.map((c) => (
-              <li key={c.key}>
-                {c.label}
-                {c.detail ? ` (${c.detail})` : ''}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-sm text-ink-600">최종 판단은 담당자가 합니다. 이대로 승인하면 지금 상태 그대로 승인 기록이 남습니다.</p>
-        </div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button ref={cancelRef} className="btn-ghost" onClick={onCancel}>
-            돌아가서 확인하기
-          </button>
-          <button className="btn-primary" onClick={onOk}>
-            그래도 승인
-          </button>
-        </div>
+    <dialog
+      ref={ref}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-body"
+      className="w-[calc(100%-2rem)] max-w-md rounded-card bg-surface p-6 text-ink-900 shadow-lift backdrop:bg-ink-900/40"
+      onCancel={(e) => {
+        // Esc: 브라우저가 닫기 전에 React 상태로 닫음
+        e.preventDefault()
+        onCancel()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          onCancel()
+          return
+        }
+        if (ref.current) trapTab(ref.current, e)
+      }}
+    >
+      <h2 id="confirm-title" className="text-base font-bold text-ink-900">
+        아직 끝나지 않은 확인이 있습니다
+      </h2>
+      <div id="confirm-body" className="mt-2 text-ink-800">
+        <ul className="list-disc pl-5">
+          {unmet.map((c) => (
+            <li key={c.key}>
+              {c.label}
+              {c.detail ? ` (${c.detail})` : ''}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-sm text-ink-600">최종 판단은 담당자가 합니다. 이대로 승인하면 지금 상태 그대로 승인 기록이 남습니다.</p>
       </div>
-    </div>
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <button ref={cancelRef} type="button" className="btn-ghost" onClick={onCancel}>
+          돌아가서 확인하기
+        </button>
+        <button type="button" className="btn-primary" onClick={onOk}>
+          그래도 승인
+        </button>
+      </div>
+    </dialog>
   )
 }
 
@@ -137,8 +179,8 @@ function DoneCard({
         {done?.report_revision ?? fallbackRevision ?? '—'}판으로 승인됨
       </div>
       {done && (
-        <div className="mt-1 text-sm text-ink-800">
-          {done.approver} · {fmtTime(done.created_at)}
+        <div className="mt-1 text-sm text-ink-800" data-testid="approval-done-by">
+          승인자 {done.approver} · {fmtTime(done.created_at)}
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">

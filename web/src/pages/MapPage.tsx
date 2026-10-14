@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip as LTooltip } from 'react-leaflet'
 import { CartesianGrid, Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
-import { api, type Candidate, type MapArea, type MapResource } from '../api'
+import { api, ApiError, type Candidate, type MapArea, type MapResource } from '../api'
 import { PageBody, PageHero } from '../components/Layout'
 import { Badge, Card, ErrorBox, Loading } from '../components/ui'
 import { CENTROIDS, CITY_CENTER } from '../map/centroids'
 import { useFilters } from '../lib/filters'
-import { candidatePlace, groupOf } from '../lib/labels'
+import { HUB_LABEL, HUB_NOTE, HUB_SHORT, candidatePlace, groupOf, isAdminOffice, isHubResource } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
 
 // 구조 취약성 5단계 (한 색상 밝음 → 진함). 행동 신호는 테두리로 따로 표시.
@@ -123,8 +123,13 @@ export function DongPanel({
       </div>
       <div className="text-sm">
         행동 신호: <b>{area.behavior_signal}</b>
-        {area.nearest_hub_km !== null && <> · 거점까지 직선 {area.nearest_hub_km}km</>}
       </div>
+      {area.nearest_hub_km !== null && (
+        <div className="text-sm" data-testid="dong-hub">
+          {HUB_LABEL}: <b>직선 {area.nearest_hub_km}km</b>
+          <div className="text-xs text-ink-600">{HUB_NOTE}</div>
+        </div>
+      )}
       <div>
         <div className="mb-1 text-xs font-semibold text-ink-600">이 동의 후보</div>
         {mine.length === 0 ? (
@@ -144,11 +149,18 @@ export function DongPanel({
       </div>
       {near.length > 0 && (
         <div>
-          <div className="mb-1 text-xs font-semibold text-ink-600">가까운 자원 (동 중심점에서 직선)</div>
+          <div className="mb-1 text-xs font-semibold text-ink-600">가까운 자원 (모든 종류 · 동 중심점에서 직선)</div>
           <ul className="text-sm">
             {near.map(({ r, d }) => (
               <li key={r.resource_id}>
                 {r.name} · {r.resource_type} · {d.toFixed(1)}km
+                {isAdminOffice(r) ? (
+                  <span className="ml-1 text-xs text-ink-600" data-testid="near-admin-note">
+                    (행정 창구 · 위 거점 거리에 넣지 않음)
+                  </span>
+                ) : isHubResource(r) ? (
+                  <span className="ml-1 text-xs text-ink-600">(안부·관계 거점)</span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -161,8 +173,8 @@ export function DongPanel({
 export default function MapPage() {
   const { city, as_of, query } = useFilters()
   const [params] = useSearchParams()
-  const m = useAsync(() => api.map(as_of, city), [as_of, city])
-  const cands = useAsync(() => api.candidates(as_of, city), [as_of, city])
+  const m = useAsync((signal) => api.map(as_of, city, { signal }), [as_of, city])
+  const cands = useAsync((signal) => api.candidates(as_of, city, undefined, undefined, { signal }), [as_of, city])
   const [sel, setSel] = useState<string | null>(params.get('sel'))
   const [tileFailed, setTileFailed] = useState(false)
   const selArea = m.data?.areas.find((a) => a.adm_cd === sel) ?? null
@@ -183,10 +195,13 @@ export default function MapPage() {
       <PageHero title="지도 · 구조 취약성 × 행동 신호" sources={['map', 'candidates']} />
       <PageBody>
         {m.error && <ErrorBox error={m.error} onRetry={m.reload} />}
-        <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+        {cands.error && (
+          <ErrorBox error={new ApiError(cands.error.status, cands.error.code, `동별 후보를 불러오지 못했습니다. ${cands.error.message}`)} onRetry={cands.reload} />
+        )}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <Card title={`${city} 행정동 (${m.data?.areas.length ?? '…'}개)`}>
             {m.loading && !m.data ? (
-              <Loading />
+              <Loading onRetry={m.reload} />
             ) : m.data ? (
               <div className="relative h-[460px] overflow-hidden rounded-2xl bg-canvas" data-testid="map">
                 {tileFailed && (
@@ -194,7 +209,7 @@ export default function MapPage() {
                     바탕 지도를 불러오지 못했습니다 (인터넷 연결 확인). 동 위치 원과 아래 표는 그대로 볼 수 있습니다.
                   </div>
                 )}
-                <MapContainer key={city} center={CITY_CENTER[city]} zoom={city === '강남' ? 13 : 10} scrollWheelZoom className="h-full w-full">
+                <MapContainer key={city} center={CITY_CENTER[city]} zoom={city === '강남' ? 13 : 10} scrollWheelZoom={false} className="h-full w-full">
                   <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" opacity={0.55} eventHandlers={{ tileerror: () => setTileFailed(true) }} />
                   {m.data.areas.map((a) => {
                     const c = CENTROIDS[a.adm_cd]
@@ -224,7 +239,7 @@ export default function MapPage() {
                           {a.nearest_hub_km !== null && (
                             <>
                               <br />
-                              거점까지 직선 {a.nearest_hub_km}km
+                              {HUB_SHORT} 직선 {a.nearest_hub_km}km
                             </>
                           )}
                         </LTooltip>
@@ -234,7 +249,7 @@ export default function MapPage() {
                   {m.data.resources
                     .filter((r) => r.lat !== null && r.lon !== null)
                     .map((r) => (
-                      <Marker key={r.resource_id} position={[r.lat as number, r.lon as number]} icon={resourceIcon}>
+                      <Marker key={r.resource_id} position={[r.lat as number, r.lon as number]} icon={resourceIcon} title={`${r.name} · ${r.resource_type}`} alt={`${r.name} · ${r.resource_type}`}>
                         <LTooltip>
                           {r.name} · {r.resource_type}
                         </LTooltip>
@@ -254,7 +269,7 @@ export default function MapPage() {
               </div>
             )}
           </Card>
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
           {selArea && m.data && (
             <Card title="선택한 동">
               <DongPanel area={selArea} total={m.data.areas.filter((a) => a.structure_rank !== null).length} candidates={cands.data?.items ?? []} resources={m.data.resources} query={query} onClose={() => setSel(null)} />
@@ -264,16 +279,16 @@ export default function MapPage() {
             <Legend2D />
             {city === '춘천' && (
               <div className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700">
-                춘천 읍·면 거리는 행정동 중심점에서 관측된 복지 거점(노인복지관·사회복지관)까지의 <b>직선거리</b>입니다. 실제 이동 시간이나
-                서비스 공급 부족이 아닙니다.
+                춘천 읍·면 거리는 행정동 중심점에서 <b>노인복지관·사회복지관(안부·관계 거점)</b>까지의 <b>직선거리</b>입니다. 행정복지센터(주민센터)는
+                안부·관계 프로그램을 운영하지 않아 넣지 않습니다. 실제 이동 시간이나 서비스 공급 부족이 아닙니다.
               </div>
             )}
           </Card>
           </div>
         </div>
-        <div className="grid gap-5 xl:grid-cols-2">
-          <Card title="구조 취약성 × 거점까지 직선거리">
-            <div className="h-72" aria-label="행정동별 1인세대 비율과 거점 직선거리 산점도">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-2">
+          <Card title="구조 취약성 × 안부·관계 거점까지 직선거리">
+            <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 노인복지관·사회복지관까지 직선거리(세로) 산점도. 같은 값은 아래 행정동 표에 있습니다.">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
                   <CartesianGrid stroke="#E3E7EF" />
@@ -290,7 +305,7 @@ export default function MapPage() {
                         <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-card">
                           <b>{p.name}</b>
                           <div>1인세대 비율 {p.x}</div>
-                          <div>거점까지 {p.y}km</div>
+                          <div>{HUB_SHORT} {p.y}km</div>
                         </div>
                       ) : null
                     }} />
@@ -301,7 +316,7 @@ export default function MapPage() {
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
-            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 거점에서 멉니다. 순위를 매기는 그림이 아닙니다.</div>
+            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 노인복지관·사회복지관에서 멉니다. 순위를 매기는 그림이 아닙니다. {HUB_NOTE}</div>
           </Card>
           <Card title="행정동 표">
             <div className="scroll-x max-h-[360px] overflow-auto rounded-2xl border border-line">
@@ -311,7 +326,7 @@ export default function MapPage() {
                     <th className="th">동</th>
                     <th className="th">1인세대 비율 (순위)</th>
                     <th className="th">행동 신호</th>
-                    <th className="th">거점까지</th>
+                    <th className="th">안부·관계 거점까지</th>
                   </tr>
                 </thead>
                 <tbody>

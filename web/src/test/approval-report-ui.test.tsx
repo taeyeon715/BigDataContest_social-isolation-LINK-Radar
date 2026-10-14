@@ -118,7 +118,7 @@ describe('등급 설명·판단 기록', () => {
     render(<LevelExplain exp={exp} checks={[{ condition: '관측 거점까지 직선거리', met: false, value: 0.3, threshold: 5, unit: 'km' }]} />)
     const rows = screen.getAllByTestId('rule-check')
     expect(rows).toHaveLength(4)
-    const far = rows.find((r) => r.textContent?.includes('관측 거점까지 직선거리'))!
+    const far = rows.find((r) => r.textContent?.includes('노인복지관·사회복지관(안부·관계 거점)까지 거리'))!
     expect(far).toHaveTextContent('✕ 미충족')
     expect(far).toHaveTextContent('값 0.3km · 기준 5km · 기준까지 4.7km')
     expect(rows[0]).toHaveTextContent('✓ 충족')
@@ -306,7 +306,12 @@ describe('후보 상세 순서', () => {
     for (let i = 1; i < order.length; i++) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // 요약에 등급 설명과 할 수 있는 말
     const summary = screen.getByTestId('summary')
-    expect(within(summary).getByTestId('level-explain')).toHaveTextContent('관측 거점까지 직선거리')
+    // 거점 거리는 "노인복지관·사회복지관(안부·관계 거점)까지 거리"로, 행정복지센터를 넣지 않는 이유 한 줄 (심사 지적: 화면 속 모순)
+    expect(within(summary).getByTestId('level-explain')).toHaveTextContent('노인복지관·사회복지관(안부·관계 거점)까지 거리')
+    expect(within(summary).getByTestId('level-explain')).not.toHaveTextContent('관측 거점')
+    expect(within(summary).getByTestId('hub-note-level')).toHaveTextContent('행정복지센터(주민센터)는 안부·관계 프로그램을 운영하지 않아')
+    // 규칙 ID 는 "자세히" 안으로
+    expect(within(summary).getByTestId('rule-id-details')).not.toHaveAttribute('open')
     expect(within(summary).getByTestId('claims')).toHaveTextContent('할 수 있는 말')
     // 실행 상태는 한 줄, 단계는 토글로
     expect(screen.getAllByText('조사 완료 · 승인 대기 · 사실 검사 1종 통과').length).toBeGreaterThan(0)

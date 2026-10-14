@@ -144,7 +144,7 @@ export const INPUT_LABEL: Record<string, string> = {
   target_group: '대상 집단',
   structure_vulnerability: '구조 취약성 (주민등록 1인세대)',
   resident_structure: '주민등록 세대 구조',
-  access_gap: '접근성 (관측 거점까지 직선거리)',
+  access_gap: '접근성 (노인복지관·사회복지관까지 직선거리)',
   card_cohort_series: '카드 결제 일별 흐름',
   expected_activity: '평소 활동 기준선',
   cohort_deviation: '이탈 경보',
@@ -175,6 +175,8 @@ export function replaceInputCodes(text: string): string {
 /** 오류·보류 코드 → 쉬운 문장 (코드는 작게 따로 보임) */
 export const ERROR_TEXT: Record<string, string> = {
   NETWORK_ERROR: 'API 서버에 연결할 수 없습니다.',
+  TIMEOUT: 'API가 제시간에 답하지 않았습니다. 잠시 뒤 다시 시도하세요.',
+  BAD_RESPONSE: 'API 응답을 읽을 수 없습니다.',
   GRAIN_FORBIDDEN_COMBO: '질문에 필요한 조합(예: 나이와 시간대)을 함께 담은 자료가 없습니다.',
   TIME_NO_USABLE_DATA: '이 기준일에 쓸 수 있는 자료가 없습니다.',
   RUN_NOT_READY: '조사가 아직 끝나지 않았습니다. 잠시 뒤 다시 보세요.',
@@ -245,4 +247,70 @@ export function roundChangesView(lines: string[]): { title: string; items: strin
       .replace(/\b(get_[a-z_]+|calc_[a-z_]+)\b/g, (m) => TOOL_LABEL[m] ?? m),
   )
   return { title: n ? `${n}회차 대비 달라진 점` : '지난 회차 대비 달라진 점', items }
+}
+
+/** 결정 이름 (승인 기록·인쇄·실행 기록이 같이 씀) */
+export const DECISION_LABEL: Record<string, string> = { approved: '승인', held: '보류', more: '추가 조사' }
+/** 보고서 판을 만든 이유 */
+export const REVISION_REASON_LABEL: Record<string, string> = { initial: '처음', review_changed: '검토 변경', guard_revise: '문장 검사 뒤 고침', extra_round: '추가 조사' }
+
+// ---- 접근성 거리 이름 (심사 지적: "거점 18.6km"인데 같은 화면에 "행정복지센터 1.7km")
+// 서버 지표 이름 "관측 거점까지 직선거리"의 거점은 노인복지관·종합사회복지관(안부·관계 프로그램)만 뜻한다.
+export const HUB_LABEL = '노인복지관·사회복지관(안부·관계 거점)까지 거리'
+export const HUB_SHORT = '안부·관계 거점까지'
+export const HUB_NOTE = '행정복지센터(주민센터)는 안부·관계 프로그램을 운영하지 않아 이 거리에 넣지 않습니다. 직선거리이며 실제 이동 시간이 아닙니다.'
+
+/** 노인복지관·사회복지관 거리에 넣는 자원인가 (이름·종류로 판단). 행정복지센터는 넣지 않음 */
+export function isHubResource(r: { name: string; resource_type: string }): boolean {
+  const t = `${r.name} ${r.resource_type}`
+  if (/행정복지센터|주민센터|읍사무소|면사무소/.test(t)) return false
+  return /노인복지관|사회복지관/.test(t)
+}
+
+/** 행정 창구(행정복지센터 등): 거점 거리에 넣지 않는다는 짧은 표시용 */
+export function isAdminOffice(r: { name: string; resource_type: string }): boolean {
+  return /행정복지센터|주민센터|읍사무소|면사무소/.test(`${r.name} ${r.resource_type}`)
+}
+
+/** 서버 문장 속 낯선 이름을 화면 이름으로 (거점 거리 이름 등). 데이터 값은 그대로 둠 */
+export function plainText(s: string): string {
+  return s
+    .replace(/관측(된)? 거점(까지)?\s*(직선)?\s*거리/g, HUB_LABEL)
+    .replace(/관측(된)? 거점/g, '안부·관계 거점(노인복지관·사회복지관)')
+}
+
+/** 이 문장이 거점 거리 이야기인가 (행정복지센터 안내를 붙일지) */
+export function mentionsHub(s: string): boolean {
+  return /거점/.test(s)
+}
+
+// ---- 근거 ID 를 이름표로 (FE-09). [EV-…] 를 "근거 1 · 지표 이름"으로
+export type EvidenceRef = { evidence_id: string; metric: string }
+/** 근거 ID → { 번호(1부터), 이름 } */
+export function evidenceIndex(list: EvidenceRef[]): Map<string, { n: number; name: string }> {
+  return new Map(list.map((e, i) => [e.evidence_id, { n: i + 1, name: plainText(e.metric) }]))
+}
+const EV_RE = /\[(EV-[0-9A-Za-z-]+)\]/g
+/** 보고서 문장을 [EV-…] 기준으로 나눔: 글자 조각과 근거 ID 조각 */
+export function splitRefs(text: string): ({ text: string } | { ref: string })[] {
+  const out: ({ text: string } | { ref: string })[] = []
+  let last = 0
+  for (const m of text.matchAll(EV_RE)) {
+    if (m.index! > last) out.push({ text: text.slice(last, m.index) })
+    out.push({ ref: m[1] })
+    last = m.index! + m[0].length
+  }
+  if (last < text.length) out.push({ text: text.slice(last) })
+  return out
+}
+/** 인쇄·글자용: [EV-…] → "(근거 n)". 모르는 ID 는 "(근거)" */
+export function refsToText(text: string, idx: Map<string, { n: number; name: string }>): string {
+  return text.replace(EV_RE, (_m, id: string) => {
+    const r = idx.get(id)
+    return r ? `(근거 ${r.n})` : '(근거)'
+  })
+}
+/** 보고서 문장 가공 (화면·인쇄 같이 씀): 자원 코드 → 이름, 입력 코드 → 한국어, 거점 이름 */
+export function reportText(s: string, resourceNames: Record<string, string> = {}): string {
+  return plainText(replaceInputCodes(s.replace(/\bR\d{4}\b/g, (m) => resourceNames[m] ?? m)))
 }

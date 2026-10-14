@@ -129,7 +129,7 @@ export default function Candidates() {
     else p.delete(k)
     setParams(p, { replace: true })
   }
-  const res = useAsync(() => api.candidates(as_of, city), [as_of, city])
+  const res = useAsync((signal) => api.candidates(as_of, city, undefined, undefined, { signal }), [as_of, city])
   const all = useMemo(() => res.data?.items ?? [], [res.data])
   const fu = useFollowUps(city, as_of)
   const inTab = (c: Candidate, t: Tab) => (t === 'follow' ? fu.byId.has(c.candidate_id) : tabOf(c) === t)
@@ -209,10 +209,14 @@ export default function Candidates() {
               )}
             </div>
             <div className="mt-6">
-              {res.loading && !res.data ? (
-                <Loading />
-              ) : res.error ? (
+              {res.error && !res.data ? (
                 <ErrorBox error={res.error} onRetry={res.reload} />
+              ) : !res.data ? (
+                <Loading onRetry={res.reload} />
+              ) : tab === 'follow' && fu.error && !fu.data ? (
+                <ErrorBox error={fu.error} onRetry={fu.reload} />
+              ) : tab === 'follow' && !fu.data ? (
+                <Loading label="후속 확인일 불러오는 중" onRetry={fu.reload} />
               ) : items.length === 0 ? (
                 <Empty>{tab === 'follow' ? '후속 확인일을 적은 후보가 없습니다. 후보 상세의 검토 저장에서 적을 수 있습니다.' : '이 기준일에는 해당 후보가 없습니다.'}</Empty>
               ) : view === 'table' ? (

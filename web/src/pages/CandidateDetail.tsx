@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   api,
   ApiError,
+  APPROVER_NAME,
+  REVIEWER_NAME,
   DISTRIBUTION_INTERNAL,
+  isAborted,
   type Candidate,
   type Decision,
   type EvidenceCard,
@@ -25,9 +28,18 @@ import { OutcomeForm } from '../components/OutcomeForm'
 import { Term } from '../components/Term'
 import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
 import { useFilters } from '../lib/filters'
+import { useRunPoll } from '../lib/useRunPoll'
 import {
+  DECISION_LABEL,
   ERROR_TEXT,
+  HUB_NOTE,
   MODE_LABEL,
+  REVISION_REASON_LABEL,
+  evidenceIndex,
+  mentionsHub,
+  plainText,
+  reportText,
+  splitRefs,
   NODE_LABEL,
   PHASE_LABEL,
   roundChangesView,
@@ -39,13 +51,10 @@ import {
   groupOf,
   isActionSentence,
   missingLabel,
-  replaceInputCodes,
 } from '../lib/labels'
 
 const BUSY = new Set(['queued', 'running'])
 const PREVIEW_LIMIT = 5 // 조사 전 자원 미리 보기 수
-const REASON_LABEL: Record<string, string> = { initial: '처음', review_changed: '검토 변경', guard_revise: 'Guard 수정', extra_round: '추가 조사' }
-const DECISION_LABEL: Record<string, string> = { approved: '승인', held: '보류', more: '추가 조사' }
 
 /** 담당자가 고치는 검토 값. 실행(runId)마다 따로 둔다 (후보를 바꿔도 이전 후보의 판정·메모가 넘어가지 않게) */
 export type EditState = {
@@ -95,34 +104,6 @@ export function uniqueResources(items: RunResource[], candidateId: string): RunR
       seen.add(r.resource_id)
       return true
     })
-}
-
-/** 실행 상태 조회: 진행 중이거나 보고서를 다시 만드는 중이면 1초마다 (발행 판이 요청 판을 따라잡을 때까지) */
-function useRunPoll(runId: string | null) {
-  const [run, setRun] = useState<RunStatusResponse | null>(null)
-  const [error, setError] = useState<ApiError | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  const current = useRef(runId) // 다른 실행으로 바뀐 뒤 늦게 온 응답은 버림
-  current.current = runId
-  const poll = useCallback(async () => {
-    if (!runId) return
-    window.clearTimeout(timer.current)
-    try {
-      const r = await api.run(runId)
-      if (current.current !== runId || r.run_id !== runId) return
-      setRun(r)
-      setError(null)
-      if (BUSY.has(r.status) || regenerating(r)) timer.current = window.setTimeout(poll, 1000)
-    } catch (e) {
-      if (current.current === runId) setError(e as ApiError)
-    }
-  }, [runId])
-  useEffect(() => {
-    setRun(null)
-    poll()
-    return () => window.clearTimeout(timer.current)
-  }, [poll])
-  return { run, error, refresh: poll }
 }
 
 /** 실행 상태 한 줄: "조사 완료 · 사실 검사 3종 통과" */
@@ -214,6 +195,36 @@ export function ResourcePreview({
   )
 }
 
+/** 보고서 문장: 자원·입력 코드는 이름으로, [EV-…] 는 "근거 n · 지표 이름" 버튼(누르면 근거 표 그 행으로) (FE-09) */
+export function RefText({
+  text,
+  idx,
+  names = {},
+  onRef,
+}: {
+  text: string
+  idx: Map<string, { n: number; name: string }>
+  names?: Record<string, string>
+  onRef: (id: string) => void
+}): ReactNode {
+  return splitRefs(reportText(text, names)).map((p, i) => {
+    if ('text' in p) return <span key={i}>{p.text}</span>
+    const r = idx.get(p.ref)
+    return (
+      <button
+        key={i}
+        type="button"
+        className="mx-0.5 rounded bg-brand-50 px-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+        title={`근거 ID ${p.ref}`}
+        data-testid="fact-ref"
+        onClick={() => onRef(p.ref)}
+      >
+        {r ? `근거 ${r.n} · ${r.name}` : '근거 보기'}
+      </button>
+    )
+  })
+}
+
 /** 다음 배정 후보: 지금 후보보다 배정 순번이 뒤인 것 중 첫째, 없으면 다른 배정 후보 */
 export function nextAssigned(list: Candidate[], id: string): Candidate | null {
   const sel = list.filter((c) => c.selected_for_review && c.candidate_id !== id).sort((a, b) => (a.queue_rank ?? 99) - (b.queue_rank ?? 99))
@@ -227,10 +238,19 @@ export default function CandidateDetail() {
   const [cand, setCand] = useState<Candidate | null>(null)
   const [list, setList] = useState<Candidate[]>([])
   const [candErr, setCandErr] = useState<ApiError | null>(null)
+  const [runsErr, setRunsErr] = useState<ApiError | null>(null)
+  const [startErr, setStartErr] = useState<ApiError | null>(null)
+  const [lookupTick, setLookupTick] = useState(0)
   const [runId, setRunId] = useState<string | null>(null)
   const [lookedUp, setLookedUp] = useState(false)
   const [starting, setStarting] = useState(false)
-  const { run, error: runErr, refresh } = useRunPoll(runId)
+  const { run, error: runErr, retrying, refresh } = useRunPoll(runId)
+  // 근거·보고서·자원·이력 불러오기 오류 (조용히 비우지 않고 보임, FE-01)
+  const [loadErr, setLoadErr] = useState<{ part: string; error: ApiError } | null>(null)
+  const [loadTick, setLoadTick] = useState(0)
+  const [previewErr, setPreviewErr] = useState<ApiError | null>(null)
+  const [previewTick, setPreviewTick] = useState(0)
+  const [approverShown, setApproverShown] = useState<string | null>(null)
   const [card, setCard] = useState<EvidenceCard | null>(null)
   const [report, setReport] = useState<ReportResponse | null>(null)
   const [history, setHistory] = useState<RunHistoryResponse | null>(null)
@@ -263,26 +283,40 @@ export default function CandidateDetail() {
 
   // 후보와 기존 실행 찾기
   useEffect(() => {
-    let alive = true
+    const ac = new AbortController()
+    const { signal } = ac
+    // 후보를 바꾸면 이전 후보의 요약·오류를 바로 지움 (FE-14)
     setLookedUp(false)
     setRunId(null)
     setPrintView(false)
-    Promise.all([api.candidates(as_of, city).catch((e) => e as ApiError), api.runs(id, 1).catch(() => null)]).then(([cl, runs]) => {
-      if (!alive) return
-      if (cl instanceof ApiError) setCandErr(cl)
-      else {
+    setCand(null)
+    setCandErr(null)
+    setRunsErr(null)
+    setStartErr(null)
+    const asErr = (e: unknown) => (e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '알 수 없는 오류가 생겼습니다.'))
+    Promise.all([
+      api.candidates(as_of, city, undefined, undefined, { signal }).catch(asErr),
+      api.runs(id, 1, { signal }).catch(asErr),
+    ]).then(([cl, runs]) => {
+      if (signal.aborted) return
+      if (cl instanceof ApiError) {
+        if (!isAborted(cl)) setCandErr(cl)
+      } else {
         setList(cl.items)
         setCand(cl.items.find((c) => c.candidate_id === id) ?? null)
         setMonitoringRunId(cl.monitoring_run_id ?? null)
       }
-      const prev = runs?.items[0]
+      if (runs instanceof ApiError) {
+        // 기존 실행을 못 찾았는데 "조사 시작"을 보이면 같은 후보에 실행이 겹침 → 오류로 보이고 다시 시도
+        if (!isAborted(runs)) setRunsErr(runs)
+        return
+      }
+      const prev = runs.items[0]
       if (prev) setRunId(prev.run_id)
       setLookedUp(true)
     })
-    return () => {
-      alive = false
-    }
-  }, [id, as_of, city])
+    return () => ac.abort()
+  }, [id, as_of, city, lookupTick])
 
   const candidate = cand ?? run?.candidates.find((c) => c.candidate_id === id) ?? null
 
@@ -290,6 +324,8 @@ export default function CandidateDetail() {
   useEffect(() => {
     if (!lookedUp || runId || !candidate) return
     let alive = true
+    const ac = new AbortController()
+    setPreviewErr(null)
     const adm = candidate.adm_cd ?? candidate.check_first_adm[0] ?? null
     api
       .resources({
@@ -298,7 +334,7 @@ export default function CandidateDetail() {
         city: candidate.city,
         limit: PREVIEW_LIMIT,
         ...(candidate.cause_type ? { cause_type: candidate.cause_type } : {}),
-      })
+      }, { signal: ac.signal })
       .then((r) => {
         if (!alive) return
         setResources(r.items)
@@ -306,14 +342,16 @@ export default function CandidateDetail() {
         setResourceNeeds({ needTypes: r.need_types ?? [], scopeTotal: r.scope_total ?? null })
         setResourceScope('global')
       })
-      .catch(() => {
-        if (alive) setResources([])
+      .catch((e) => {
+        // 실패를 "맞는 자원 없음"으로 보이지 않게 오류로 (FE-01)
+        if (alive && !isAborted(e)) setPreviewErr(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '자원 미리 보기를 불러오지 못했습니다.'))
       })
     return () => {
       alive = false
+      ac.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidate?.candidate_id, runId, lookedUp])
+  }, [candidate?.candidate_id, runId, lookedUp, previewTick])
 
   // 다른 실행으로 바뀌면 이전 실행의 근거·보고서를 지움
   useEffect(() => {
@@ -324,6 +362,8 @@ export default function CandidateDetail() {
     setSaveMsg(null)
     setEditState(emptyEdit(runId))
     setHl(null)
+    setLoadErr(null)
+    setApproverShown(null)
     if (runId) {
       setResources(null)
       setResourceScope(null)
@@ -335,24 +375,27 @@ export default function CandidateDetail() {
   useEffect(() => {
     if (!runId || !readyKey) return
     let alive = true
+    const ac = new AbortController()
+    const o = { signal: ac.signal }
+    setLoadErr(null)
+    const fail = (part: string) => (e: unknown) => {
+      if (!alive || isAborted(e)) return
+      setLoadErr({ part, error: e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '알 수 없는 오류가 생겼습니다.') })
+    }
     api
-      .evidence(runId)
+      .evidence(runId, o)
       .then((e) => {
         if (alive) setCard(e.evidence_card)
       })
-      .catch(() => {
-        if (alive) setCard(null)
-      })
+      .catch(fail('근거'))
     api
-      .report(runId)
+      .report(runId, o)
       .then((r) => {
         if (alive && r.run_id === runId) setReport(r)
       })
-      .catch(() => {
-        if (alive) setReport(null)
-      })
+      .catch(fail('보고서'))
     api
-      .runResources(runId)
+      .runResources(runId, o)
       .then((r) => {
         if (!alive || r.run_id !== runId) return
         setResources(uniqueResources(r.items, id))
@@ -360,22 +403,35 @@ export default function CandidateDetail() {
       })
       .catch((e) => {
         // 아직 실행 중(RUN_NOT_READY)이면 다음 상태 변화 때 다시 부름
-        if (alive && !(e instanceof ApiError && e.code === 'RUN_NOT_READY')) {
-          setResources([])
-          setResourceScope('run')
-        }
+        if (e instanceof ApiError && e.code === 'RUN_NOT_READY') return
+        fail('추천 자원')(e)
       })
-    api.history(runId).then((h) => {
-      if (!alive || runRef.current !== runId) return
-      setHistory(h)
-      // 이 실행의 저장 검토로 복원. 같은 실행에서 고치던 값은 새 보고서 판이 와도 둠
-      const saved = savedEdit(runId, h)
-      setEditState((s) => applySaved(s.runId === runId ? s : emptyEdit(runId), saved))
-    })
+    api
+      .history(runId, o)
+      .then((h) => {
+        if (!alive || runRef.current !== runId) return
+        setHistory(h)
+        // 이 실행의 저장 검토로 복원. 같은 실행에서 고치던 값은 새 보고서 판이 와도 둠
+        const saved = savedEdit(runId, h)
+        setEditState((s) => applySaved(s.runId === runId ? s : emptyEdit(runId), saved))
+      })
+      .catch(fail('검토·승인 이력'))
     return () => {
       alive = false
+      ac.abort()
     }
-  }, [runId, readyKey])
+  }, [runId, readyKey, loadTick])
+
+  /** 이력만 다시 (저장·승인 뒤). 실행이 바뀌었으면 버림. 실패해도 처리 안 된 오류가 나지 않게 */
+  const reloadHistory = (forRun: string) =>
+    api
+      .history(forRun)
+      .then((h) => {
+        if (runRef.current === forRun) setHistory(h)
+      })
+      .catch((e) => {
+        if (runRef.current === forRun && !isAborted(e)) setLoadErr({ part: '검토·승인 이력', error: e as ApiError })
+      })
 
   // 화면에 실제로 띄운 보고서. 승인·검토는 이 판으로만 보낸다
   const shown: ShownReport =
@@ -385,6 +441,7 @@ export default function CandidateDetail() {
 
   const start = async () => {
     setStarting(true)
+    setStartErr(null)
     try {
       // 화면이 읽은 정기 감시 실행과 도시를 같이 보냄 (그 실행의 바로 이 후보로 조사, API 명세 §3.6)
       const acc = await api.createRun({
@@ -400,7 +457,7 @@ export default function CandidateDetail() {
       setHistory(null)
       setRunId(acc.run_id)
     } catch (e) {
-      setCandErr(e as ApiError)
+      setStartErr(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '조사를 시작하지 못했습니다.'))
     } finally {
       setStarting(false)
     }
@@ -420,7 +477,7 @@ export default function CandidateDetail() {
     setSaveMsg(null)
     try {
       const r = await api.review(forRun, {
-        reviewer: 'worker-01',
+        reviewer: REVIEWER_NAME,
         // 지금 근거 카드에 있는 ID만 (추가 조사로 빠진 근거는 보내지 않음, EVIDENCE_NOT_IN_RUN)
         checked_evidence_ids: Array.from(checked).filter((eid) => card.evidence.some((e) => e.evidence_id === eid)),
         resource_judgements: judgements.map(([rid, v]) => ({ resource_id: rid, judgement: v.judgement!, memo: v.memo || null })),
@@ -439,9 +496,7 @@ export default function CandidateDetail() {
             : '검토를 저장했습니다. 보고서는 그대로입니다.',
       )
       refresh()
-      api.history(forRun).then((h) => {
-        if (runRef.current === forRun) setHistory(h)
-      })
+      reloadHistory(forRun)
     } catch (e) {
       if (runRef.current !== forRun) return
       setSaveMsg(e instanceof ApiError ? `${errorText(e.code, e.message).title} (오류 코드 ${e.code})` : '저장하지 못했습니다.')
@@ -454,16 +509,18 @@ export default function CandidateDetail() {
     const block = approvalBlock(run, shown)
     if (block || !shown) throw new ApiError(409, 'REPORT_NOT_SHOWN', block ?? '보고서를 불러온 뒤 승인하세요.')
     const rev = shown.report_revision
-    await api.approve(runId, {
+    const res = await api.approve(runId, {
       decision: d,
       report_revision: rev,
-      approver: 'lead-01',
+      approver: APPROVER_NAME,
       idempotency_key: `${runId}:${d}:${rev}`,
       memo: m,
       ...(d === 'more' && focus ? { focus } : {}),
     })
+    // 승인자는 서버가 기록한 이름으로 보임 (인증을 켜면 토큰의 이름). 응답에 없으면 이력에서 (FE-16)
+    if (res?.approver && runRef.current === runId) setApproverShown(res.approver)
     await refresh()
-    api.history(runId).then(setHistory)
+    await reloadHistory(runId)
   }
 
   const toggleChecked = (eid: string) => {
@@ -516,6 +573,10 @@ export default function CandidateDetail() {
   const lastReview = history?.reviews.at(-1) ?? null
   const printJudgements: PrintJudgement[] = (lastReview?.resource_judgements ?? []).map((j) => ({ name: names[j.resource_id] ?? j.resource_id, judgement: j.judgement, memo: j.memo ?? null }))
   const adm = candidate?.adm_cd ?? candidate?.check_first_adm[0] ?? null
+  const evIdx = useMemo(() => evidenceIndex(card?.evidence ?? []), [card])
+  // 승인자: 서버 이력의 기록이 먼저, 이력을 못 받았으면 승인 응답의 이름 (FE-16)
+  const doneApproval =
+    lastApproval ?? (approverShown && run?.status === 'approved' ? { report_revision: run.report_revision ?? 0, approver: approverShown, created_at: new Date().toISOString() } : null)
   const printSheet =
     card && rep && runId ? (
       <PrintReport
@@ -525,6 +586,7 @@ export default function CandidateDetail() {
         runId={runId}
         snapshotId={report!.snapshot_id}
         judgements={printJudgements}
+        resourceNames={names}
         approval={history?.approvals.at(-1) ?? null}
         followUp={lastReview?.follow_up_on ?? null}
       />
@@ -554,7 +616,7 @@ export default function CandidateDetail() {
   return (
     <>
       <PageHero title="후보 상세" sources={['candidates', 'runs', 'resources']}>
-        <Link to={`/candidates${query}`} className="text-sm text-white/85 hover:text-white">
+        <Link to={`/candidates${query}`} className="text-sm text-white hover:text-white">
           ← 후보 목록
         </Link>
       </PageHero>
@@ -562,10 +624,15 @@ export default function CandidateDetail() {
         {/* 인쇄 단축키(Ctrl+P)로 찍어도 보고서 한 장만 나가게 */}
         {printSheet && <div className="hidden print:block">{printSheet}</div>}
         <div className="flex flex-col gap-5 print:hidden">
-          {candErr && <ErrorBox error={candErr} />}
-          {!lookedUp && (
+          {candErr && <ErrorBox error={candErr} onRetry={() => setLookupTick((t) => t + 1)} />}
+          {runsErr && (
+            <div data-testid="runs-error">
+              <ErrorBox error={runsErr} onRetry={() => setLookupTick((t) => t + 1)} />
+            </div>
+          )}
+          {!lookedUp && !runsErr && (
             <Card>
-              <Loading />
+              <Loading label="후보와 지난 조사를 찾는 중" onRetry={() => setLookupTick((t) => t + 1)} />
             </Card>
           )}
           {lookedUp && !candidate && !run && (
@@ -593,9 +660,14 @@ export default function CandidateDetail() {
               </div>
               <h2 className="mt-3 text-xl font-bold">{card?.title ?? `${candidatePlace(candidate)} · ${groupOf(candidate) ?? ''}`}</h2>
               <div className="mt-2 text-base text-ink-900">
-                <b>왜 이 후보인가</b> · {candidate.level_reason ?? '—'}
+                <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason) : '—'}
                 {candidate.trigger && ` · 트리거 ${candidate.trigger}`}
               </div>
+              {mentionsHub(`${candidate.level_reason ?? ''} ${(candidate.rule_checks ?? []).map((c) => c.condition).join(' ')}`) && (
+                <div className="mt-1 text-xs text-ink-600" data-testid="hub-note">
+                  {HUB_NOTE}
+                </div>
+              )}
               <div className="mt-1 text-xs text-ink-600">
                 <Term name="분석 집단">분석 집단</Term> {candidate.analysis_cohort} · 서비스 대상 {candidate.service_eligibility_group ?? '—'}
                 {candidate.check_first_adm.length > 0 && (
@@ -656,13 +728,36 @@ export default function CandidateDetail() {
               <button className="btn-primary" onClick={start} disabled={starting}>
                 {starting ? '시작하는 중…' : '조사 시작'}
               </button>
-              {resourceScope === 'global' && resources && (
+              {startErr && (
+                <div className="mt-3">
+                  <ErrorBox error={startErr} onRetry={start} />
+                </div>
+              )}
+              {previewErr && (
+                <div className="mt-4" data-testid="preview-error">
+                  <ErrorBox error={previewErr} onRetry={() => setPreviewTick((t) => t + 1)} />
+                </div>
+              )}
+              {!previewErr && resourceScope === 'global' && resources && (
                 <ResourcePreview items={resources} total={resourceTotal} needTypes={resourceNeeds.needTypes} scopeTotal={resourceNeeds.scopeTotal} />
               )}
             </Card>
           )}
 
           {runErr && <ErrorBox error={runErr} onRetry={refresh} />}
+          {retrying > 0 && !runErr && (
+            <div className="rounded-xl bg-caution-soft px-3 py-2 text-sm text-ink-900" role="status" data-testid="run-retrying">
+              API 연결이 잠깐 끊겨 조사 상태를 다시 묻는 중입니다 ({retrying}번째). 조사는 서버에서 계속됩니다.
+            </div>
+          )}
+          {loadErr && (
+            <div data-testid="load-error">
+              <ErrorBox
+                error={new ApiError(loadErr.error.status, loadErr.error.code, `${loadErr.part}을(를) 불러오지 못했습니다. ${loadErr.error.message}`)}
+                onRetry={() => setLoadTick((t) => t + 1)}
+              />
+            </div>
+          )}
           {agentError && (
             <div className="rounded-2xl border border-caution/40 bg-caution-soft px-4 py-3 text-ink-900" role="alert" data-testid="run-failed">
               <div className="font-semibold">{ERROR_TEXT[agentError] ?? ERROR_TEXT.AGENT_ERROR}</div>
@@ -676,7 +771,7 @@ export default function CandidateDetail() {
 
           {run && BUSY.has(run.status) && (
             <Card>
-              <Loading label={`근거를 모으고 검사하는 중 (${run.path.length}단계 지남)`} />
+              <Loading label={`근거를 모으고 검사하는 중 (${run.path.length}단계 지남)`} onRetry={refresh} />
             </Card>
           )}
 
@@ -695,7 +790,7 @@ export default function CandidateDetail() {
                 {card.limitations.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {card.limitations.map((l) => (
-                      <Badge key={l}>{replaceInputCodes(l)}</Badge>
+                      <Badge key={l}>{reportText(l, names)}</Badge>
                     ))}
                   </div>
                 )}
@@ -808,10 +903,12 @@ export default function CandidateDetail() {
                           </ul>
                         </div>
                       )}
-                      <div className="text-xs font-semibold text-ink-600">핵심 사실 (근거 카드에서 만든 문장)</div>
-                      <ul className="mt-1 list-disc pl-5">
+                      <div className="text-xs font-semibold text-ink-600">핵심 사실 (근거 카드에서 만든 문장 · 근거 이름을 누르면 근거 표로)</div>
+                      <ul className="mt-1 list-disc pl-5" data-testid="facts">
                         {facts.map((s) => (
-                          <li key={s}>{s}</li>
+                          <li key={s}>
+                            <RefText text={s} idx={evIdx} names={names} onRef={cite} />
+                          </li>
                         ))}
                       </ul>
                       {rep.narrative && (
@@ -819,7 +916,9 @@ export default function CandidateDetail() {
                           <div className="mt-3 text-xs font-semibold text-ink-600">
                             설명 (<Term>사실 검사</Term> 통과)
                           </div>
-                          <p className="mt-1 text-ink-800">{rep.narrative.replace(/R\d{4}/g, (m) => names[m] ?? m)}</p>
+                          <p className="mt-1 text-ink-800">
+                            <RefText text={rep.narrative} idx={evIdx} names={names} onRef={cite} />
+                          </p>
                         </>
                       )}
                       {rep.external_notice && (
@@ -841,7 +940,7 @@ export default function CandidateDetail() {
                         {history.report_revisions.map((r) => (
                           <li key={r.report_revision} className="flex items-center justify-between gap-2">
                             <span>
-                              <b>{r.report_revision}판</b> · {REASON_LABEL[r.reason] ?? r.reason}
+                              <b>{r.report_revision}판</b> · {REVISION_REASON_LABEL[r.reason] ?? r.reason}
                             </span>
                             <span className="text-xs text-ink-600">{fmtTime(r.created_at)}</span>
                           </li>
@@ -854,8 +953,8 @@ export default function CandidateDetail() {
                     {history && history.approvals.length > 0 && (
                       <div className="mt-3 border-t border-line pt-3 text-xs text-ink-600">
                         {history.approvals.map((a) => (
-                          <div key={a.approval_id}>
-                            {a.approval_id}: {DECISION_LABEL[a.decision]} · {a.report_revision}판 · {a.approver}
+                          <div key={a.approval_id} title={`기록 ID ${a.approval_id}`}>
+                            {DECISION_LABEL[a.decision] ?? a.decision} · {a.report_revision}판 · {a.approver} · {fmtTime(a.created_at)}
                           </div>
                         ))}
                       </div>
@@ -869,7 +968,7 @@ export default function CandidateDetail() {
                       shown={shown}
                       onDecide={decide}
                       checks={checks}
-                      done={lastApproval}
+                      done={doneApproval}
                       onPrint={printSheet ? openPrint : undefined}
                       nextHref={nextHref}
                       moreCandidates={moreCandidates}
