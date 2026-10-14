@@ -78,6 +78,20 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 }
 ```
 
+### 3.1.1 `GET /me`
+
+지금 토큰의 이름과 역할입니다. 화면은 이 값으로 조사·승인 버튼을 잠글지 정합니다. 토큰 설정이 없는 개발 모드면 `authenticated=false`, 역할은 승인입니다. 공용 토큰이면 `shared=true`이고 이름 앞에 `공용:`이 붙습니다.
+
+<!-- schema: MeResponse -->
+```json
+{
+  "name": "공용:대시보드",
+  "role": "조회",
+  "shared": true,
+  "authenticated": true
+}
+```
+
 ### 3.2 `GET /snapshots/active`
 
 지금 화면이 보는 분석 스냅샷입니다. 새 스냅샷이 발행돼도 진행 중인 실행은 자기 `snapshot_id`를 계속 씁니다.
