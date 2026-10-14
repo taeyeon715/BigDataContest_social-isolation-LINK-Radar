@@ -26,10 +26,12 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from collections import OrderedDict
 from functools import cached_property
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -82,6 +84,11 @@ def _sha256(path: Path) -> str:
     return _HASH_CACHE[key]
 
 
+def file_hash(path: Path) -> str:
+    """파일 sha256 (경로·수정 시각·크기가 같으면 다시 읽지 않음)."""
+    return _sha256(Path(path))
+
+
 def dev_files(root: Path = ROOT) -> dict[str, Path]:
     return {k: Path(root) / v for k, v in DEV_FILES.items()}
 
@@ -121,10 +128,15 @@ def _card2_from(path: Path) -> pd.DataFrame:
     (본사등록 업종 제외, 같은 시도 거주, 10대 제외, 80·90대 → 80대+)."""
     from bigcontest.card import AGE_MAP
 
-    d = pd.read_parquet(path)
-    d = d[~d["hq"]]
-    d = d[d["local"]]
-    d = d[d["age"].isin(AGE_MAP)].copy()
+    # 읽으면서 거름 (180만 행 × 모든 칸을 올린 뒤 거르지 않음 → 순간 메모리 약 −300MB).
+    # 거르는 칸 셋만 따로 읽어 원래 행 번호(index)를 그대로 붙인다 → 예전과 행·순서·dtype·index 까지 같음
+    keys = pd.read_parquet(path, columns=["hq", "local", "age"])
+    pos = np.flatnonzero((~keys["hq"] & keys["local"] & keys["age"].isin(AGE_MAP)).to_numpy())
+    del keys
+    d = pd.read_parquet(path, filters=[("hq", "==", False), ("local", "==", True), ("age", "in", list(AGE_MAP))])
+    if len(d) != len(pos):  # 거르는 규칙이 어긋나면 조용히 넘어가지 않음
+        raise DataSourceError(f"card2 거르기 결과가 다름 ({len(d)} != {len(pos)})")
+    d.index = pd.Index(pos, dtype="int64")
     d["age_g"] = d["age"].map(AGE_MAP)
     return d
 
@@ -314,21 +326,32 @@ class DataSource:
         return self._get(("tool", key), fn)
 
 
-_SOURCES: dict[str, DataSource] = {}
+_SOURCES: dict[str, DataSource] = {}   # register_source 로 등록한 것 (지우지 않음)
+_OPENED: OrderedDict[str, DataSource] = OrderedDict()  # open_datasource 가 연 dev 스냅샷 (최근 것만)
+MAX_OPEN_SOURCES = 2  # dev 스냅샷 하나가 표를 다 읽으면 약 1GB. 최근에 쓴 것만 남김
 
 
 def register_source(snapshot_id: str, source) -> None:
     """발행 스냅샷 같은 다른 읽기 구현을 등록 (DataSource 와 같은 메서드)."""
-    _SOURCES[snapshot_id] = source
+    with _LOCK:
+        _OPENED.pop(snapshot_id, None)
+        _SOURCES[snapshot_id] = source
 
 
 def open_datasource(snapshot_id: str) -> DataSource:
-    """고정한 snapshot_id 의 자료. dev 스냅샷이 아니면(발행 스냅샷 읽기는 아직 없음) DataUnavailable."""
+    """고정한 snapshot_id 의 자료. dev 스냅샷이 아니면(발행 스냅샷 읽기는 아직 없음) DataUnavailable.
+    dev 스냅샷은 최근에 쓴 MAX_OPEN_SOURCES 개만 들고 있는다. 밀려난 스냅샷을 다시 열면 새로 만든다
+    (그때 파일이 바뀌었으면 SnapshotMismatch → 재실행 필요. 조용히 새 자료를 읽지 않음)."""
     with _LOCK:
         if snapshot_id in _SOURCES:
             return _SOURCES[snapshot_id]
+        if snapshot_id in _OPENED:
+            _OPENED.move_to_end(snapshot_id)
+            return _OPENED[snapshot_id]
         if not snapshot_id.startswith("dev-"):
             raise DataUnavailable(f"읽을 수 없는 스냅샷: {snapshot_id} (지금은 dev 스냅샷만 연결됨)")
         ds = DataSource(snapshot_id)
-        _SOURCES[snapshot_id] = ds
+        _OPENED[snapshot_id] = ds
+        while len(_OPENED) > MAX_OPEN_SOURCES:
+            _OPENED.popitem(last=False)
         return ds

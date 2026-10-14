@@ -34,6 +34,10 @@ def test_future_values_do_not_change_forecast(model):
 def test_future_values_do_not_change_past_residual(model):
     """탐지용 잔차: t까지의 잔차는 t 뒤 자료가 바뀌어도 그대로."""
     Y = card_daily_small()
+    if isinstance(model, STLModel):
+        # STL 은 코호트마다 따로 계산 (cohort_independent): 두 코호트로도 같은 성질을 확인 (전체 12개는 20초 넘게 걸림)
+        assert model.cohort_independent
+        Y = Y.iloc[:, :2]
     o = origins(len(Y), full_horizon=None)
     T = 90
     e0 = ModelResid(Y, model, o).E
