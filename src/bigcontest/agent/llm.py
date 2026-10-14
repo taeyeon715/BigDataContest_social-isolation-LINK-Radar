@@ -176,10 +176,12 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
     """LLM 호출 한 번 (실패하면 1회 재시도, 그래도 실패하면 None → 규칙·템플릿). (결과, 호출 기록)."""
     if llm is None:
         return None, None
+    # 프롬프트 판: 자리별 프롬프트 파일 이름 (classify_v3 등). 설정 판(llm-v1)이 아님. 가짜 LLM 은 fake-v0
+    slot_prompt = ((getattr(llm, "cfg", None) or {}).get("slots") or {}).get(slot, {}).get("prompt")
     record = {
         "slot": slot,
         "model_id": llm.model_id,
-        "prompt_version": llm.prompt_version,
+        "prompt_version": slot_prompt or llm.prompt_version,
         "input_tokens": 0,
         "output_tokens": 0,
         "cost_usd": 0.0,
@@ -204,6 +206,7 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
     calls = (getattr(llm, "calls", []) or [])[n0:]
     if calls:  # 실제 API 호출 기록 (시도마다)
         record["model_id"] = calls[-1]["model_id"]
+        record["prompt_version"] = calls[-1]["prompt_version"]
         record["input_tokens"] = sum(c["input_tokens"] for c in calls)
         record["output_tokens"] = sum(c["output_tokens"] for c in calls)
         costs = [c["cost_usd"] for c in calls]
@@ -290,6 +293,8 @@ class ClassifyRequest(_Out):
     age_max: int | None = Field(default=None, ge=0, le=120)
     sex: Literal["남", "여"] | None = None
     time_of_day: Literal["00_05", "06_11", "12_17", "18_23"] | None = None
+    adm_names: list[str] | None = None  # 동 이름 (스키마 enum = ref/adm_cd_names.csv). 규칙이 비운 칸만 씀
+    period: str | None = None  # 기간 이름 (스키마 enum = periods.RELATIVE). 규칙이 비운 칸만 씀
 
 
 class ClassifyOut(_Out):
@@ -331,25 +336,46 @@ def _nullable(enum: tuple | None = None, typ: str = "string") -> dict:
     return {"anyOf": [base, {"type": "null"}]}
 
 
-CLASSIFY_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "route": {"type": "string", "enum": list(_ROUTES)},
-        "request": {
-            "type": "object",
-            "properties": {
-                "city": _nullable(_CITIES), "metric": _nullable(_METRICS), "group": _nullable(_GROUPS),
-                "age_min": _nullable(typ="integer"), "age_max": _nullable(typ="integer"),
-                "sex": _nullable(("남", "여")), "time_of_day": _nullable(_TOD),
+def _dong_enum() -> list[str]:
+    from bigcontest.agent.places import dongs
+
+    return sorted({d.name for d in dongs()})
+
+
+def _period_enum() -> list[str]:
+    from bigcontest.agent.periods import RELATIVE
+
+    return list(RELATIVE)
+
+
+def classify_schema() -> dict:
+    """질문 해석 스키마. 동 이름·기간 이름은 enum (사전·규칙 밖 값은 받지 않음)."""
+    return {
+        "type": "object",
+        "properties": {
+            "route": {"type": "string", "enum": list(_ROUTES)},
+            "request": {
+                "type": "object",
+                "properties": {
+                    "city": _nullable(_CITIES), "metric": _nullable(_METRICS), "group": _nullable(_GROUPS),
+                    "age_min": _nullable(typ="integer"), "age_max": _nullable(typ="integer"),
+                    "sex": _nullable(("남", "여")), "time_of_day": _nullable(_TOD),
+                    "adm_names": {"anyOf": [{"type": "array", "items": {"type": "string", "enum": _dong_enum()}},
+                                            {"type": "null"}]},
+                    "period": _nullable(tuple(_period_enum())),
+                },
+                "required": ["city", "metric", "group", "age_min", "age_max", "sex", "time_of_day", "adm_names",
+                             "period"],
+                "additionalProperties": False,
             },
-            "required": ["city", "metric", "group", "age_min", "age_max", "sex", "time_of_day"],
-            "additionalProperties": False,
+            "reason": {"type": "string"},
         },
-        "reason": {"type": "string"},
-    },
-    "required": ["route", "request", "reason"],
-    "additionalProperties": False,
-}
+        "required": ["route", "request", "reason"],
+        "additionalProperties": False,
+    }
+
+
+CLASSIFY_SCHEMA = classify_schema()
 
 
 def _tools_schema(available: list[str]) -> dict:
@@ -458,7 +484,13 @@ class AnthropicLLM:
             out = self._call("classify", {"question": masked, "rule_request": request}, CLASSIFY_SCHEMA, ClassifyOut)
         finally:
             self.calls[-1]["masked"] = n
-        req = {k: v for k, v in out.request.model_dump().items() if v is not None}
+        req = {k: v for k, v in out.request.model_dump().items() if v not in (None, [])}
+        # enum 밖 값은 버림 (스키마가 막지만 한 번 더)
+        if "adm_names" in req:
+            req["adm_names"] = [n for n in req["adm_names"] if n in _dong_enum()] or None
+        if req.get("period") not in (None, *_period_enum()):
+            req["period"] = None
+        req = {k: v for k, v in req.items() if v is not None}
         return {"route": out.route, "request": req or None, "reason": out.reason}
 
     def choose_extra_tools(self, request: dict | None, available: list[str], required: list[str]) -> list[str]:

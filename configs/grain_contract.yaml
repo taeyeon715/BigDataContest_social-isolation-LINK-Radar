@@ -120,6 +120,8 @@ sources:
 
 # 교차 금지 조합: 이 차원들을 한 요청에 같이 쓰면 거절 (metric 이 해당하는 경우에만)
 forbidden_combos:
+  # 결제 기준 "연령 × 시간대"는 금지가 아님: 카드 데이터1(card1)이 한 표에 같이 가짐 → 조회 도구 get_card_time_band.
+  # 체류 질문을 보류할 때는 이 대안을 안내함 (nodes.alternative_hint). 거주지 없음·체류 아님 한계를 같이 적음
   - dims: [age, time_of_day]
     metrics: [체류인구]
     reason: 통신 성연령 표와 시간대 표는 따로라서 "특정 연령의 시간대 체류"는 알 수 없음

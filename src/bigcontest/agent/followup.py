@@ -90,13 +90,17 @@ def _cand_sexes(c: Candidate) -> set[str]:
 
 def target_conditions(question: str, card: EvidenceCard) -> dict[str, set]:
     """질문에 적힌 대상 조건 (모두 엄격하게 씀): 후보 ID·동·성별·연령(10 단위)·집단·등급."""
+    from bigcontest.agent.places import find_dongs
+
     names = _dong_names(card)
-    hit = {nm for nm in set(names.values()) if nm and nm in question}
-    hit = {nm for nm in hit if not any(nm != o and nm in o for o in hit)}  # "남면"이 더 긴 이름 안에만 있으면 뺌
+    # 동 이름 사전으로 찾음 (긴 이름 먼저·낱말 경계, 줄임 "역삼동" → 역삼1동·역삼2동 둘 다 조건)
+    found = find_dongs(question)
+    hit = {nm for nm, _, _ in found}
+    codes = {cd for _, cds, _ in found for cd in cds}
     groups = {g for g in _GROUP_LABELS if g in question} | {g for w, g in _GROUP_WORDS.items() if w in question}
     return {
         "ids": set(_CAND_ID.findall(question)),
-        "dongs": {cd for cd, nm in names.items() if nm in hit},
+        "dongs": codes | {cd for cd, nm in names.items() if nm in hit},
         "dong_names": hit,
         "sexes": {v for w, v in _SEX_WORDS.items() if w in question},
         "decades": _decades(question),
@@ -167,7 +171,7 @@ def answer_followup(values: dict, question: str, llm_name: str | None = None) ->
                         needed_data(values), rev)
     card = EvidenceCard(**report["evidence_card"])
     cands = [Candidate(**c) for c in values.get("candidates") or []]
-    card_cities = {c.city for c in cands} | set(G._cities_in("".join(e.applied_scope or "" for e in card.evidence)))
+    card_cities = {c.city for c in cands} | set(G._cities_in(" ".join(e.applied_scope or "" for e in card.evidence)))
     asked = G._cities_in(question)
     if asked and card_cities and not asked <= card_cities:
         return _abstain(f"OUT_OF_SCOPE: 이 실행의 근거 카드에 없는 도시 ({'·'.join(sorted(asked - card_cities))})",

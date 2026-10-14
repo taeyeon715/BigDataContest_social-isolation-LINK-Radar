@@ -87,7 +87,10 @@ def after_intake(state: dict) -> str:
 
 
 def after_classify(state: dict) -> str:
-    return "abstain_report" if state.get("route") == "out_of_scope" else "check_availability"
+    # 범위 밖, 또는 질문 기간을 쓸 수 없음 (scope_request 의 TIME_PERIOD_*)
+    if state.get("route") == "out_of_scope" or state.get("abstain_reason"):
+        return "abstain_report"
+    return "check_availability"
 
 
 def after_availability(state: dict) -> str:

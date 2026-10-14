@@ -150,6 +150,10 @@ class NormalizedRequest(_Model):
     group: str | None = None  # 서비스 대상 집단 이름 (configs/cohorts.yaml groups)
     time_of_day: Literal["00_05", "06_11", "12_17", "18_23"] | None = None
     industry: str | None = None
+    # 질문에서 찾은 동 (places.resolve_place). 조사 경로는 등급을 도시 전체로 정한 뒤 이 동 후보만 남김
+    # (차원에 넣지 않음). 조회 경로는 nodes.scope_request 가 adm_cd·차원으로 옮김
+    adm_cds: list[Annotated[str, Field(pattern=r"^\d{8}$")]] = Field(default_factory=list)
+    period_label: str | None = None  # 질문의 기간 말 (periods.find_period). 창은 nodes.scope_request 가 정함
 
     @model_validator(mode="after")
     def _check(self) -> NormalizedRequest:

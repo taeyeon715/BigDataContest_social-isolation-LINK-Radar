@@ -76,7 +76,7 @@ def test_classify_structured_output():
     assert req["model"] == "claude-sonnet-5-5" and req["output_config"]["format"]["type"] == "json_schema"
     assert "temperature" not in req
     rec = llm.calls[0]
-    assert rec["prompt_version"] == "classify_v2" and rec["input_tokens"] == 1000 and rec["cost_usd"] == 0.004
+    assert rec["prompt_version"] == "classify_v3" and rec["input_tokens"] == 1000 and rec["cost_usd"] == 0.004
 
 
 def test_invalid_output_retries_once_then_falls_back():

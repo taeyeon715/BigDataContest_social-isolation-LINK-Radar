@@ -103,3 +103,8 @@
 - {id: res-customer-dong-level, kind: 거주지, expect: G-03, sentence: "고객 거주지가 동 단위로 확인됩니다."}
 - {id: res-city-resident, kind: 거주지, expect: G-03, sentence: "춘천 거주 고객이 줄었습니다 [EV-20251020-DEV]."}
 - {id: res-dong-resident, kind: 거주지, expect: G-03, sentence: "효자동 거주자의 결제입니다."}
+
+# ---- 동 이름 속 도시 이름 (시스템 점검 2 AG-02): "춘천 강남동"은 춘천. 서울 강남구로 읽지 않음
+- {id: ok-cc-gangnamdong, kind: 정상, expect: PASS, sentence: "춘천 강남동은 이 카드에서 따로 확인할 동입니다."}
+- {id: ok-gangnamdong-alone, kind: 정상, expect: PASS, sentence: "강남동 어르신 안부 확인은 담당자가 정합니다."}
+- {id: region-gangnam-gu, kind: 지역, expect: G-05, sentence: "강남구 어르신도 함께 봐야 합니다."}

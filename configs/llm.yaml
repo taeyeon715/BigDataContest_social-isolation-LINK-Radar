@@ -28,7 +28,7 @@ models:
 slots:
   classify:
     model: supervisor
-    prompt: classify_v2
+    prompt: classify_v3   # v3: 동 이름(adm_names)·기간 이름(period) enum 칸 추가
     max_tokens: 2000
     effort: low
     temperature: null
