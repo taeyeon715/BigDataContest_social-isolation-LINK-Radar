@@ -4,7 +4,7 @@
 보존 기한(일)이 지난 행의 글 칸만 비운다. 실행·검토·승인·감사 행 자체와 숫자·판정·이름 칸은 그대로 둔다.
 
 - 비우는 칸: runs.question, run_metadata 의 inputs.question, reviews.memo, resource_judgements.memo,
-  approvals.memo, approval_intents.memo
+  approvals.memo, approval_intents.memo, objections.text·resolution (이의·정정 글)
 - 보존 일수: `LINKRADAR_TEXT_RETENTION_DAYS` (기본 365)
 - 실행: `uv run python -m api.retention --db data/state/linkradar.sqlite [--days 365] [--dry-run]`
   (API 를 끄지 않아도 됨. 한 트랜잭션으로 처리). 운영에서는 하루 한 번 예약 작업으로 돌린다
@@ -40,7 +40,9 @@ def purge_old_text(store: Store, days: int | None = None, now: datetime | None =
     with store.tx():
         simple = [("runs", "question", "created_at", "runs"), ("reviews", "memo", "created_at", "reviews"),
                   ("approvals", "memo", "created_at", "approvals"),
-                  ("approval_intents", "memo", "created_at", "approval_intents")]
+                  ("approval_intents", "memo", "created_at", "approval_intents"),
+                  ("objections", "text", "created_at", "objections"),
+                  ("objections", "resolution", "created_at", "objection_resolutions")]
         for table, col, at, key in simple:
             where = f"{col} IS NOT NULL AND {at} < ?"
             out[key] = store._one(f"SELECT COUNT(*) AS n FROM {table} WHERE {where}", cutoff)["n"]

@@ -1,0 +1,102 @@
+item_id,name,kind,definition,inputs,grain,type_range,missing_rule,code,version,used_by,can_say_cannot_say,status
+D-CLN-01,city,정리 칸,"행 지역 이름. BLOCK_CD·MCT_SGG_CD 앞 5자리 11230→강남, 32010→춘천",P1~P5 BLOCK_CD·MCT_SGG_CD,행,강남/춘천,해당 없음 → 행 버림,ingest.py,clean-v1,모든 집계,가능: 도시 이름 / 불가: -,확정
+D-CLN-02,adm_cd,정리 칸,통신 BLOCK_CD 앞 8자리 = 행정동 코드,P1~P3 BLOCK_CD,칸(50m),8자리 문자,—,ingest.py,clean-v1,"동별 통신 집계, 지도",가능: 행정동 / 불가: 주소,확정
+D-CLN-03,oa13,정리 칸,통신 BLOCK_CD 전체(칸 코드),P1~P3 BLOCK_CD,칸,문자,—,ingest.py,clean-v1,EDA 격자 분석,가능: 칸 / 불가: 건물·가구,확정
+D-CLN-04,adm_type,정리 칸,"춘천 adm_cd[5:8] <300 읍, <500 면, 그 외 동. 강남은 모두 동",adm_cd,행정동,동/읍/면,—,ingest._adm_type,clean-v1,"W 동절기, 겨울 변화, 보호 자원 칸(춘천 경로당 유형별 수)",가능: 읍·면·동 구분 / 불가: -,확정
+D-CLN-05,date,정리 칸,카드 TA_YMD → 날짜,P4·P5 TA_YMD,행,날짜,—,ingest.load_card,clean-v1,모든 카드 시계열,가능: 결제일 / 불가: 고객 활동일,확정
+D-CLN-06,age,정리 칸,카드 AGE_CCD → 10대~80대+ (80·90대는 80대+로 묶음),P4·P5 AGE_CCD,행,연령대 문자,—,"ingest.load_card, configs/cohorts.yaml",clean-v1,코호트,가능: 연령대 / 불가: 나이,확정
+D-CLN-07,corp,플래그,법인카드 행 표시 (데이터1),P4,행,bool,참이면 개인 분석에서 제외,ingest.load_card,clean-v1,카드 데이터1 집계,가능: - / 불가: -,확정
+D-CLN-08,cat,정리 칸,업종 MCT_RY_CD → 업종 묶음(생필품·의료 등),P4·P5 MCT_RY_CD,행,문자,표에 없는 업종 → 기타,categories.py,clean-v1,생필품·의료 결제 신호,가능: 업종 묶음 / 불가: 품목,확정
+D-CLN-09,hq,플래그,업종이 본사 주소로 잡히는 13개 중 하나(쇼핑몰·보험·세금 등),P4·P5 MCT_RY_CD,행,bool,참이면 분석에서 제외,categories.py,clean-v1,모든 카드 집계,가능: - / 불가: -,확정
+D-CLN-10,dow,정리 칸,요일 0(월)~6(일),date,행,정수 0~6,—,ingest.load_card,clean-v1,같은 요일 기대값,가능: 요일 / 불가: -,확정
+D-CLN-11,holiday,플래그,"공휴일 여부 (configs/project.yaml holidays, 한국천문연구원 월력요항과 대조)","date, 공휴일 목록",일,bool,—,"ingest.load_card, holidays.py",clean-v1,"기대값(공휴일 제외), 연휴 블록",가능: 공휴일 / 불가: 목록 밖 임시공휴일,확정
+D-CLN-12,local,정리 칸,"고객 거주 시도 = 가맹점 시도 (강남→서울, 춘천→강원)",P5 CLN_SGG_CD,행,bool,—,ingest.load_card,clean-v1,모든 카드 신호(같은 시도 거주 고객만),가능: 같은 시도 거주 고객 / 불가: 춘천 거주·강남 거주,확정
+D-STR-01,1인세대 비율,지표,1인세대 수 ÷ 전체 세대수,E2 주민등록 세대원수별 세대수,행정동 × 월,비율 0~1,"분모 100 미만 → 근거 신뢰도 낮음, 행 없음 → 그 동 EMPTY",agent/tools/data.py get_structure,rules-v1.0,"Level 3 구조 축, 1인가구 밀집형, 사전 안부 협력자","가능: 1인세대 비율이 높음 / 불가: 1인가구 비율, 고립 비율",확정
+D-STR-02,구조 취약성 상위,플래그,그 도시 같은 기준월 동 중 1인세대 비율 상위 30%이면서 0.35 이상 (동 5곳 미만이면 0.35만),D-STR-01,행정동 × 월,bool,비율 EMPTY → 판정 불가,"rules/levels.py, configs/rules.yaml thresholds.structure",rules-v1.0,"등급 규칙, 확인할 영역, 사전 안부 협력자",가능: 구조 취약성 상위 / 불가: 위험한 동,확정(운영상 정한 탐색 기준)
+D-STR-03,80세 이상 1인세대 수,지표,(가짜 도구) 작은 칸 차단(G-08) 시험 값,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-TEL-01,체류인구 중 {연령} 비중,지표,그 연령대 체류인구 ÷ 전체 체류인구 (성 합침),P1 flow_age_pop,도시 또는 행정동 × 월,비율 0~1,통신 자료 없음 → 체류인구 구성 EMPTY,agent/tools/data.py get_mobility_layer,clean-v1,구성 레이어(등급 입력 아님),"가능: 머문 사람 중 비중 / 불가: 주민 수, 위험 지표(고령 비중 = 위험 가설은 폐기)",확정(구성 표시만)
+D-TEL-02,체류인구 구성,지표,D-TEL-01 묶음 이름 (값이 없을 때 EMPTY 봉투 이름),P1,도시 × 월,—,공개 전·연령 구간 불가 → EMPTY,agent/tools/data.py,clean-v1,구성 레이어,가능: - / 불가: -,확정
+D-TEL-03,체류인구 중 60+ 비중,지표,(가짜 도구) D-TEL-01의 60+ 값,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-TEL-04,통신 야간 체류 비율 (폐기 지표),지표,(가짜 도구) 폐기 지표를 쓰면 Guard가 막는지 보는 시나리오,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-TEL-05,춘천 읍·면 겨울 변화,지표,겨울(11·12월) 60+ 체류 ÷ 여름 60+ 체류 (춘천 읍·면만),P1 flow_age_pop 60GU,춘천 읍·면 × 계절,비율(겨울/여름),읍·면 아님·겨울 자료 공개 전 → EMPTY,agent/tools/signal.py calc_winter_contraction,clean-v1,W 동절기 근거,가능: 겨울에 머문 고령 체류가 줄었음 / 불가: 주민 이탈,"확정(한 해 관측, 근거 신뢰도 보통)"
+D-TEL-06,주민형 격자,플래그,밤 체류·주말 비율 기준을 넘는 250m 격자 (EDA-5),P2·P3,격자 × 기간,bool,—,reports/eda5_인사이트재현,clean-v1,"EDA I-5, 동 유형 설명",가능: 주거 성격 칸 / 불가: 주민 확인,탐색
+D-SIG-01,카드 결제건수 일별 시계열,지표,"도시×성×연령 코호트의 하루 결제건수 (같은 시도 거주, 본사등록 업종 제외)","P5 USE_CNT, local, hq",도시 × 성 × 연령 × 일,건/일(연령별 배율값),행 없음 = 0건 가정(미공급과 구분 못 함),agent/tools/data.py get_card_cohort_series,clean-v1,이탈 경보 입력,"가능: 이 도시 가맹점 결제 / 불가: 이 동의 결제, 연령끼리 크기 비교",확정
+D-SIG-02,카드 결제건수 최근 7일 평소 대비,지표,exp(최근 7일 중 공휴일 아닌 날의 평균 log 차이). 평소 = 같은 요일 과거 8주 평균(공휴일 제외). 1 = 평소,D-SIG-01,도시 × 성 × 연령 × 7일,평소 대비 비율 (1 = 평소),유효 4일 미만 → 값 없음,agent/tools/data.py get_card_cohort_series,clean-v1,보고서 사실 문장,가능: 평소보다 낮음/높음 / 불가: 개인 활동 감소,확정
+D-SIG-03,"카드 결제건수 기대값 (이탈 기준선, EDA-6)",기대값,"같은 요일 과거 56일 평균 (공휴일 제외, 같은 요일 관측 2개 이상)",D-SIG-01,도시 × 성 × 연령 × 일,건/일,학습 28일 미만·같은 요일 관측 부족 → EMPTY(기대 활동 기준선 없음),"signals/alarm.py one_step_resid, agent/tools/signal.py calc_expected_activity",rules-v1.0,이탈 경보,가능: 평소 수준 / 불가: 예측 정확도,확정
+D-SIG-04,카드 결제건수 평소 대비 (이탈 경보),지표,"1 + 경보 창(7일) 평균 변화 (평소 = 같은 요일 과거 8주 평균). 경보 = 강건 z < −2.5인 날이 7일 중 3일 이상, 후보는 10% 이상 하락","D-SIG-01, D-SIG-03",도시 × 성 × 연령 × 일(경보일),평소 대비 비율 (1 = 평소),창 안 유효 점수 5일 미만 → 보류,"signals/alarm.py, agent/tools/signal.py calc_cohort_deviation",rules-v1.0,예상 밖 이탈 후보,"가능: 도시 단위 이탈 / 불가: 동의 결제 변화, 개인 고립",확정(임계값은 EDA-6 사후 참고)
+D-SIG-05,이탈 경보,플래그,z < −2.5인 날이 7일 창 중 3일 이상 (AlarmConfig z_thr·win·k),D-SIG-04,도시 × 성 × 연령 × 일,bool,창 안 유효 점수 부족 → 보류,signals/alarm.py AlarmConfig,rules-v1.0,예상 밖 이탈 후보,가능: 경보 / 불가: 위기 확인,확정
+D-SIG-06,카드 결제건수 다음 1~7일 예측 (3A 채택 모델),기대값,채택 모델의 h=1~7 예측 (도구 연결 전이면 EMPTY),D-SIG-01,도시 × 성 × 연령 × 일,건/일 목록,연결 전·관측 부족 → EMPTY,"agent/tools/signal.py, reports/m1_기대활동모델",m1,참고 표시 (등급 입력 아님),가능: 참고 예측 / 불가: 등급 근거,탐색
+D-SIG-07,카드 결제 시간대 비중 (카드 데이터1 보조),지표,D-SIG-08 묶음 이름 (EMPTY·ERROR 봉투 이름),P4,도시 × 성 × 연령 × 기간,—,시간대 없는 요청·strict_as_of → ERROR/EMPTY,agent/tools/data.py get_card_time_band,clean-v1,보조,가능: - / 불가: -,확정
+D-SIG-08,카드 결제 중 {시간대} 비중 (카드 데이터1 보조),지표,"그 시간대(새벽·오전·낮·저녁밤) 결제건수 ÷ 전체 (데이터1, 거주지 모름)","P4 TIME_GB, USE_CNT",도시 × 성 × 연령 × 기간,비율 0~1,그 시간대 행 없음 → EMPTY,agent/tools/data.py get_card_time_band,clean-v1,"질문 답(연령×시간대), 보조 근거",가능: 이 도시 가맹점의 시간대 비중 / 불가: 거주자의 생활 리듬,확정(보조)
+D-SIG-09,카드 결제 중 저녁·밤 18~23시 비중 (카드 데이터1 보조),지표,(가짜 도구) D-SIG-08 예시,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-10,생필품 결제 일별 시계열,지표,(가짜 도구) 생필품 업종 결제 시계열,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-11,생필품 결제 기대값,기대값,(가짜 도구) D-SIG-03의 생필품판,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-12,생필품 결제 평소 대비,지표,(가짜 도구) 경보 창 평균 ÷ 같은 요일 56일 평균 − 1,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-13,{연휴} 연휴 중 결제 평소 대비,지표,연휴 블록 안 날의 평균 log 차이 → 평소 대비 비율,"D-SIG-01, 연휴 블록",도시 × 성 × 연령 × 연휴,평소 대비 비율,관측 3일 미만 → EMPTY(회복 미관측),agent/tools/signal.py calc_holiday_gap,rules-v1.0,연휴 깊이 설명,가능: 연휴 중 결제가 평소보다 낮음 / 불가: 연휴에 고립 증가,확정
+D-SIG-14,{연휴} 연휴 뒤 결제 평소 대비 (최대 {일수}일),지표,연휴 끝 뒤 공휴일 아닌 날 최대 10일 평균 → 평소 대비 비율,D-SIG-01,도시 × 성 × 연령 × 연휴 뒤,평소 대비 비율,관측 3일 미만 → EMPTY,agent/tools/signal.py calc_holiday_gap,rules-v1.0,R3 회복 확인,가능: 연휴 뒤 회복 여부 / 불가: 개인 회복,확정
+D-SIG-15,연휴 중 결제 평소 대비,지표,D-SIG-13 묶음 이름 (끝난 연휴 없음 등 EMPTY 봉투),—,—,—,→ EMPTY,agent/tools/signal.py,rules-v1.0,—,가능: - / 불가: -,확정
+D-SIG-16,연휴 깊이·회복,지표,(가짜 도구) D-SIG-13·14 묶음,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-17,폭염일 생필품 결제 상대 차이 (탐색),지표,폭염일(ASOS ≥33℃) 고령 코호트 생필품 결제 변화 − 40·50대 변화,"D-SIG-01, D-WX-01",도시 × 연령 × 기간,비율 차이,폭염일 없음·카드 없음 → EMPTY,agent/tools/signal.py calc_heat_response,rules-v1.0,I-6 탐색 설명,가능: 탐색적 차이 / 불가: 폭염 피해,탐색
+D-SIG-18,폭염 반응 (탐색),지표,(가짜 도구) D-SIG-17,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-SIG-19,행 없음=0건 가정,값 규칙,카드 결제 행이 없는 날을 0건으로 채움,P4·P5,도시 × 성 × 연령 × 일,규칙,미공급과 구분 못 함 (민감도는 리포트로 확인),agent/tools/data.py CARD_ZERO_NOTE,clean-v1,모든 카드 신호,가능: 가정이라고 밝힘 / 불가: 실제 0건 확인,확정(가정)
+D-CF-01,반증: 공휴일 기대값,플래그,경보가 공휴일·연휴 뒤 기대 경로(명절 연휴 뒤 4일) 안이면 기각/확인 필요,"D-SIG-04, 연휴 블록, rules.yaml holiday_path",도시 × 성 × 연령 × 경보,통과/기각/보류/확인 필요/검토 중,회복 미관측 → 검토 중,"signals/alarm.py holiday_review, agent/tools/signal.py check_confounders",rules-v1.0,반증 결과,가능: 연휴 영향일 수 있음 / 불가: 연휴가 원인,확정(2025 추석 사후 기준)
+D-CF-02,반증: 도시 공통요인,플래그,같은 도시 전 코호트 공통 하락을 뺀 뒤에도 이탈이 남는지,D-SIG-01 전 코호트,도시 × 일,통과/기각/확인 필요,—,"signals/alarm.py, agent/tools/signal.py check_confounders",rules-v1.0,반증 결과,가능: 도시 공통 변화로 분류 / 불가: 공휴일이 원인이라는 증거,확정
+D-CF-03,반증: 강수,플래그,경보 창 안 강수일 비중으로 설명 부분 기록 (자동 기각 아님),E7 ASOS rain,관측소 × 일,설명 문구,강수 결측 → 판정 불가(근거 신뢰도 낮음),agent/tools/signal.py check_confounders,rules-v1.0,반증 설명,가능: 비 온 날이 섞임 / 불가: 비 때문에 줄었음,확정
+D-CF-04,반증: 학사일정,플래그,학사일정 미수집 → 늘 EMPTY (반증에서 빠짐),없음,—,—,→ EMPTY,agent/tools/signal.py check_confounders,rules-v1.0,—,가능: - / 불가: 방학 영향 없음,미수집
+D-CF-05,연휴 뒤 기대 경로,규칙 값,명절(5일 이상) 연휴 끝 다음 날부터 공휴일 아닌 4일. 뒤 3일 평균이 −5% 안이면 평소 수준 회복,2025 추석 도시 공통요인,도시 × 일,일수 4 / 허용 −5%,—,configs/rules.yaml holiday_path,rules-v1.0,반증 기각 조건,가능: 사후에 정한 규칙이라고 밝힘 / 불가: 미래 성능,"확정(사후 기준, 설 전에 고정해 확인)"
+D-WX-01,폭염일,플래그,ASOS 일 최고기온 ≥ 33℃ (특보 기준 아님),E7 tmax,관측소 × 일,bool,결측 → 판정 불가,agent/tools/signal.py HEAT_TMAX,rules-v1.0,"R4(시연), I-6","가능: 최고 33℃ 이상인 날 / 불가: 폭염특보 발효, 동별 폭염",임시 기준
+D-WX-02,폭염 특보 단계,규칙 값,폭염주의보(체감 33℃ 2일 이상)·경보(체감 35℃)·중대경보(체감 38℃ 또는 기온 39℃). 후보 heat_stage 칸 → 트리거 글 → 없으면 '특보 단계 확인 필요',"기상청 특보(예보), 후보 heat_stage",도시 × 일,주의보/경보/중대경보/확인 필요,예보 자료 없음 → 확인 필요 (단계를 지어내지 않음),"agent/tools/report.py heat_stage_key, configs/action_templates.yaml heat_stages",action-v2,안부 횟수(격일·매일·하루 2회),가능: 특보 단계별 안부 횟수 / 불가: 과거 특보 발효 확인(2025 예보 기록 없음),확정(템플릿). 단계 입력은 규칙 엔진
+D-WX-03,호우 특보 근사,플래그,ASOS 일강수 ≥ 80mm,E7 rain,관측소 × 일,bool,강수 빈 값 = 0,agent/tools/signal.py WARN_RULES,rules-v1.0,R6 호우(시연),가능: 일강수 80mm 이상 / 불가: 호우특보 발효,임시 기준
+D-WX-04,대설 특보 근사,플래그,ASOS 일 신적설 ≥ 5cm,E7 snow_new,관측소 × 일,bool,결측 → 판정 불가,agent/tools/signal.py WARN_RULES,rules-v1.0,R6 대설(시연),가능: 신적설 5cm 이상 / 불가: 대설특보 발효,임시 기준
+D-WX-05,한파 특보 근사,플래그,ASOS 최저기온 ≤ −12℃,E7 tmin,관측소 × 일,bool,결측 → 판정 불가,agent/tools/signal.py WARN_RULES,rules-v1.0,R6 한파(시연),가능: 최저 −12℃ 이하 / 불가: 한파특보 발효,임시 기준
+D-CAL-01,달력 트리거,플래그,"R1 연휴 D-7, R2 명절 당일·다음 날, R3 연휴 뒤 회복(10일), R4 폭염 예보, R6 기상특보, W 동절기(춘천 읍·면)","공휴일 목록, 날씨",도시 × 기준일,트리거 문장,예보 기록 없음 → R4·R6 판단 보류/확인 필요,agent/tools/signal.py get_calendar_triggers,rules-v1.0,예정된 점검 후보,가능: 예정된 점검 기간 / 불가: 명절에 고독사가 는다,확정
+D-CAL-02,연휴 블록,정리 칸,주말 포함 3일 이상 이어진 휴일 묶음 (5일 이상 = 명절),"공휴일 목록, 요일",일,시작~끝,—,"agent/tools/signal.py, rules/",rules-v1.0,"R1·R3, 연휴 뒤 기대 경로",가능: 연휴 기간 / 불가: -,확정
+D-CAL-03,명절 전·중·후 묶음,규칙 값,R1(연휴 전)·R2(연휴 중)·R3(연휴 뒤)를 한 사건의 3칸으로. 집단별 안부 횟수(고령층 전 1·중 2·후 1회),"D-CAL-01, 강남구 2026 추석 종합대책",후보 × 사건,3칸 + 지금 단계,명절 트리거 아님 → 빈 목록,"agent/tools/report.py holiday_timeline, configs/action_templates.yaml holiday_phases",action-v2,대응안·화면·보고서,가능: 현장 리듬(전·중·후)에 맞춘 순서 / 불가: 명절에 고독사가 는다,확정
+D-VAL-01,시민생활 '외출·소통 모두 적음' 비율 (탐색적 참고),지표,외출-커뮤니케이션이 모두 적은 집단(전체) 수 ÷ 그 동 총인구,E3 OA-22266,행정동 × 기준월(관측 기간 미확인),비율,"강남만, 공개(가정) 전 → EMPTY",agent/tools/data.py get_validation_reference,clean-v1,탐색적 검증 참고 (등급 입력 아님),"가능: 탐색적 참고 / 불가: 고립 인구, 독립 검증",탐색
+D-VAL-02,시민생활 '소통 적음' 비중 (탐색적 참고),지표,(가짜 도구) D-VAL-01 예시,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-VAL-03,시민생활 지표,지표,(가짜 도구) 시민생활 묶음 이름,없음(가짜),—,—,—,agent/tools/stubs.py,stub,그래프·Guard 시험,가능: 시험용 / 불가: 실제 값,시연용(가짜 도구)
+D-CTR-01,데이터 지원 범위,지표,원천별로 지원하는 차원(지역·시간·연령)의 수와 목록,configs/grain_contract.yaml,원천,원천 수,—,agent/tools/data.py get_data_capabilities,grain-v1,질문 계약 확인,가능: 이 자료로 답할 수 있는 범위 / 불가: -,확정
+D-CTR-02,대상 집단 계약,지표,요청 집단 → 원천별 분석 코호트 (요청보다 5세 넘게 섞이면 보류),configs/cohorts.yaml,요청,코호트 이름,5세 넘게 섞임 → 보류,"agent/tools/data.py check_request_contract, contracts/",cohorts-v1,질문 계약 확인,가능: 분석 코호트 / 불가: 서비스 대상과 같다,확정
+D-COH-01,고령층 (카드),코호트 정의,카드 60대·70대·80대+ (60~64세 섞임) ↔ 서비스 대상 65세 이상,configs/cohorts.yaml,—,코호트,—,contracts/,cohorts-v1,3집단,가능: 60대 이상 결제 / 불가: 65세 이상만,확정
+D-COH-02,고령층 (통신),코호트 정의,통신 60+ 한 묶음 (70·80대 구분 없음),configs/cohorts.yaml,—,코호트,—,contracts/,cohorts-v1,3집단,가능: 60세 이상 체류 / 불가: 80대 따로,확정
+D-COH-03,중장년 남성 1인가구,코호트 정의,카드·통신 40대·50대 남 ↔ 서비스 대상 40~64세 남성 (60~64세는 50~69세 보조 판),configs/cohorts.yaml,—,코호트,—,contracts/,cohorts-v1,"3집단, 연결 묶음",가능: 40·50대 남성 결제 / 불가: 1인가구 여부(카드·통신으로 모름),확정
+D-COH-04,청년 남성,코호트 정의,카드·통신 20대·30대 남 ↔ 서비스 대상 20~34세 남성,configs/cohorts.yaml,—,코호트,—,contracts/,cohorts-v1,3집단(안내 강화),가능: 20·30대 남성 결제 / 불가: 은둔 여부,확정
+D-COH-05,50~69세 남성 (보조 판),코호트 정의,카드 50대·60대 남. 중장년 판에서 빠지는 60~64세를 보는 보조,configs/cohorts.yaml,—,코호트,—,contracts/,cohorts-v1,보조 분석,가능: 보조 / 불가: 주 집단,확정
+D-COH-06,80대+,코호트 정의,카드 80대와 90대를 하나로 묶음,P4·P5 AGE_CCD,—,코호트,—,ingest.py,clean-v1,고령층,가능: 80세 이상 / 불가: 90대 따로,확정
+D-RES-01,복지 자원 후보,지표,관할 → 대상·자격 → 필요 유형 → 운영 상태 → 거리/전화형 → 제외 규칙 → 상위 K + 위급 시 안내,"원장 v2, configs/need_types.yaml",행정동 × 집단 × 원인 유형,건,"확인일·출처 없음, 관할 밖 물리 거점 → 추천 제외(확인할 자원)","resources/match.py, agent/tools/welfare.py find_resources",ledger@sha256,대응안 연계 자원,"가능: 자원 후보 / 불가: 서비스 공백, 실제 이용 가능 확정, 당시 운영 확인",확정
+D-RES-02,관측 거점까지 직선거리,지표,행정동 중심점 → 가장 가까운 안부·관계 유형 관측 거점(노인복지관·사회복지관 등) 직선거리,"원장 v2 좌표, ref 중심점",행정동,km,"좌표 없음 → missing, 위치 미확인 자원은 빼고 셈","resources/match.py access_gap, agent/tools/welfare.py get_access_gap",rules-v1.0,"Level 3 접근성 축(5km), 거점 원거리형","가능: 관측된 거점까지 직선거리 / 불가: 이동시간, 서비스 공급 부족",확정(좌표 탐색용)
+D-RES-03,자격 확인,지표,원장 eligibility 문구 → 집단별 해당됨/해당 안 됨/확인 필요,"원장 eligibility, ELIGIBILITY_RULES",자원 × 집단,적합/부적합/확인 필요,모르는 문구 → 확인 필요(자격 미상),"resources/match.py check_eligibility, agent/tools/welfare.py",ledger@sha256,자원 추천,가능: 일반 기준 / 불가: 개인 자격 판정,확정
+D-RES-04,delivery_channel,자원 칸,이용 방법,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,방문/전화/온라인/찾아가는 서비스/신청/미상,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-05,coordinate_status,자원 칸,좌표 상태,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,확인(juso)/탐색용/미확인/지오코딩 실패/권역 외/해당 없음,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-06,eligibility_rule_status,자원 칸,자격 기준 상태 (문구가 규칙 표에 있으면 확인됨),원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,확인됨/미상,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-07,operating_status,자원 칸,운영 상태 (목록에 있다 ≠ 운영 중),원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,운영 중/중단/미상/확인 필요,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-08,schedule,자원 칸,운영 시간,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,문자/미상,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-09,holiday_open,자원 칸,휴일 운영,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,예/아니오/미상,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-10,service_area,자원 칸,서비스 범위(관할),원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,문자/미상,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-11,resource_kind,자원 칸,자원 묶음,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,시설/전화 상담/제도·사업/사람,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-12,last_verified,자원 칸,날짜로 확인된 확인일,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,YYYY-MM-DD/빈 값,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-13,verified_url,자원 칸,확인한 공식 페이지,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,URL/빈 값,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-14,page_collected_at,자원 칸,공식 페이지를 읽은 날,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,날짜/빈 값,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-15,operation_confirmed_at,자원 칸,페이지가 운영을 밝힌 날,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,날짜/빈 값,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-16,note,자원 칸,쓸 때 알아 둘 점,원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,문자,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-17,resource_id,자원 칸,"고정 자원 ID (원장 R0000…, 보강 자원은 출처 앞글자 + 원천 ID)",원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,문자,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-18,source_record_id,자원 칸,원천 행 ID (API 자원만),원장 원본 12개 + 보강 수집 + 정정 기록,자원 1건,문자,모르면 미상,"resources/ledger.py, resources/sources.py",ledger@sha256,자원 매칭·화면,가능: 원장 기준 값 / 불가: 현재 운영 확정,확정
+D-RES-19,정정 기록,자원 칸,손으로 고친 값(자원·칸·옛 값·새 값·이유·누가·언제). 원래 칸은 두고 상태 칸만 고침,external/resources/정정_기록.csv,정정 1건,행,—,resources/collect.py apply_corrections,ledger@sha256,원장 v2,가능: 고친 이유 / 불가: -,확정
+D-RES-20,보호 자원 칸,자원 칸,후보 동 옆에 함께 보여 줄 연결 자원 묶음: 경로당 / 무더위·한파 쉼터 / 돌봄단·통장·이장. 묶음마다 동 안 수·도시 수·상태(수집/도시 집계만/미수집),"원장 v2, external/resources/protective/경로당_시군집계.csv, configs/need_types.yaml protective",행정동(없으면 도시),묶음 3개,"동 배정이 없는 묶음 → 동 안 수 null(모름), 자료 없음 → 미수집","resources/protective.py protective_for, GET /resources/protective",action-v2,지도 패널·후보 상세 (낙인 완화),"가능: 그 동에 이미 있는 연결 자원 / 불가: 위험 칸, 등급·순위 근거, 쉼터 운영 확정",확정(춘천 쉼터 미수집)
+D-RES-21,춘천 경로당 시군 집계,자원 칸,강원 노인여가복지시설 현황(2025-12 말)의 춘천시 경로당 합계·읍·면·동 수·회원 수,data.go.kr 15160212 원본 xlsx (SHA256),시군,개소·명,동별 목록 없음 → 도시 집계만,resources/protective.py build_counts,2025-12-31,보호 자원 칸,가능: 춘천시 ○ 지역 경로당 수 / 불가: 이 동의 경로당 수,확정
+D-RES-22,중장년 연결 묶음,자원 칸,중장년 남성: 일자리·생계(고용복지+센터) / 술·마음건강(중독관리통합지원센터·정신건강복지센터) / 사람 만남(1인가구 지원). 사회적 처방형 3단계(안내 → 연결 → 확인),"원장 v2 resource_id, configs/action_templates.yaml groups",도시 × 집단,자원 목록,원장에 없는 ID → 건너뜀,agent/tools/report.py link_bundle,action-v2,대응안·체크리스트,"가능: 본인 선택 연결 안내 / 불가: 방문 강요, 중장년 남성 = 위험군",확정(춘천 자조모임 미확인)
+D-ACT-01,확인할 영역,규칙 값,근거·원인 → 현장에서 먼저 물어볼 영역 6개 중 고름,트리거·이탈·거점 거리·구조·집단,후보,영역 목록,—,agent/tools/report.py check_areas,action-v2,대응안·체크리스트,가능: 먼저 물어볼 영역 / 불가: 판단도구 문항 채점,확정
+D-ACT-02,안부 횟수,규칙 값,"폭염 특보 단계별: 주의보 격일 1회 이상, 경보 매일 1회, 중대경보 하루 2회. 전화 → 받지 않으면 당일 방문",D-WX-02,후보,문구,단계 모름 → 확인 전까지 매일 1회(경보 기준),agent/tools/report.py heat_contact,action-v2,대응안,가능: 권장 안부 횟수 / 불가: 법정 의무,확정
+D-ACT-03,사전 안부 협력자,규칙 값,"임대인·관리사무소·경비원, 고시원·원룸 운영자. 1인세대 상위·중장년/청년 남성·명절 당일·폭염·한파·대설·1인가구 밀집형·경제 취약형일 때 붙임",고독사 최초 발견자 43.1%가 임대인·경비원(복지부 2024 실태조사 보도),후보,목록,주거 맥락 아님 → 빈 목록,agent/tools/report.py housing_partners,action-v2,대응안·체크리스트,"가능: 이상 신호만 알려 달라고 요청 / 불가: 개인정보 받기, 감시 요청",확정
+D-VST-01,observed,값 상태,정상 관측값 (0이 아닌 수),모든 원천,값 1개,ValueState,섞지 않음 (0 ≠ 결측 ≠ 비공개),"agent/schemas.py ValueState, external.py",clean-v1,Guard·근거 신뢰도,가능: 값 상태를 밝힘 / 불가: 결측을 0으로 말하기,확정
+D-VST-02,zero,값 상태,원본이 실제로 0,모든 원천,값 1개,ValueState,섞지 않음 (0 ≠ 결측 ≠ 비공개),"agent/schemas.py ValueState, external.py",clean-v1,Guard·근거 신뢰도,가능: 값 상태를 밝힘 / 불가: 결측을 0으로 말하기,확정
+D-VST-03,suppressed,값 상태,원본에 * 등 비공개 표시,모든 원천,값 1개,ValueState,섞지 않음 (0 ≠ 결측 ≠ 비공개),"agent/schemas.py ValueState, external.py",clean-v1,Guard·근거 신뢰도,가능: 값 상태를 밝힘 / 불가: 결측을 0으로 말하기,확정
+D-VST-04,missing,값 상태,원본에 값이 없음·숫자로 바꿀 수 없음,모든 원천,값 1개,ValueState,섞지 않음 (0 ≠ 결측 ≠ 비공개),"agent/schemas.py ValueState, external.py",clean-v1,Guard·근거 신뢰도,가능: 값 상태를 밝힘 / 불가: 결측을 0으로 말하기,확정
+D-VST-05,quality_suspect,값 상태,값은 있으나 품질 의심 (예: 개포3동 7개 지표 0),모든 원천,값 1개,ValueState,섞지 않음 (0 ≠ 결측 ≠ 비공개),"agent/schemas.py ValueState, external.py",clean-v1,Guard·근거 신뢰도,가능: 값 상태를 밝힘 / 불가: 결측을 0으로 말하기,확정
+D-LVL-01,후보 등급,규칙 값,"Level 0~3·판단 보류. 구조·시점·접근성 축, 반증, 입력 상태로 rules.yaml levels를 위에서부터","D-STR-02, D-CAL-01, D-RES-02, D-CF-*",후보(동·집단),Level 0~3/판단 보류,필수 근거 결측 → 판단 보류,"rules/levels.py, configs/rules.yaml",rules-v1.0,후보 목록·대응안,"가능: 먼저 볼 순서 / 불가: 위험 점수, 개인 판정",확정
+D-LVL-02,근거 신뢰도,규칙 값,"높음/보통/낮음 (부분 판정·값 상태·분모 100 미만·강수 판정 불가 → 낮음, 가정 공개일·현재 원장 → 보통)",후보 근거,후보,높음/보통/낮음,—,"rules/levels.py, configs/rules.yaml confidence",rules-v1.0,등급 상한,가능: 근거가 얼마나 단단한지 / 불가: 확률,확정
+D-LVL-03,등급 상한,규칙 값,CAP-PARTIAL·CAP-CONF-LOW·CAP-SHARED-CONTEXT: 해당하면 Level 2까지,입력 상태·신뢰도·도시 단위 신호,후보,Level 상한,—,configs/rules.yaml caps,rules-v1.0,후보 등급,가능: 상한 이유 / 불가: -,확정
+D-LVL-04,원인 유형,규칙 값,트리거·거점 거리 → 1인가구 밀집형·달력 공백형·계절 공동화형·폭염형·한파·대설형·호우형·거점 원거리형 ('+'로 이음),"트리거, D-RES-02",후보,문자,트리거 없음 → 1인가구 밀집형,"agent/tools/welfare.py cause_for, configs/need_types.yaml cause_types",rules-v1.0,필요 유형 → 자원 매칭,가능: 먼저 볼 필요 유형 / 불가: 진단,확정
+D-LVL-05,event_id,정리 칸,같은 사건이면 같은 값 (예: 강남:R1:20251003). 같은 사건으로 후보를 한 번만 만듦,트리거,후보,문자,—,rules/candidates.py,rules-v1.0,"후보 중복 제거, 현장 결과 묶기",가능: - / 불가: -,확정
+D-OBJ-01,이의·정정 사유 분류,정리 칸,후보가 아님(현장 사정) / 근거 자료 오류 / 등급이 맞지 않음 / 자원 정보 오류 / 낙인·표현 우려 / 기타,담당자 입력 (자유 글은 가려서 저장),이의 1건,분류 문자,—,"api/models.py ObjectionRequest, api/services/objections.py",api-0.6,다음 규칙 평가 검토 목록,가능: 사유 분류별 건수 / 불가: 자동으로 등급 바꾸기,확정
+D-OBJ-02,이의·정정 상태,정리 칸,"접수 → 검토 중 → 반영 / 기각 (닫힌 뒤 바꾸지 않음, 모든 변경 감사 로그)",승인 역할 입력,이의 1건,접수/검토 중/반영/기각,—,api/services/objections.py,api-0.6,윤리 대응(사후관리·피해구제),가능: 처리 상태 / 불가: -,확정

@@ -21,13 +21,13 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 사실이 든 문장 | Guard 사실 검사가 끝난 뒤에만 응답에 넣음. 먼저 보내고 나중에 가리지 않음 |
 | 오류 | 오류 코드와 사유만 보냄. 내부 예외 문장은 보내지 않음 (§4) |
 | CORS | 화면 주소만 허용 |
-| 인증 | `Authorization: Bearer <토큰>`. 역할은 조회 < 검토 < 승인. 조회는 읽기만. **실행 만들기(`POST /runs`)·질의응답(`POST /qa`)·이어 묻기(`POST /runs/{id}/followup`)는 LLM 비용을 쓰므로 검토 이상**, 검토 저장·현장 결과도 검토 이상, 승인·보류·추가 조사는 승인 역할. 역할이 모자라면 403 `FORBIDDEN`. `/health`만 토큰 없이 열림. 토큰 설정이 없으면 개발 모드(모두 허용, 감사 actor `dev-unauthenticated`). 검토자·승인자 이름과 감사 actor는 서버가 토큰으로 정함(본문 이름은 `claimed_actor`로만 남김). 토큰 설정은 아래 "토큰 설정" |
+| 인증 | `Authorization: Bearer <토큰>`. 역할은 조회 < 검토 < 승인. 조회는 읽기만. **실행 만들기(`POST /runs`)·질의응답(`POST /qa`)·이어 묻기(`POST /runs/{id}/followup`)는 LLM 비용을 쓰므로 검토 이상**, 검토 저장·현장 결과·이의·정정 남기기도 검토 이상, 승인·보류·추가 조사·이의·정정 처리는 승인 역할. 역할이 모자라면 403 `FORBIDDEN`. `/health`만 토큰 없이 열림. 토큰 설정이 없으면 개발 모드(모두 허용, 감사 actor `dev-unauthenticated`). 검토자·승인자 이름과 감사 actor는 서버가 토큰으로 정함(본문 이름은 `claimed_actor`로만 남김). 토큰 설정은 아래 "토큰 설정" |
 | 횟수 한도 | 실행 만들기·질의응답·이어 묻기는 사용자(토큰 이름)마다 `LINKRADAR_RUN_RATE`(`<횟수>/<초>`, prod 기본 `20/600`, dev 는 줄 때만) 안에서만 받음. 넘으면 429 `RATE_LIMITED` + `Retry-After`(초). 서버 메모리에만 세므로 다시 켜면 비워짐 |
 | 실행 예산 | 실행 하나의 LLM 호출 수·비용 한도는 `configs/llm.yaml`의 `budget`(`max_calls_per_run`, `max_cost_usd_per_run`). 그래프 실행·검토 반영·추가 조사·이어 묻기가 같은 예산을 나눠 씀. 넘으면 LLM을 부르지 않고 규칙·템플릿으로 대신하고 `llm_calls`에 `error_code=BUDGET_EXCEEDED`(status `fallback`)를 남김. 응답 모양은 같음 |
-| 개인정보 저장 | 질문(`runs.question`, 실행 입력)·검토 메모·자원 판정 메모·승인 메모는 **저장하기 전에** 전화번호·주민번호·이메일·상세 주소·이름+호칭을 `[전화번호]`·`[이름]` 등으로 가림. 실제 그래프에도 가린 질문만 넘기므로 체크포인트에도 원문이 없음. 가린 표시가 든 질문은 개인 지목 규칙에 걸려 `OUT_OF_SCOPE_INDIVIDUAL`로 보류(예: 도로명 주소가 든 질문도 보류됨). 조회 응답(`/runs`, `/history`, `/followups`)에도 가린 글이 나감. 보존 기한(`LINKRADAR_TEXT_RETENTION_DAYS`, 기본 365일)이 지난 질문·메모 글은 `uv run python -m api.retention --db <상태 DB>`(`--dry-run` 가능)로 비움(행은 남기고 글 칸만 NULL, 감사 `text_purged`). 이어 묻기 질문은 저장하지 않음 |
+| 개인정보 저장 | 질문(`runs.question`, 실행 입력)·검토 메모·자원 판정 메모·승인 메모·이의·정정 글은 **저장하기 전에** 전화번호·주민번호·이메일·상세 주소·이름+호칭을 `[전화번호]`·`[이름]` 등으로 가림. 실제 그래프에도 가린 질문만 넘기므로 체크포인트에도 원문이 없음. 가린 표시가 든 질문은 개인 지목 규칙에 걸려 `OUT_OF_SCOPE_INDIVIDUAL`로 보류(예: 도로명 주소가 든 질문도 보류됨). 조회 응답(`/runs`, `/history`, `/followups`)에도 가린 글이 나감. 보존 기한(`LINKRADAR_TEXT_RETENTION_DAYS`, 기본 365일)이 지난 질문·메모 글은 `uv run python -m api.retention --db <상태 DB>`(`--dry-run` 가능)로 비움(행은 남기고 글 칸만 NULL, 감사 `text_purged`). 이어 묻기 질문은 저장하지 않음 |
 | 입력 한도 | 본문 64KB(넘으면 413 `PAYLOAD_TOO_LARGE`), 질문 500자, 메모 2000자, 이름 50자, 멱등 키 영문·숫자·`:._-` 100자, 목록 50개 |
 | 추적 | 응답 헤더 `X-Request-ID`, 요청마다 JSON 로그 한 줄(질문 원문·메모·토큰은 남기지 않음. 칸: 시각·경로·상태·소요 시간·`run_id`·오류 코드·actor). 감사 로그에도 질문·메모는 넣지 않음 |
-| 자료 출처 | 응답 헤더 `X-Data-Source`: `fake`(가짜 API) / `real`(실제 그래프) / `config`(설정 파일). 서버 환경 변수 `LINKRADAR_BACKEND=real`이면 실행·질의응답·이어 묻기·스냅샷과 현황·지도·후보 목록·자원 조회·후속 확인·현장 결과(실행별·모아 보기 `/outcomes/summary`)가 모두 `real`, `/data/capabilities`만 `config` (§5). 모든 경로의 표지는 `tests/test_source_header.py`가 확인 |
+| 자료 출처 | 응답 헤더 `X-Data-Source`: `fake`(가짜 API) / `real`(실제 그래프) / `config`(설정 파일). 서버 환경 변수 `LINKRADAR_BACKEND=real`이면 실행·질의응답·이어 묻기·스냅샷과 현황·지도·후보 목록·자원 조회·후속 확인·현장 결과(실행별·모아 보기 `/outcomes/summary`)·보호 자원(`/resources/protective`)·이의·정정(`/objections`)이 모두 `real`, `/data/capabilities`만 `config` (§5). 모든 경로의 표지는 `tests/test_source_header.py`가 확인 |
 
 ### 토큰 설정
 
@@ -62,6 +62,10 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | POST | `/runs/{id}/outcomes` | 현장 확인 결과 적기 (승인된 실행만, 건수만) | `OutcomeResponse` |
 | GET | `/runs/{id}/outcomes` | 이 실행의 현장 확인 결과 | `OutcomeListResponse` |
 | GET | `/outcomes/summary?city=&by=` | 현장 확인 결과 모아 보기 (10 미만 숨김) | `OutcomeSummaryResponse` |
+| GET | `/resources/protective?city=&adm_cd=` | 보호 자원 칸: 경로당·무더위·한파 쉼터·돌봄단·통장 (위험 표시 아님) | `ProtectiveResponse` |
+| POST | `/objections` | 이의·정정 남기기 (검토 이상, 자유 글은 가려서 저장) | `ObjectionResponse` |
+| GET | `/objections?city=&status=&candidate_id=&run_id=&limit=` | 이의·정정 목록 | `ObjectionListResponse` |
+| POST | `/objections/{id}/status` | 이의·정정 처리: 검토 중 / 반영 / 기각 (승인 역할) | `ObjectionResponse` |
 
 ## 3. 엔드포인트 상세
 
@@ -868,6 +872,77 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 }
 ```
 
+### 3.18 `GET /resources/protective`
+
+후보 동 옆에 함께 보여 줄 **보호 자원 칸**입니다. 그 동에 이미 있는 경로당, 무더위·한파 쉼터, 돌봄단·통장·이장을 묶음별로 줍니다. **위험 표시가 아니며 등급·순위·자원 추천 순서에 쓰지 않습니다**(지역 낙인 완화). 두 백엔드 모두 지금 원장 v2와 춘천 경로당 시군 집계(`external/resources/protective/`)에서 읽습니다. 묶음 정의는 `configs/need_types.yaml` `protective`.
+
+- `city` 필수, `adm_cd`는 선택(없으면 도시 전체). 다른 도시 동이면 `400 INVALID_REQUEST`
+- `in_dong`: 그 동 안 수. 행정동이 붙은 자원이 없는 묶음(쉼터 목록 안내, 사람 자원)은 `null` — "0곳"이 아니라 "모름"
+- `status`: `수집` / `도시 집계만`(춘천 경로당: 시군 합계와 읍·면·동 구분 수만) / `미수집`(춘천 쉼터: 행안부 쉼터 API 키 필요)
+
+<!-- schema: ProtectiveResponse -->
+```json
+{
+  "city": "춘천", "adm_cd": "32010310", "adm_nm": "동면",
+  "groups": [
+    {"group": "경로당", "label": "경로당", "in_dong": null, "city_total": 371, "items": [], "status": "도시 집계만",
+     "note": "춘천시 경로당 371곳, 그중 면 지역 157곳 (강원 노인여가복지시설 현황 2025-12-31 기준). 동별 목록은 공개 자료에서 찾지 못함"},
+    {"group": "더위·한파 쉼터", "label": "무더위·한파 쉼터", "in_dong": null, "city_total": null, "items": [], "status": "미수집",
+     "note": "춘천 무더위·한파쉼터 목록 미수집 (행안부 쉼터 API 는 재난안전데이터공유플랫폼 키 필요, 춘천시 공개 파일 없음). 춘천시청·읍면동 행정복지센터에 확인"},
+    {"group": "돌봄 이웃", "label": "돌봄단·통장·이장", "in_dong": null, "city_total": null, "status": "수집",
+     "note": "사람 자원은 도시 단위 안내 (동별 인원은 모름)",
+     "items": [{"resource_id": "PP-CC02", "name": "춘천시 이·통장(마을 단위 안부 확인)", "subtype": "통·이장", "address": null,
+                "phone": null, "schedule": null, "holiday_open": "미상", "source_url": "https://www.chuncheon.go.kr/",
+                "last_verified": null, "scope": "도시"}]}
+  ],
+  "note": "보호 자원은 위험 표시가 아님. 그 동에 이미 있는 연결 자원이며 등급·순위에 쓰지 않음"
+}
+```
+
+### 3.19 이의·정정 기록
+
+행정안전부 「공공부문 인공지능 윤리기준」(2026-10)이 복지·위험예측 업무에 요구하는 **사후관리·피해구제**에 대응합니다([윤리 대응](윤리_대응.md)). 담당자가 후보·실행 결과에 대해 "현장 사정과 다르다", "근거 자료가 틀렸다" 등을 사유와 함께 남기고, 승인 담당자가 처리합니다. **등급을 자동으로 바꾸지 않습니다.** 반영된 기록은 다음 규칙 평가(운영 순환 ⑧) 검토 목록입니다.
+
+`POST /objections` (검토 역할 이상) → 201
+- `target_type`: `candidate`(→ `candidate_id` 필수) / `run`(→ `run_id` 필수, 없는 실행이면 `404 RUN_NOT_FOUND`)
+- `reason_category`: 후보가 아님(현장 사정) / 근거 자료 오류 / 등급이 맞지 않음 / 자원 정보 오류 / 낙인·표현 우려 / 기타
+- `text`(선택, 1000자): 저장 전에 전화번호·주민번호·이메일·상세 주소·이름+호칭을 가립니다(`mask_text`). 보존 기한이 지나면 비웁니다(`api/retention.py`)
+- `submitted_by`는 토큰으로 정한 이름 (요청 본문으로 정하지 않음)
+- `idempotency_key`: 같은 키 + 같은 내용 → 첫 기록(`duplicate=true`), 다른 내용 → `409 IDEMPOTENCY_KEY_REUSED`
+- 감사 로그: `objection_recorded`(ID·대상·도시·동·사유 분류만, 자유 글 없음), 거절은 `objection_rejected`
+
+<!-- schema: ObjectionRequest -->
+```json
+{"target_type": "candidate", "candidate_id": "C-20250926-001", "run_id": null, "city": "강남", "adm_cd": "11230520",
+ "reason_category": "후보가 아님(현장 사정)", "text": "이 동 1인세대 상당수가 이미 사례관리 중", "idempotency_key": "obj:C-20250926-001:1"}
+```
+
+<!-- schema: ObjectionResponse -->
+```json
+{
+  "duplicate": false,
+  "objection": {"objection_id": "obj-20261014-100000-1a2b3c4d", "target_type": "candidate", "run_id": null,
+                "candidate_id": "C-20250926-001", "city": "강남", "adm_cd": "11230520",
+                "reason_category": "후보가 아님(현장 사정)", "text": "이 동 1인세대 상당수가 이미 사례관리 중", "status": "접수",
+                "resolution": null, "submitted_by": "worker-01", "resolved_by": null,
+                "created_at": "2026-10-14T10:00:00+09:00", "updated_at": "2026-10-14T10:00:00+09:00"}
+}
+```
+
+`GET /objections` (조회 이상): 최근 것부터, `total`은 거른 조건의 전체 수. `status`가 네 값이 아니면 400.
+
+<!-- schema: ObjectionListResponse -->
+```json
+{"items": [], "total": 0}
+```
+
+`POST /objections/{id}/status` (승인 역할): `{"status": "검토 중" | "반영" | "기각", "resolution": "…"}`. 접수 → 검토 중 → 반영/기각. 반영·기각된 기록은 바꾸지 않습니다(`409 OBJECTION_CLOSED`, 새 기록을 남길 것). 없는 ID는 `404 OBJECTION_NOT_FOUND`. 감사 로그 `objection_status`(전·후 상태).
+
+<!-- schema: ObjectionStatusRequest -->
+```json
+{"status": "반영", "resolution": "다음 규칙 평가 때 이 동의 구조 기준을 다시 봄"}
+```
+
 ## 4. 오류
 
 모든 오류는 같은 모양(`ErrorResponse`)입니다. `message`는 화면에 그대로 보여도 되는 쉬운 문장이고, 내부 예외 문장은 넣지 않습니다.
@@ -881,7 +956,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 409 | `RUN_NOT_APPROVED` | 승인되지 않은 실행에 현장 확인 결과를 적음 |
 | 409 | `RUN_NOT_READY` | 아직 실행 중인데 근거·보고서·자원·이어 묻기를 요청. 현황·지도·후보 목록이 읽을 정기 감시가 아직 도는 중 (실제 그래프) |
 | 401 | `UNAUTHENTICATED` | 토큰 없음·틀림 (인증이 켜졌을 때) |
-| 403 | `FORBIDDEN` | 역할 부족 (예: 조회 역할로 실행 만들기·질의응답·이어 묻기·승인) |
+| 403 | `FORBIDDEN` | 역할 부족 (예: 조회 역할로 실행 만들기·질의응답·이어 묻기·승인·이의·정정 남기기, 검토 역할로 이의·정정 처리) |
 | 429 | `RATE_LIMITED` | 사용자별 실행 만들기·질의응답·이어 묻기 횟수 한도를 넘음. `Retry-After` 초 뒤 다시 |
 | 413 | `PAYLOAD_TOO_LARGE` | 본문 64KB 초과 |
 | 409 | `REVIEW_REVISION_STALE` | 검토 요청의 `report_revision`이 지금 판과 다름 |
@@ -892,6 +967,8 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 409 | `APPROVAL_BLOCKED_BY_ABSTAIN` | 계약 위반(Guard ABSTAIN)으로 끝난 실행 |
 | 409 | `EXTRA_ROUNDS_EXCEEDED` | 추가 조사 2회를 넘음 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 멱등 키로 다른 내용(결정·버전)을 보냄 |
+| 404 | `OBJECTION_NOT_FOUND` | 없는 이의·정정 ID |
+| 409 | `OBJECTION_CLOSED` | 반영·기각으로 닫힌 이의·정정의 상태를 다시 바꿈 (또는 접수 → 접수 같은 없는 이동) |
 | 503 | `NO_ACTIVE_SNAPSHOT` | 발행된 스냅샷이 없음 |
 | 500 | `INTERNAL_ERROR` | 그 밖의 오류 (사유는 로그에만) |
 

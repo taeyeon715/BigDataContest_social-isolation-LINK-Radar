@@ -369,6 +369,121 @@ export interface ActionPlan {
   resource_note: string | null
   emergency_contacts: string[] // 위급 시 안내 (순위 밖, 따로 한 줄)
   text: string // 보고서용 한 줄
+  // action-v2 선택 칸 (옛 응답에는 없음)
+  heat_stage?: string | null // 폭염주의보·경보·중대경보 / 특보 단계 확인 필요 (R4 일 때만)
+  contact_frequency?: string | null // 그 단계의 안부 횟수 + 순서
+  holiday_timeline?: HolidayPhase[] // 명절 전·중·후 3칸
+  partners?: string[] // 사전 안부 협력자 (임대인·관리사무소·고시원 운영자)
+  partner_note?: string | null
+  link_steps?: LinkStep[] // 사회적 처방형 3단계 (안내 → 연결 → 확인)
+  bundle?: BundleItem[] // 연결 묶음 자원 (중장년 남성)
+}
+
+/** 명절 전·중·후 한 칸. current 는 이 후보의 트리거 단계 */
+export interface HolidayPhase {
+  phase: '전' | '중' | '후'
+  rule: string
+  label: string
+  window: string
+  tasks: string[]
+  contact: string | null
+  current: boolean
+}
+
+export interface LinkStep {
+  step: '안내' | '연결' | '확인'
+  text: string
+}
+
+export interface BundleItem {
+  need: string
+  resource_id: string
+  name: string
+  phone: string | null
+}
+
+// ---- 보호 자원 칸 (GET /resources/protective). 위험 표시가 아니라 그 동에 이미 있는 연결 자원
+
+export interface ProtectiveItem {
+  resource_id: string
+  name: string
+  subtype: string
+  address: string | null
+  phone: string | null
+  schedule: string | null
+  holiday_open: string
+  source_url: string | null
+  last_verified: string | null
+  scope: '동' | '도시'
+}
+
+export interface ProtectiveGroup {
+  group: string
+  label: string
+  in_dong: number | null // null = 동별 자료 없음 (0 과 다름)
+  city_total: number | null
+  items: ProtectiveItem[]
+  status: '수집' | '도시 집계만' | '미수집'
+  note: string | null
+}
+
+export interface ProtectiveResponse {
+  city: City
+  adm_cd: string | null
+  adm_nm: string | null
+  groups: ProtectiveGroup[]
+  note: string
+}
+
+// ---- 이의·정정 기록 (POST/GET /objections)
+
+export const OBJECTION_REASONS = [
+  '후보가 아님(현장 사정)',
+  '근거 자료 오류',
+  '등급이 맞지 않음',
+  '자원 정보 오류',
+  '낙인·표현 우려',
+  '기타',
+] as const
+export type ObjectionReason = (typeof OBJECTION_REASONS)[number]
+export type ObjectionStatus = '접수' | '검토 중' | '반영' | '기각'
+
+export interface ObjectionRequest {
+  target_type: 'candidate' | 'run'
+  run_id?: string | null
+  candidate_id?: string | null
+  city: City
+  adm_cd?: string | null
+  reason_category: ObjectionReason
+  text?: string | null
+  idempotency_key: string
+}
+
+export interface ObjectionRecord {
+  objection_id: string
+  target_type: 'candidate' | 'run'
+  run_id: string | null
+  candidate_id: string | null
+  city: string
+  adm_cd: string | null
+  reason_category: string
+  text: string | null
+  status: ObjectionStatus
+  resolution: string | null
+  submitted_by: string
+  resolved_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ObjectionResponse {
+  objection: ObjectionRecord
+  duplicate: boolean
+}
+
+export interface ObjectionListResponse {
+  items: ObjectionRecord[]
+  total: number
 }
 
 /** 내일 아침 체크리스트. Level 2·3 후보만 */

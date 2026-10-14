@@ -79,10 +79,105 @@ export function ActionPlanView({ a }: { a: CandidateAction }) {
           {p.tasks.join(' · ')}
         </div>
       )}
+      <ActionPlanExtras a={a} />
       {p.emergency_contacts.length > 0 && (
         <div className="mt-2 rounded-xl bg-caution-soft px-3 py-2 text-sm text-ink-900" data-testid="emergency-contacts">
           <b className="text-caution">위급 시 안내</b> {p.emergency_contacts.join(' · ')}
           <span className="ml-1 text-xs text-ink-600">(추천 순위와 따로)</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 폭염 특보 단계 이름 (R4). 단계를 모르면 '특보 단계 확인 필요' 그대로 */
+export function HeatStageLabel({ stage }: { stage: string }) {
+  const known = !stage.includes('확인 필요')
+  return (
+    <span className={`chip ${stage.includes('중대') ? 'bg-caution text-white' : known ? 'bg-caution-soft text-caution' : 'bg-canvas text-ink-800'}`} data-testid="heat-stage">
+      {stage}
+    </span>
+  )
+}
+
+/** 명절 전·중·후 한 묶음. 지금 단계는 aria-current */
+export function HolidayTimeline({ phases }: { phases: NonNullable<CandidateAction['action_plan']>['holiday_timeline'] }) {
+  if (!phases || phases.length === 0) return null
+  return (
+    <div data-testid="holiday-timeline">
+      <div className="mb-1 text-xs font-semibold text-ink-600">명절 전·중·후 (한 사건의 세 단계)</div>
+      <ol className="grid gap-2 sm:grid-cols-3">
+        {phases.map((x) => (
+          <li
+            key={x.phase}
+            aria-current={x.current ? 'step' : undefined}
+            className={`rounded-xl border px-3 py-2 text-sm ${x.current ? 'border-brand-500 bg-brand-50' : 'border-line bg-surface'}`}
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <b className="text-ink-900">
+                {x.label} <span className="text-xs font-normal text-ink-600">({x.rule})</span>
+              </b>
+              {x.current && <span className="chip bg-brand-600 text-white">지금</span>}
+            </div>
+            <div className="text-xs text-ink-600">{x.window}</div>
+            {x.contact && <div className="mt-1 text-ink-800">안부: {x.contact}</div>}
+            <ul className="mt-1 list-disc pl-4 text-xs text-ink-800">
+              {x.tasks.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+/** action-v2 선택 칸: 폭염 단계별 안부 횟수, 명절 전·중·후, 사전 안부 협력자, 연결 3단계·묶음 (옛 응답이면 아무것도 안 그림) */
+export function ActionPlanExtras({ a }: { a: CandidateAction }) {
+  const p = a.action_plan
+  if (!p) return null
+  const partners = p.partners ?? []
+  const steps = p.link_steps ?? []
+  const bundle = p.bundle ?? []
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {p.heat_stage && (
+        <div className="rounded-xl bg-caution-soft/60 px-3 py-2 text-sm" data-testid="heat-frequency">
+          <HeatStageLabel stage={p.heat_stage} /> <span className="text-ink-900">안부 횟수: {p.contact_frequency}</span>
+        </div>
+      )}
+      <HolidayTimeline phases={p.holiday_timeline} />
+      {partners.length > 0 && (
+        <div className="text-sm" data-testid="housing-partners">
+          <span className="text-xs font-semibold text-ink-600">사전 안부 협력자 </span>
+          {partners.join(' · ')}
+          {p.partner_note && <div className="text-xs text-ink-600">{p.partner_note}</div>}
+        </div>
+      )}
+      {steps.length > 0 && (
+        <div className="rounded-xl border border-line bg-surface px-3 py-2" data-testid="link-steps">
+          <div className="text-xs font-semibold text-ink-600">연결 3단계 (본인이 고름, 방문 강요 아님)</div>
+          <ol className="mt-1 grid gap-1 text-sm sm:grid-cols-3">
+            {steps.map((s, i) => (
+              <li key={s.step}>
+                <b>
+                  {i + 1}. {s.step}
+                </b>{' '}
+                <span className="text-ink-800">{s.text}</span>
+              </li>
+            ))}
+          </ol>
+          {bundle.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-2 text-xs" aria-label="연결 묶음 자원">
+              {bundle.map((b) => (
+                <li key={`${b.need}-${b.resource_id}`} className="chip bg-canvas text-ink-800">
+                  {b.need}: {b.name}
+                  {b.phone ? ` (${b.phone})` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

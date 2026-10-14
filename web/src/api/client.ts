@@ -32,6 +32,11 @@ import type {
   OutcomeRequest,
   OutcomeResponse,
   OutcomeSummaryResponse,
+  ObjectionListResponse,
+  ObjectionRequest,
+  ObjectionResponse,
+  ObjectionStatus,
+  ProtectiveResponse,
 } from './types'
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8000'
@@ -97,7 +102,7 @@ export function onRoleChange(fn: () => void): () => void {
 /** 경로에 필요한 역할 (API 명세 §1). 403 을 받으면 이보다 한 단계 낮다고 봄 */
 export function roleNeeded(method: string, path: string): Role {
   if (method !== 'POST') return '조회'
-  return /\/approve$/.test(path) ? '승인' : '검토'
+  return /\/approve$|^\/objections\/[^/]+\/status$/.test(path) ? '승인' : '검토'
 }
 function noteForbidden(method: string, path: string) {
   const need = roleNeeded(method, path)
@@ -260,6 +265,13 @@ export const api = {
   runOutcomes: (run_id: string, o?: ReqOpts) => request<OutcomeListResponse>('GET', `/runs/${encodeURIComponent(run_id)}/outcomes`, { ...o }),
   outcomeSummary: (q: { city?: City; by?: 'trigger' | 'event' } = {}, o?: ReqOpts) =>
     request<OutcomeSummaryResponse>('GET', '/outcomes/summary', { query: q, ...o }),
+  protective: (city: City, adm_cd?: string | null, o?: ReqOpts) =>
+    request<ProtectiveResponse>('GET', '/resources/protective', { query: { city, adm_cd }, ...o }),
+  objections: (q: { city?: City; status?: ObjectionStatus; candidate_id?: string; run_id?: string; limit?: number } = {}, o?: ReqOpts) =>
+    request<ObjectionListResponse>('GET', '/objections', { query: q, ...o }),
+  createObjection: (body: ObjectionRequest) => request<ObjectionResponse>('POST', '/objections', { body }),
+  objectionStatus: (objection_id: string, body: { status: Exclude<ObjectionStatus, '접수'>; resolution?: string | null }) =>
+    request<ObjectionResponse>('POST', `/objections/${encodeURIComponent(objection_id)}/status`, { body }),
 }
 
 export type Api = typeof api

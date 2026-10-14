@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip as LTooltip } from 'react-leaflet'
 import { CartesianGrid, Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
-import { api, ApiError, type Candidate, type MapArea, type MapResource } from '../api'
+import { api, ApiError, type Candidate, type City, type MapArea, type MapResource } from '../api'
 import { PageBody, PageHero } from '../components/Layout'
+import { ProtectivePanel } from '../components/ProtectivePanel'
 import { Badge, Card, ErrorBox, Loading } from '../components/ui'
 import { CENTROIDS, CITY_CENTER } from '../map/centroids'
 import { useFilters } from '../lib/filters'
@@ -108,6 +109,7 @@ export function DongPanel({
         .slice(0, 3)
     : []
   const mine = candidates.filter((x) => x.adm_cd === area.adm_cd || x.check_first_adm.includes(area.adm_cd))
+  const city: City = area.adm_cd.startsWith('32010') ? '춘천' : '강남'
   return (
     <div className="flex flex-col gap-3" data-testid="dong-panel">
       <div className="flex items-start justify-between gap-2">
@@ -147,6 +149,7 @@ export function DongPanel({
           </ul>
         )}
       </div>
+      <ProtectivePanel city={city} admCd={area.adm_cd} compact />
       {near.length > 0 && (
         <div>
           <div className="mb-1 text-xs font-semibold text-ink-600">가까운 자원 (모든 종류 · 동 중심점에서 직선)</div>
