@@ -46,6 +46,7 @@ from bigcontest.signals.alarm import (
 )
 from bigcontest.weather import load as load_weather
 
+RULES_VER = yaml.safe_load((ROOT / "configs" / "rules.yaml").read_text(encoding="utf-8"))["version"]
 M3 = yaml.safe_load((ROOT / "configs" / "models_m3.yaml").read_text(encoding="utf-8"))["m3"]
 HOL = [pd.Timestamp(k) for k in load_config()["holidays"]]
 KEYS = ["city", "age_g", "SEX_CCD"]
@@ -368,7 +369,7 @@ cards = pd.DataFrame([
     ["M2 대리 과제 B", "회귀 (릿지·LightGBM)", "통신 격자", "행정동 GroupKFold", "R²·MAE·ρ", "보조 (등급 입력 아님)", "대리 과제"],
     ["M4 위험 요인", "로지스틱 (탐색적)", "강남 시민생활 60+ × 22개 동", "동 GroupKFold 5겹 × 50번, 동 군집 부트스트랩",
      "AUC·Brier·계수", "요인 설명만 (등급 입력 아님)", "22개 동, 같은 공급자 추정치"],
-    ["등급 규칙 rules-v1.0", "결정 규칙", "주민등록·달력·통신·카드·원장 근거", "민감도·지표 빼기·비교안 A~D·페르소나",
+    [f"등급 규칙 {RULES_VER}", "결정 규칙", "주민등록·달력·통신·카드·원장 근거", "민감도·지표 빼기·비교안 A~D·페르소나",
      "후보 수 범위·Top-K 겹침률", "등급 결정 (유일한 결정 주체)", "정답이 없어 정확도 아님"],
 ], columns=["모델", "종류", "자료", "검증", "지표", "쓰는 곳", "한계"])
 
@@ -453,7 +454,7 @@ r.p(f"- {CAND} PR-AUC 95% CI {pr_lo:.3f}~{pr_hi:.3f}. 규칙의 PR 한 점: 재�
 tbl.reset_index().to_csv(OUT / "m3_성능.csv", index=False, encoding="utf-8-sig")
 r.h3("채택 판정 (미리 정한 기준)")
 r.table(decision.set_index("조건"))
-r.p(f"**판정: {CAND} {'채택 — 다음 판(rules-v1.1 이후)에서 D1 이탈 신호의 입력 후보로 검토. 이번 판 등급·반증·순서는 그대로' if adopted else '미채택 — 경보 규칙을 그대로 씁니다'}.** "
+r.p(f"**판정: {CAND} {'채택 — 다음 판에서 D1 이탈 신호의 입력 후보로 검토. 이번 판 등급·반증·순서는 그대로' if adopted else '미채택 — 경보 규칙을 그대로 씁니다'}.** "
     "채택돼도 등급을 모델이 정하지 않습니다.")
 decision.to_csv(OUT / "m3_채택판정.csv", index=False, encoding="utf-8-sig")
 r.h3("하락 폭별·80대+·블록별")

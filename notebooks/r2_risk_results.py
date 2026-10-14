@@ -33,7 +33,7 @@ from bigcontest.plot import CITY_COLOR, plt
 from bigcontest.report import Report
 from bigcontest.resources.match import load_needs, need_mask
 from bigcontest.rules import load_rules, rules_version
-from bigcontest.rules.compare import collect, ctx_for, key_of, level_counts, run_variant
+from bigcontest.rules.compare import CARD_CONTEXT, collect, ctx_for, key_of, level_counts, run_variant
 
 assert dev_available(), "dev 스냅샷 자료가 없음"
 SID = dev_snapshot_id()
@@ -52,8 +52,8 @@ LV_COLOR = {"Level 3": "#1F5FA8", "Level 2": "#5E9BD9", "Level 1": "#B9D3F0", "L
             "판단 보류": "#9AA1AE", NOT_CAND: "#F4F5F7"}
 SMALL = 10
 CARD_IN = {"cohort_deviation", "card_cohort_series", "expected_activity", "holiday_expectation", "city_common_factor",
-           "weather_asos", "academic_calendar"}
-COUNTER_IN = {"holiday_expectation", "city_common_factor"}
+           "weather_asos", "academic_calendar"} | CARD_CONTEXT
+COUNTER_IN = {"holiday_expectation", "city_common_factor", "holiday_visitor_context"}
 TEL_IN = {"winter_contraction", "mobility_layer"}
 
 names = DS.adm_names().set_index("adm_cd")
@@ -115,6 +115,10 @@ for key, cands in CANDS.items():
     facts = S.structure_facts(structs)
     month = structs[0].observed_from.month if structs else None
     acc = {S.adm_of(e): S.access_axis(e) for e in ev if S.input_of(e) == "access_gap" and e.status == "OK"}
+    def by_adm(key):
+        return {S.adm_of(e): e for e in ev if S.input_of(e) == key and e.status == "OK" and S.adm_of(e)}
+
+    rec_e, net_e, tp_e = by_adm("recipient_rate"), by_adm("one_person_net_change"), by_adm("structure_target_population")
     trig = next((e.value for e in ev if S.input_of(e) == "calendar_trigger" and e.status == "OK"), None)
     sched = {c.adm_cd: c for c in cands if c.candidate_type == "scheduled_access_review"}
     devs = [c for c in cands if c.candidate_type == "unexpected_activity_deviation"]
@@ -144,6 +148,10 @@ for key, cands in CANDS.items():
             "대상 집단 인구(성·연령)": small(gp.get(adm)) if adm else None,
             "대상 집단 정의": SERVICE[g]["label"],
             "동 안 안부·관계 자원 수(원장)": int(care_n.get(adm, 0)) if adm else None,
+            "맥락: 대상 성·연령 인구 비중": round(float(tp_e[adm].value), 4) if adm in tp_e else None,
+            "맥락: 기초생활수급자 비율(강남, 2024)": round(float(rec_e[adm].value), 4) if adm in rec_e else None,
+            "맥락: 경제 취약형(수급자 비율 상위 30%)": bool(S.recipient_top(rec_e[adm])) if adm in rec_e else None,
+            "맥락: 1인세대 월 순증률": round(float(net_e[adm].value), 4) if adm in net_e else None,
         })
     for c in devs:
         size = next((rc.value for rc in c.rule_checks if rc.condition == "이탈 크기 최소값"), None)
@@ -285,6 +293,8 @@ r.p("- 지표 정의(S1 구조·A1 접근성·T1 시점·D1 이탈·C1 반증·W
 r.p("- 등급은 R-1 과 같은 함수(비교안 D)로 다시 냈습니다. 아래 요약표의 등급별 후보 수는 [R-1 결과표](../r1_등급규칙/README.md)와 같습니다(테스트로 확인).")
 r.p("- **A1 거리**는 규칙이 쓰는 '안부·관계 유형 관측 거점(노인복지관·사회복지관·경로당·돌봄 수행기관 등)까지 직선거리'입니다. "
     "EDA-4 의 '가장 가까운 거점'(행정복지센터 포함)과 다른 값입니다. 행정복지센터는 신청 창구라 안부·관계 거점으로 세지 않습니다.")
+r.p("- 청년 남성은 rules-v1.1 부터 동을 고르지 않고 도시 단위 '안내 강화' 후보 한 건(`L2-CITY-GUIDANCE`)입니다. 그래서 동 행은 모두 '후보 아님'이고 '(도시 전체)' 행이 따로 있습니다.")
+r.p("- '맥락:' 칸(대상 성·연령 인구 비중, 수급자 비율, 경제 취약형, 1인세대 월 순증)은 rules-v1.1 의 표시용 칸이며 등급·순서에 쓰지 않습니다.")
 r.p("- 접근성은 2026년 수집 원장이라 '현재 원장 기준 접근성'입니다(2025년 당시 운영·위치는 확인 안 됨).")
 r.p("- **인원 칸**: 주민등록 세대 자료에는 연령·성이 없어 '65세 이상 1인세대 수'·'중장년 남성 1인세대 수'는 동 단위로 알 수 없습니다. "
     "그래서 **1인세대 수(전 연령)**와 **대상 집단 인구(주민등록 성·연령, 1인 여부 모름)**를 따로 적었습니다. 10 미만은 '<10'으로 가립니다.")
@@ -296,10 +306,11 @@ summary.to_csv(r.dir / "요약표.csv", index=False, encoding="utf-8-sig")
 
 
 def people(city, dl, g, levels=("Level 3", "Level 2")):
-    t = tab[(tab["도시"] == city) & (tab["기준일"] == dl) & (tab["집단"] == g) & tab["등급"].isin(levels)]
+    t = tab[(tab["도시"] == city) & (tab["기준일"] == dl) & (tab["집단"] == g) & tab["등급"].isin(levels)
+            & (tab["adm_cd"].fillna("") != "")]  # 동 행만 (청년 남성 도시 단위 후보는 따로 셈)
 
-    def num(col):
-        return int(sum(v for v in t[col] if isinstance(v, (int, np.integer))))
+    def num(col):  # "<10" 칸은 더하지 않음 (가린 값)
+        return int(pd.to_numeric(t[col], errors="coerce").fillna(0).sum())
     return len(t), num("1인세대 수(전 연령)"), num("대상 집단 인구(성·연령)")
 
 
@@ -311,14 +322,18 @@ for city in CITIES:
         for g in GROUPS[:3]:
             n, one, gp_ = people(city, dl, g)
             n3, one3, gp3 = people(city, dl, g, ("Level 3",))
-            if n:
-                pp_rows.append({"도시": city, "기준일": dl, "집단": g, "Level 2 이상 동": n, "그 동 1인세대 수": one,
+            n_city_any = ((tab["도시"] == city) & (tab["기준일"] == dl) & (tab["집단"] == g) & (tab["adm_cd"].fillna("") == "")).any()
+            if n or n_city_any:
+                n_city = int(((tab["도시"] == city) & (tab["기준일"] == dl) & (tab["집단"] == g)
+                              & (tab["adm_cd"].fillna("") == "") & tab["등급"].isin(["Level 3", "Level 2"])).sum())
+                pp_rows.append({"도시": city, "기준일": dl, "집단": g, "도시 단위 후보": n_city, "Level 2 이상 동": n, "그 동 1인세대 수": one,
                                 "그 동 대상 집단 인구": gp_, "Level 3 동": n3, "Level 3 동 1인세대 수": one3,
                                 "Level 3 동 대상 집단 인구": gp3})
 ppl = pd.DataFrame(pp_rows)
 r.table(ppl.set_index("도시"), fmt={c: "{:,}" for c in ppl.columns if c not in ("도시", "기준일", "집단")})
 r.p("- '대상 집단 인구'는 그 동에 등록된 해당 성·연령 인구 전체입니다(혼자 사는지 모름). '1인세대 수'는 모든 연령의 1인세대입니다. "
     "두 값을 곱하거나 나눠 '고령 1인세대 수'를 만들지 않습니다.")
+r.p("- '도시 단위 후보'는 청년 남성 안내 강화처럼 동을 고르지 않는 후보입니다. 동 인원 칸에 넣지 않습니다.")
 ppl.to_csv(r.dir / "후보동_인구.csv", index=False, encoding="utf-8-sig")
 
 r.h("2. 결과표 A: 동 × 집단 × 기준일 (Level 2 이상, 추석 D-7 · 고령층)")
@@ -438,6 +453,7 @@ n_gn, one_gn, gp_gn = people("강남", f"추석 D-7 ({DATES['추석 D-7']:%m/%d}
 r.p(f"**① 강남은 '어디'가 1인세대로 정해지고 Level 3가 없습니다.** 추석 D-7 고령층 후보 {len(gn_l2)}곳({'·'.join(gn_l2)})은 모두 "
     f"1인세대 비율 상위 동이고, 22개 동 모두 안부·관계 거점이 {gn_maxkm:.1f}km 안이라 접근성 근거가 없습니다. 그래서 대응은 '담당자 추가 분석'입니다. "
     f"이 {n_gn}개 동의 1인세대는 {one_gn:,}세대, 65세 이상 인구는 {gp_gn:,}명입니다(주민등록, 1인 여부와 별개). "
+    "청년 남성은 동을 고르지 않고 도시 단위 '안내 강화' 1건입니다. "
     f"임계값을 바꾸면 후보 수(이탈 후보 포함)는 {int(gr['후보수_최소'])}~{int(gr['후보수_최대'])}건입니다(기본 {int(gr['후보수_기본'])}건).")
 r.p()
 cc3 = {d: lv_names("춘천", d, "고령층", "Level 3") for d in DATES}
@@ -458,11 +474,12 @@ n_hold = int((cc_after["등급"] == "판단 보류").sum())
 n_l2d = int((cc_after["등급"] == "Level 2").sum())
 r.p(f"**④ 생활 변화 신호(카드)는 동을 가리키지 않습니다.** 카드가 도시 단위라 이탈 후보는 Level 2가 상한이고, 추석 뒤 춘천 고령층 신호 "
     f"{len(cc_after)}건 중 {n_hold}건은 '자료 더 필요'(판단 보류), {n_l2d}건은 반증을 통과해 Level 2입니다. "
-    f"2025년 하반기 실제 경보 {len(alarms)}건 중 {alarm_common}건은 도시 전체가 함께 낮아진 '도시 공통 변화'로 분류됐습니다(EDA-6).")
+    f"2025년 하반기 실제 경보 {len(alarms)}건 중 {alarm_common}건은 도시 전체가 함께 낮아진 '도시 공통 변화'로 분류됐습니다(EDA-6). "
+    f"rules-v1.1 의 연휴 이동 보류(`HOLD-HOLIDAY-TRAVEL`, 외지 손님 급증)는 이 기준일들에서 {int(dev['규칙 id'].astype(str).str.startswith('HOLD-HOLIDAY-TRAVEL').sum())}건입니다.")
 
 r.h("5. 카드·통신이 바꾼 판단")
 r.p("같은 근거에서 카드·통신 근거만 빼고 규칙을 다시 돌렸을 때 등급이 달라지는 후보입니다. 바뀌지 않은 후보는 싣지 않습니다. "
-    "('카드 반증 자료 뺌' = 연휴 기대값·도시 공통요인만 뺌, '카드 전체 뺌' = 결제 시계열·이탈·반증 모두 뺌, '통신 뺌' = 체류 구성·읍·면 겨울 변화 뺌)")
+    "('카드 반증 자료 뺌' = 연휴 기대값·도시 공통요인·연휴 외지 손님 비중만 뺌, '카드 전체 뺌' = 결제 시계열·이탈·반증 모두 뺌, '통신 뺌' = 체류 구성·읍·면 겨울 변화 뺌)")
 if len(changes):
     ct_ = changes.copy()
     ct_["바뀐 것"] = np.select(
@@ -479,7 +496,7 @@ if len(changes):
     n_dev_hold = int(((changes["후보"] == "이탈") & (changes["카드 반증 자료 뺌"] == "판단 보류")).sum())
     n_dev_now_hold = int(((changes["후보"] == "이탈") & (changes["전체 근거 등급"] == "판단 보류")).sum())
     n_tel = int(((changes["후보"] == "예정된 점검") & (changes["통신 뺌"] != changes["전체 근거 등급"])).sum())
-    r.p(f"- **카드 반증**: 이탈 후보 {n_dev_all}건(집단 합)은 반증 자료(연휴 기대값·도시 공통요인)가 없으면 모두 '판단 보류'입니다. "
+    r.p(f"- **카드 반증**: 이탈 후보 {n_dev_all}건(집단 합)은 반증 자료(연휴 기대값·도시 공통요인, 카드)가 없으면 모두 '판단 보류'입니다. "
         f"반증 자료가 있으면 {n_dev_all - n_dev_now_hold}건이 결론(통과 → Level 1·2)을 얻고, {n_dev_now_hold}건은 연휴 뒤 회복을 아직 못 봐 보류로 남습니다. "
         "카드를 모두 빼면 이탈 후보 자체가 없습니다(예정된 점검은 그대로).")
     r.p(f"- **통신**: 춘천 동절기 Level 3 {n_tel}건(집단 합)은 읍·면 겨울 체류 변화(W1, 통신)가 없으면 필수 근거가 빠져 "

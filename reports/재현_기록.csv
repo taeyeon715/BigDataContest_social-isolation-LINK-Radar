@@ -1,0 +1,18 @@
+﻿단계,원본 필요,실행,사유,초
+ingest,raw,건너뜀,적재는 --ingest 일 때만,
+eda1,interim,성공,,20
+eda2,interim,성공,,14
+eda3,interim,성공,,6
+w1,none,성공,,17
+eda4,interim,성공,,26
+eda5,interim,성공,,127
+eda6,interim,성공,,54
+m1,interim,성공,,1800
+m2,interim,성공,,14
+r1,interim,성공,,60
+w2_labels,none,건너뜀,정답 세트는 고정 입력 (--relabel 일 때만),
+w2,none,성공,,4
+m4,none,성공,,21
+r2,interim,성공,,17
+m3,interim,성공,,146
+check_no_raw,none,성공,,1

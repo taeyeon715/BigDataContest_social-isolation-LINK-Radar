@@ -32,32 +32,33 @@ uv run python scripts/reproduce.py --check-hash    # 다 만든 뒤 reports/결�
 | 순서 | 단계 | 명령 | 필요한 것 | 결과 | 원본 없이 | 걸린 시간 |
 |---|---|---|---|---|---|---|
 | 1 | ingest | `python -m bigcontest.ingest` | 대회 원본 zip | `data/interim/*.parquet`, `reports/eda0_적재결과` | 안 됨 | (아래 참고) |
-| 2 | eda1 | `notebooks/eda1_data_quality.py` | 1 | `reports/eda1_데이터진단` | 안 됨 | {eda1} |
-| 3 | eda2 | `notebooks/eda2_telecom_basics.py` | 1 | `reports/eda2_통신기초` | 안 됨 | {eda2} |
-| 4 | eda3 | `notebooks/eda3_card_basics.py` | 1 | `reports/eda3_카드기초` | 안 됨 | {eda3} |
-| 5 | w1 | `notebooks/w1_resource_ledger.py` | `external/` | `reports/w1_자원원장`, 원장 v2 | **됨** | {w1} |
-| 6 | eda4 | `notebooks/eda4_external.py` | 1, eda2 | `reports/eda4_외부데이터결합` | 안 됨 | {eda4} |
-| 7 | eda5 | `notebooks/eda5_insights.py` | 1, eda4 | `reports/eda5_인사이트재현` | 안 됨 | {eda5} |
-| 8 | eda6 | `notebooks/eda6_alarm_reeval.py` | 1 | `reports/eda6_사전경보재평가` | 안 됨 | {eda6} |
-| 9 | m1 | `notebooks/m1_expected_activity.py` | 1 | `reports/m1_기대활동모델`, `configs/models.yaml` decisions | 안 됨 | {m1} |
-| 10 | m2 | `notebooks/m2_proxy_task_b.py` | 1 | `reports/m2_대리과제B` | 안 됨 | {m2} |
-| 11 | r1 | `notebooks/r1_level_rules.py` | 1 | `reports/r1_등급규칙` | 안 됨 | {r1} |
-| 12 | w2 | `notebooks/w2_resource_eval.py` | `external/`, 정답 세트 | `reports/w2_자원추천평가` | **됨** | {w2} |
-| 13 | m4 | `notebooks/m4_risk_factors.py` | 공개 시민생활 + eda2·eda4·w1 CSV | `reports/m3_모델링결과/M4.md` | **됨** | {m4} |
-| 14 | r2 | `notebooks/r2_risk_results.py` | 1, r1·eda3·eda5·eda6·m1 | `reports/r2_위험도결과` | 안 됨 | {r2} |
-| 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | {m3} |
-| 16 | 점검 | `scripts/check_no_raw.py` | — | 리포트 CSV 원천 값 열 점검 | **됨** | {check_no_raw} |
-| 17 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | {pytest} |
+| 2 | eda1 | `notebooks/eda1_data_quality.py` | 1 | `reports/eda1_데이터진단` | 안 됨 | 20초 |
+| 3 | eda2 | `notebooks/eda2_telecom_basics.py` | 1 | `reports/eda2_통신기초` | 안 됨 | 14초 |
+| 4 | eda3 | `notebooks/eda3_card_basics.py` | 1 | `reports/eda3_카드기초` | 안 됨 | 6초 |
+| 5 | w1 | `notebooks/w1_resource_ledger.py` | `external/` | `reports/w1_자원원장`, 원장 v2 | **됨** | 17초 |
+| 6 | eda4 | `notebooks/eda4_external.py` | 1, eda2 | `reports/eda4_외부데이터결합` | 안 됨 | 26초 |
+| 7 | eda5 | `notebooks/eda5_insights.py` | 1, eda4 | `reports/eda5_인사이트재현` | 안 됨 | 2분 7초 |
+| 8 | eda6 | `notebooks/eda6_alarm_reeval.py` | 1 | `reports/eda6_사전경보재평가` | 안 됨 | 54초 |
+| 9 | m1 | `notebooks/m1_expected_activity.py` | 1 | `reports/m1_기대활동모델`, `configs/models.yaml` decisions | 안 됨 | 30분 |
+| 10 | m2 | `notebooks/m2_proxy_task_b.py` | 1 | `reports/m2_대리과제B` | 안 됨 | 14초 |
+| 11 | r1 | `notebooks/r1_level_rules.py` | 1 | `reports/r1_등급규칙` | 안 됨 | 1분 |
+| 12 | w2 | `notebooks/w2_resource_eval.py` | `external/`, 정답 세트 | `reports/w2_자원추천평가` | **됨** | 4초 |
+| 13 | m4 | `notebooks/m4_risk_factors.py` | 공개 시민생활 + eda2·eda4·w1 CSV | `reports/m3_모델링결과/M4.md` | **됨** | 21초 |
+| 14 | r2 | `notebooks/r2_risk_results.py` | 1, r1·eda3·eda5·eda6·m1 | `reports/r2_위험도결과` | 안 됨 | 17초 |
+| 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | 2분 26초 |
+| 16 | 점검 | `scripts/check_no_raw.py` | — | 리포트 CSV 원천 값 열 점검 | **됨** | 1초 |
+| 17 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
 
-- 시간은 {machine} 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 {total}). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
+- 시간은 Windows 11 노트북(2026-10-14, rules-v1.1) 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 39분, m1 이 30분). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
 - 원본 없이도 되는 것: 자원 원장(w1), 자원 추천 평가(w2), 위험 요인 모델(M4), 점검, API·화면(가짜 데이터, `README.md` 시작하기).
 - 난수 seed: 경보 주입 실험 `numpy.random.default_rng(0)` (EDA-6·M3 같은 쌍), 합성 정상 시계열 seed 0~4·0~9, M3 하락률·부트스트랩 seed 0 (`configs/models_m3.yaml`), M4 반복 seed 0~49, LightGBM `random_state=0`.
 
 ## 4. 결과 확인 (해시)
 
-- `reports/결과_해시.txt`: 리포트 CSV {n_hash}개의 sha256 (줄 끝을 LF로 맞춘 뒤). 그림(PNG)은 글꼴·라이브러리 판에 따라 바이트가 달라 비교하지 않습니다.
+- `reports/결과_해시.txt`: 리포트 CSV 66개의 sha256 (줄 끝을 LF로 맞춘 뒤). 그림(PNG)은 글꼴·라이브러리 판에 따라 바이트가 달라 비교하지 않습니다.
 - 다시 만든 뒤 `--check-hash`로 비교하면 같은 파일 / 다른 파일 / 새 파일 / 없어진 파일 수를 보여 주고, 다른 파일이 있으면 종료 코드 1입니다.
-- 이번 확인: {hash_note}
+- 이번 확인: rules-v1.1 병합 뒤 적재를 뺀 전 단계를 다시 돌렸을 때, 다른 사람이 만든 리포트 CSV(eda1~6·m1·m2·r1·w1)는 모두 커밋된 파일과 같았고 `reports/r1_등급규칙/카드_판단변화.csv` 한 개만 **행 순서**가 달랐습니다(내용은 같음). 이 파일은 커밋된 판으로 두고 해시를 만들었습니다. 실행마다 순서가 바뀔 수 있으니 다르게 나오면 정렬해 비교하세요.
+- `reports/eda5_인사이트재현`, `eda6_사전경보재평가`, `w1_자원원장`의 README 는 노트북 출력 뒤 문구를 손으로 다듬은 판이 커밋돼 있어, 다시 만들면 문장 몇 줄이 다릅니다(숫자·CSV 는 같음).
 
 ## 5. 알려진 것
 
