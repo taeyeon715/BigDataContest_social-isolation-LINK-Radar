@@ -74,7 +74,9 @@ def test_model_panel_matches_panel_with_missing_days():
 
 
 def test_model_resid_injection_matches_full_rerun():
-    Y = card_daily_small()
+    # STL 은 코호트마다 따로 계산하므로(cohort_independent) 두 코호트만 써도 같은 것을 확인한다
+    # (12개 코호트 전체로 돌리면 35초. 바꾼 코호트가 첫 열이 아니어야 열 찾기까지 확인됨)
+    Y = card_daily_small().iloc[:, :2]
     o = origins(len(Y), full_horizon=None)
     m = STLModel(HOLIDAYS)
     r = ModelResid(Y, m, o)

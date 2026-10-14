@@ -24,8 +24,10 @@
 결정: 추천 / 확인 필요 / 제외. 판단은 담당자가 하며 이 결과는 후보 목록이다.
 """
 
+import os
 import re
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -46,9 +48,23 @@ CHECK_OUT_OF_AREA = "관할 밖 거점"
 CHECK_COORD = "좌표 탐색용"
 
 
-def load_needs(path=NEEDS) -> dict:
+@lru_cache(maxsize=8)
+def _read_needs(path: str, mtime_ns: int, size: int) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_needs(path=NEEDS) -> dict:
+    """필요 유형 설정. (경로, 수정 시각, 크기)가 같으면 다시 읽지 않는다 (파일을 고치면 다음 호출에서 새로 읽음).
+    돌려준 dict 는 여러 호출이 같이 쓰므로 고치지 말 것 (읽기 전용)."""
+    st = os.stat(path)
+    return _read_needs(str(path), st.st_mtime_ns, st.st_size)
+
+
+def ledger_records(d: pd.DataFrame) -> list[dict]:
+    """원장 (부분)표 → 행 dict 목록. match_resources 가 행마다 읽는 모양.
+    같은 원장으로 여러 번 매칭하는 쪽은 이 결과를 스냅샷·원장 해시를 키로 캐시해 records= 로 넘긴다."""
+    return d.to_dict("records")
 
 
 def city_of(adm_cd: str) -> str:
@@ -159,20 +175,26 @@ def elderly_rank(m: Match, cfg: dict, prefer_phone: bool = False) -> int | None:
 
 def match_resources(d: pd.DataFrame, adm_cd: str | None, group: str | None = None, need_type: str | None = None,
                     cause_type: str | None = None, origin: tuple[float, float] | None = None,
-                    max_km: float | None = None, cfg: dict | None = None, city: str | None = None) -> list[Match]:
+                    max_km: float | None = None, cfg: dict | None = None, city: str | None = None,
+                    records: list[dict] | None = None) -> list[Match]:
     """원장 모든 행에 대한 판단 (제외 포함). origin = (위도, 경도), 보통 행정동 중심점.
-    adm_cd 없이 city 만 주면 도시 전체 목록 (관할 행정동 자원도 남기고 거리는 재지 않음, API GET /resources)."""
+    adm_cd 없이 city 만 주면 도시 전체 목록 (관할 행정동 자원도 남기고 거리는 재지 않음, API GET /resources).
+    records: d 의 ledger_records(d) (캐시한 것). 없으면 여기서 만든다. 행 순서·내용이 d 와 같아야 한다."""
     cfg = cfg or load_needs()
     city = city_of(adm_cd) if adm_cd else city
     if city is None:
         raise ValueError("adm_cd 또는 city 가 필요함")
     needs, cause = _needs_for(need_type, cause_type, cfg)
-    in_need = pd.Series(True, index=d.index)
-    masks = {n: need_mask(d, n, cfg) for n in needs or []}
+    rows = ledger_records(d) if records is None else records
+    if len(rows) != len(d):
+        raise ValueError("records 가 원장 표와 행 수가 다름")
+    # 행 위치로 읽는 bool 배열 (iterrows·라벨 조회 대신. 판단 규칙은 같음)
+    masks = {n: need_mask(d, n, cfg).to_numpy(dtype=bool) for n in needs or []}
+    in_need = np.ones(len(d), dtype=bool)
     if needs:
-        in_need = pd.concat(list(masks.values()), axis=1).any(axis=1)
+        in_need = np.logical_or.reduce(list(masks.values()))
     out = []
-    for i, r in d.iterrows():
+    for i, r in enumerate(rows):
         m = Match(r["resource_id"], r["name"], "추천", delivery_channel=r["delivery_channel"],
                   coordinate_status=r["coordinate_status"], source_url=r["source_url"], verified_date=r["verified_date"],
                   subtype=r["subtype"], last_verified=r.get("last_verified", ""), crisis=is_crisis(r, cfg),
@@ -262,11 +284,12 @@ def match_resources(d: pd.DataFrame, adm_cd: str | None, group: str | None = Non
 
 def find_resources(d: pd.DataFrame, adm_cd: str | None, group: str | None = None, need_type: str | None = None,
                    cause_type: str | None = None, origin: tuple[float, float] | None = None,
-                   max_km: float | None = None, cfg: dict | None = None, city: str | None = None) -> list[Match]:
+                   max_km: float | None = None, cfg: dict | None = None, city: str | None = None,
+                   records: list[dict] | None = None) -> list[Match]:
     """제외하지 않은 자원만, 순서대로 (모듈 설명의 '순위'). 위기 전화도 목록에는 남는다 (select_resources 가 따로 묶음)."""
     cfg = cfg or load_needs()
     needs, cause = _needs_for(need_type, cause_type, cfg)
-    keep = [m for m in match_resources(d, adm_cd, group, need_type, cause_type, origin, max_km, cfg, city)
+    keep = [m for m in match_resources(d, adm_cd, group, need_type, cause_type, origin, max_km, cfg, city, records)
             if m.decision != "제외"]
     elderly = group == "고령층" and "안부·관계" in (needs or [])
     n_old = len(cfg.get("elderly_first") or [])
@@ -312,14 +335,14 @@ class Selection:
 def select_resources(d: pd.DataFrame, adm_cd: str, group: str | None = None, need_type: str | None = None,
                      cause_type: str | None = None, origin: tuple[float, float] | None = None,
                      max_km: float | None = None, cfg: dict | None = None, limit: int = 5,
-                     per_subtype: int | None = 2) -> Selection:
+                     per_subtype: int | None = 2, records: list[dict] | None = None) -> Selection:
     """find_resources 순서에서 제외 규칙을 먼저 적용하고 상위 limit 를 뽑는다. 빈자리는 다음 자원으로 채우고
     모자라면 모자란 대로 둔다. 위기 전화는 순위 밖 '위급 시 안내'로.
     per_subtype: 같은 원장 분류(subtype)는 상위에 이만큼까지 (경로당 5곳·방문요양 5곳만 나오지 않게).
     분류 한도로 못 들어간 자원은 제외가 아니라 그다음 순서이며, 다른 자원이 모자라면 다시 채운다."""
     cfg = cfg or load_needs()
     needs, _ = _needs_for(need_type, cause_type, cfg)
-    found = find_resources(d, adm_cd, group, need_type, cause_type, origin, max_km, cfg)
+    found = find_resources(d, adm_cd, group, need_type, cause_type, origin, max_km, cfg, records=records)
     crisis: list[Match] = []
     valid: list[tuple[int, Match]] = []                       # (found 안 자리, 자원)
     skipped: list[tuple[int, Match, list[str]]] = []          # 제외 규칙에 걸린 자원
@@ -369,9 +392,9 @@ def select_resources(d: pd.DataFrame, adm_cd: str, group: str | None = None, nee
 
 
 def access_gap(d: pd.DataFrame, adm_cd: str, origin: tuple[float, float], need_type: str,
-               group: str | None = None, cfg: dict | None = None) -> dict:
+               group: str | None = None, cfg: dict | None = None, records: list[dict] | None = None) -> dict:
     """관측 거점까지 가장 가까운 직선거리 + 전화형 대안 + 위치 미확인 수. 실제 공급 부족이라는 뜻은 아님."""
-    found = find_resources(d, adm_cd, group, need_type, origin=origin, cfg=cfg)
+    found = find_resources(d, adm_cd, group, need_type, origin=origin, cfg=cfg, records=records)
     dist = [m.distance_km for m in found if m.distance_km is not None]
     return {
         "adm_cd": adm_cd, "need_type": need_type, "group": group,

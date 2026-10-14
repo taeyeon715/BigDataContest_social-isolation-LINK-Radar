@@ -505,6 +505,14 @@ def calc_holiday_gap(ctx) -> list[ToolResult]:
 # ---------------------------------------------------------------- 겨울 변화 (춘천 읍·면)
 
 
+def group_mode(d: pd.DataFrame, by: str, col: str) -> pd.Series:
+    """묶음(by)마다 col 의 최빈값. `groupby(by)[col].agg(lambda s: s.mode().iloc[0])` 와 같은 값:
+    동점이면 작은 값(정렬 순서 앞)을 고르고, 빈 값은 세지 않는다. 묶음마다 람다를 부르지 않아 빠르다."""
+    n = d.groupby([by, col]).size().rename("_n").reset_index()
+    n = n[n["_n"] > 0].sort_values([by, "_n", col], ascending=[True, False, True], kind="mergesort")
+    return n.drop_duplicates(by).set_index(by)[col]
+
+
 def calc_winter_contraction(ctx) -> list[ToolResult]:
     """춘천 읍·면 주민형 격자(운영상 대리 규칙)의 60+ 체류 여름(7·9월) → 겨울(11·12월) 변화 (EDA-5 I-5 방식).
     기준일에 공개된 달만 쓴다. 같은 격자 전 연령 변화와의 차이를 함께 적는다."""
@@ -537,7 +545,7 @@ def calc_winter_contraction(ctx) -> list[ToolResult]:
         gw = ww.groupby("g")[["wd", "we"]].sum()
         gm = cc.groupby(["g", "STD_YM"])["s60"].sum().unstack().fillna(0)
         gall = cc.groupby(["g", "STD_YM"])["all"].sum().unstack().fillna(0)
-        gtype = cc.groupby("g")["adm_type"].agg(lambda s: s.mode().iloc[0])
+        gtype = group_mode(cc, "g", "adm_type")
         info = pd.DataFrame({"nd": gt["night"] / gt["day"], "ww": gw["we"] / gw["wd"], "type": gtype,
                              "s60": gm.mean(axis=1)}).dropna()
         info = info[info["s60"] >= 2]

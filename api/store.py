@@ -160,6 +160,29 @@ CREATE TABLE IF NOT EXISTS run_jobs (
 """
 
 
+# 조회 색인: 정렬 칸까지 넣어 임시 정렬(TEMP B-TREE)도 없앰
+INDEXES = (
+    # monitoring_runs (현황·지도·후보 목록이 고를 정기 감시 실행)
+    "CREATE INDEX IF NOT EXISTS idx_runs_monitoring ON runs(mode, as_of, analysis_mode, created_at, run_id)",
+    # list_runs (최근 실행), list_runs(candidate_id), candidate_runs (후속 확인 모아 보기)
+    "CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at, run_id)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_candidate ON runs(candidate_id, created_at, run_id)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_candidate_recent ON runs(created_at, run_id) WHERE candidate_id IS NOT NULL",
+    # runs_with_status (재시작 때 이어 갈 실행)
+    "CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status, created_at, run_id)",
+    # list_reviews, last_follow_up
+    "CREATE INDEX IF NOT EXISTS idx_reviews_run ON reviews(run_id, created_at)",
+    # list_approvals(run_id)
+    "CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(run_id, created_at)",
+    # count_llm_calls, llm_cost(run_id)
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_run ON llm_calls(run_id)",
+    # list_outcomes(city) (현장 확인 결과 요약)
+    "CREATE INDEX IF NOT EXISTS idx_outcomes_city ON field_outcomes(city)",
+    # 가짜 백엔드 예약 (due_jobs, has_jobs)
+    "CREATE INDEX IF NOT EXISTS idx_jobs_run ON run_jobs(run_id, action, due_at)",
+)
+
+
 def new_id(prefix: str, now: datetime) -> str:
     """시각 순으로 정렬되는 ID. 예: run-20261013-100000-3fa9c2d1 (같은 초에도 무작위 32비트로 구분)."""
     return f"{prefix}-{now:%Y%m%d-%H%M%S}-{secrets.token_hex(4)}"
@@ -192,6 +215,9 @@ class Store:
             self._conn.execute("ALTER TABLE field_outcomes ADD COLUMN seq INTEGER")
         self._conn.execute("UPDATE field_outcomes SET seq = rowid WHERE seq IS NULL")
         self._conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_outcomes_seq ON field_outcomes(seq)")
+        # 자주 읽는 조회의 색인 (예전 파일에도 그대로 추가됨. 읽기 결과는 같고 표를 다 훑지 않음)
+        for sql in INDEXES:
+            self._conn.execute(sql)
 
     def close(self) -> None:
         self._conn.close()

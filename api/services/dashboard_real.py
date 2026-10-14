@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import threading
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
 from functools import lru_cache
 
@@ -257,25 +257,86 @@ class RealDashboard:
 
     def resources(self, city: str | None, adm_cd: str | None, need_type: str | None, group: str | None,
                   limit: int = RESOURCE_LIMIT, cause_type: str | None = None) -> ResourceListResponse:
-        items = find_ledger_resources(city, adm_cd, need_type, group, cause_type)
-        from bigcontest.runmeta import ledger_version
-
+        view = _ledger_view()
+        items = find_ledger_resources(city, adm_cd, need_type, group, cause_type, view=view)
         scope_total = None
         if cause_type and not need_type:  # "필요 유형에 맞는 m건 / 관할·대상 n건"
-            scope_total = len(find_ledger_resources(city, adm_cd, None, group))
+            scope_total = len(find_ledger_resources(city, adm_cd, None, group, view=view))
         return ResourceListResponse(adm_cd=adm_cd, need_type=need_type, group=group, items=items[:limit],
-                                    ledger_version=ledger_version(), total=len(items), cause_type=cause_type,
+                                    ledger_version=view.version, total=len(items), cause_type=cause_type,
                                     need_types=needs_of(cause_type, need_type), scope_total=scope_total)
 
 
 # ---------------------------------------------------------------- 원장 v2 (find_resources 와 같은 규칙)
 
 
-@lru_cache(maxsize=1)
-def _ledger():
+LEDGER_VIEWS = 2      # 원장 판(파일 해시)을 몇 개까지 들고 있을지
+RESOURCE_RESULTS = 256  # 자원 조회 결과 캐시 (원장 판마다)
+
+
+class _LedgerView:
+    """원장 한 판(파일 해시)에서 읽은 표와 미리 만든 것: resource_id 색인, 도시별 부분표·행 dict, 조회 결과.
+    키가 원장 파일 해시라 원장을 바꾸면 서버를 다시 켜지 않아도 다음 요청부터 새 판을 읽는다."""
+
+    def __init__(self, digest: str, led):
+        from bigcontest.agent.tools import welfare as W
+
+        self.digest, self.led = digest, led
+        self.version = f"ledger@sha256:{digest[:12]}"  # runmeta.ledger_version 과 같은 값
+        self.rows = led.set_index("resource_id")
+        self.note = f"현재 원장(수집 {W.ledger_collected(led)}) 기준"
+        self._lock = threading.Lock()
+        self._city: dict[str, tuple] = {}
+        self._results: OrderedDict[tuple, tuple] = OrderedDict()
+
+    def city(self, c: str) -> tuple:
+        """(도시 부분표, 그 행 dict 목록)."""
+        from bigcontest.resources import match as M
+
+        with self._lock:
+            if c not in self._city:
+                sub = self.led[self.led["city"] == c]
+                self._city[c] = (sub, M.ledger_records(sub))
+            return self._city[c]
+
+    def result(self, key: tuple, fn) -> tuple:
+        with self._lock:
+            if key in self._results:
+                self._results.move_to_end(key)
+                return self._results[key]
+        val = fn()  # 잠금 밖에서 계산 (같은 키를 두 번 계산해도 결과는 같음)
+        with self._lock:
+            self._results[key] = val
+            while len(self._results) > RESOURCE_RESULTS:
+                self._results.popitem(last=False)
+        return val
+
+
+_VIEWS: OrderedDict[str, _LedgerView] = OrderedDict()
+_VIEWS_LOCK = threading.Lock()
+
+
+def _ledger_view() -> _LedgerView:
+    """지금 원장 파일(원장 v2) 판. 파일 해시는 (경로, 수정 시각, 크기)로 캐시돼 싸다."""
+    from bigcontest.agent.tools.datasource import file_hash
     from bigcontest.resources.ledger import V2, load
 
-    return load(V2)
+    digest = file_hash(V2)
+    with _VIEWS_LOCK:
+        if digest in _VIEWS:
+            _VIEWS.move_to_end(digest)
+            return _VIEWS[digest]
+    view = _LedgerView(digest, load(V2))
+    with _VIEWS_LOCK:
+        view = _VIEWS.setdefault(digest, view)
+        _VIEWS.move_to_end(digest)
+        while len(_VIEWS) > LEDGER_VIEWS:
+            _VIEWS.popitem(last=False)
+    return view
+
+
+def _ledger():
+    return _ledger_view().led
 
 
 def need_types() -> tuple[str, ...]:
@@ -297,23 +358,32 @@ def with_cause(c: Candidate, cause: str) -> Candidate:
 
 
 def find_ledger_resources(city: str | None, adm_cd: str | None, need_type: str | None,
-                          group: str | None, cause_type: str | None = None) -> list[ResourceRecommendation]:
+                          group: str | None, cause_type: str | None = None,
+                          view: _LedgerView | None = None) -> list[ResourceRecommendation]:
     """resources.match 의 매칭(관할·대상·필요 유형·운영 상태·거리) + 제외 규칙(확인일·출처 없음, 관할 밖 물리 거점).
-    위기 전화는 맨 아래 '위급 시 안내'. 동을 주면 그 동 중심점에서 직선거리."""
+    위기 전화는 맨 아래 '위급 시 안내'. 동을 주면 그 동 중심점에서 직선거리.
+    결과는 원장 판(파일 해시)마다 (도시, 동, 필요 유형, 집단, 원인 유형) 키로 캐시. 돌려줄 때는 항목을 얕게 복사
+    (응답 쪽에서 칸을 바꿔도 캐시는 그대로)."""
+    view = view or _ledger_view()
+    key = (city, adm_cd, need_type, group, cause_type)
+    return [r.model_copy() for r in view.result(key, lambda: tuple(_find_ledger_resources(view, *key)))]
+
+
+def _find_ledger_resources(view: _LedgerView, city, adm_cd, need_type, group, cause_type):
     from bigcontest.agent.tools import welfare as W
     from bigcontest.resources import match as M
 
-    led = _ledger()
     base = fd.areas().get(adm_cd) if adm_cd else None
     cities = [base.city] if base else ([city] if city else ["강남", "춘천"])
-    note = f"현재 원장(수집 {W.ledger_collected(led)}) 기준"
-    rows = led.set_index("resource_id")
+    note = view.note
+    rows = view.rows
     fields = set(ResourceRecommendation.model_fields)
     ranked, crisis = [], []
     for c in cities:
-        sub = led[led["city"] == c]
+        sub, recs = view.city(c)
         origin = (base.lat, base.lon) if base else None
-        found = M.find_resources(sub, adm_cd, group, need_type, cause_type=cause_type, origin=origin, city=c)
+        found = M.find_resources(sub, adm_cd, group, need_type, cause_type=cause_type, origin=origin, city=c,
+                                 records=recs)
         for m in found:
             if M.hard_exclusion(m):
                 continue
@@ -324,13 +394,19 @@ def find_ledger_resources(city: str | None, adm_cd: str | None, need_type: str |
     return ranked + crisis
 
 
-@lru_cache(maxsize=2)
 def map_resources(city: str) -> list[MapResource]:
-    """지도 자원 점: 좌표가 있는 거점 + 전화형. 출처·확인일 없는 것, 운영 중단, 관할 밖 물리 거점은 뺌 (G-07, 제외 규칙)."""
+    """지도 자원 점: 좌표가 있는 거점 + 전화형. 출처·확인일 없는 것, 운영 중단, 관할 밖 물리 거점은 뺌 (G-07, 제외 규칙).
+    원장 판(파일 해시)마다 캐시."""
+    view = _ledger_view()
+    return _map_resources(city, view.digest, view)
+
+
+@lru_cache(maxsize=4)
+def _map_resources(city: str, digest: str, view: _LedgerView) -> list[MapResource]:
     from bigcontest.resources import match as M
     from bigcontest.resources.ledger import SPATIAL
 
-    led = _ledger()
+    led = view.led
     out = []
     for r in led[led["city"] == city].to_dict("records"):
         if not all(str(r[k]).strip() for k in ("source_url", "verified_date", "city", "target_stage")):

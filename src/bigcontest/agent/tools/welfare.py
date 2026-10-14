@@ -51,6 +51,19 @@ def _origin(ds, adm_cd: str) -> tuple[float, float] | None:
         return None
 
 
+def _ledger_city(ds, city: str):
+    """(도시 원장 부분표, 그 행 dict 목록). 다른 도시 자원은 match 의 관할 단계에서 어차피 빠지므로 미리 거른다.
+    스냅샷(원장 해시 포함)별 캐시라 원장이 바뀌면 새 스냅샷에서 다시 만든다."""
+    led = ds.ledger()
+    sub = ds.cached(("ledger_city", city), lambda: led[led["city"] == city])
+    return sub, ds.cached(("ledger_records", city), lambda: M.ledger_records(sub))
+
+
+def _ledger_rows(ds):
+    """resource_id → 원장 행 (스냅샷별 캐시)."""
+    return ds.cached(("ledger_rows",), lambda: ds.ledger().set_index("resource_id"))
+
+
 def _date(s: str) -> str | None:
     try:
         return date.fromisoformat(s).isoformat() if s else None
@@ -153,12 +166,11 @@ def find_resources(ctx, adm_cd: str | None, group: str | None, need_type: str | 
         return empty(ctx, code, "복지 자원 후보", "행정동이 정해지지 않아 자원 매칭 안 함"), []
     led = ds.ledger()
     note = ledger_time_note(led, ctx.as_of)
-    # 다른 도시 자원은 match 의 관할 단계에서 어차피 빠지므로 미리 거름 (match 는 행마다 돌아 느림). 결과는 스냅샷별 캐시
-    sub = ds.cached(("ledger_city", city), lambda: led[led["city"] == city])
+    sub, recs = _ledger_city(ds, city)  # 결과는 스냅샷별 캐시
     sel = ds.cached(("select", adm_cd, grp, need_type, cause_type, limit),
                     lambda: M.select_resources(sub, adm_cd, grp, need_type, cause_type, origin=_origin(ds, adm_cd),
-                                               limit=limit))
-    rows = led.set_index("resource_id")
+                                               limit=limit, records=recs))
+    rows = _ledger_rows(ds)
     ranked = [_item(m, rows.loc[m.resource_id], grp, note, "추천 후보") for m in sel.ranked]
     crisis = [_item(m, rows.loc[m.resource_id], grp, note, CRISIS_LABEL) for m in sel.crisis]
     items = ranked + crisis
@@ -205,8 +217,9 @@ def get_access_gap(ctx, need_type: str = ACCESS_NEED) -> list[ToolResult]:
         if origin is None:
             out.append(empty(ctx, f"ACC-{adm}", ACCESS_METRIC, "행정동 중심점 없음", applied_scope=label))
             continue
-        sub = ds.cached(("ledger_city", city), lambda: led[led["city"] == city])
-        g = ds.cached(("access", adm, need_type, grp), lambda: M.access_gap(sub, adm, origin, need_type, grp))
+        sub, recs = _ledger_city(ds, city)
+        g = ds.cached(("access", adm, need_type, grp),
+                      lambda: M.access_gap(sub, adm, origin, need_type, grp, records=recs))
         warn = [f"필요 유형 {need_type}, 전화형 대안 {len(g['phone_alternatives'])}건, 위치 미확인 {g['n_location_unknown']}건",
                 "좌표 일부 탐색용(도로명주소 확인 전)", "직선거리일 뿐 이동시간·실제 이용 가능성은 아님", note]
         if g["nearest_km"] is None:
