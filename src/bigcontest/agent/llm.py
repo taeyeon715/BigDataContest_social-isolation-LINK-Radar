@@ -187,6 +187,13 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
         "ok": False,
         "latency_ms": 0.0,
     }
+    from bigcontest.agent import budget as _budget  # 실행당 예산 (API 가 켬). 넘으면 부르지 않고 규칙·템플릿
+
+    run_budget = _budget.current()
+    over = run_budget.check() if run_budget is not None else None
+    if over:
+        record.update(error_code=_budget.BUDGET_EXCEEDED, error=over, fallback="예산 초과 → 규칙·템플릿으로 대신")
+        return None, record
     t0 = time.perf_counter()
     result = None
     n0 = len(getattr(llm, "calls", []) or [])
@@ -212,6 +219,8 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
         record["dropped_sentences"] = sum(c.get("dropped", 0) for c in calls)
         if any("masked" in c for c in calls):
             record["masked_items"] = max(c.get("masked", 0) for c in calls)
+    if run_budget is not None:
+        run_budget.add(record)
     if not record["ok"]:
         record["fallback"] = "규칙 기반·템플릿으로 대신"
     # LLM 이 낸 판단 이유 (decision_trace). 질문 원문은 담지 않음, 짧게

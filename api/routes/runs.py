@@ -1,6 +1,8 @@
 """실행·검토·승인·질의응답 경로.
 
-권한 (api/auth.py): 이 라우터 전체가 조회 이상. 검토 저장은 검토 이상, 승인은 승인 역할만.
+권한 (api/auth.py): 이 라우터 전체가 조회 이상. 실행 만들기·질의응답·이어 묻기(그래프·LLM 비용을 씀)와
+검토 저장·현장 결과는 검토 이상, 승인은 승인 역할만. 실행 만들기·질의응답·이어 묻기는 사용자마다 횟수 한도
+(api/limits.py, 넘으면 429).
 """
 
 from __future__ import annotations
@@ -39,9 +41,17 @@ from api.services.runs import RunService
 router = APIRouter(dependencies=[Depends(require("조회"))])
 
 
+def _limit(request: Request, who: Identity) -> None:
+    """사용자별 횟수 한도 (꺼져 있으면 통과)."""
+    limiter = getattr(request.app.state, "run_limiter", None)
+    if limiter is not None:
+        limiter.hit(who.actor())
+
+
 @router.post("/runs", response_model=RunAccepted, status_code=202)
 def create_run(req: RunCreateRequest, request: Request, svc: RunService = Depends(runs),
-               who: Identity = Depends(require("조회"))) -> RunAccepted:
+               who: Identity = Depends(require("검토"))) -> RunAccepted:
+    _limit(request, who)
     out = svc.create(req, who)
     request.state.run_id = out.run_id  # 구조화 로그용
     return out
@@ -95,9 +105,10 @@ def run_resources(run_id: str, svc: RunService = Depends(runs)) -> RunResourcesR
 
 
 @router.post("/runs/{run_id}/followup", response_model=FollowupResponse)
-def followup(run_id: str, req: FollowupRequest, svc: RunService = Depends(runs),
-             who: Identity = Depends(require("조회"))) -> FollowupResponse:
-    """이어 묻기: 이 실행 근거 카드 안에서만 답함 (새 도구 실행 없음)."""
+def followup(run_id: str, req: FollowupRequest, request: Request, svc: RunService = Depends(runs),
+             who: Identity = Depends(require("검토"))) -> FollowupResponse:
+    """이어 묻기: 이 실행 근거 카드 안에서만 답함 (새 도구 실행 없음). LLM 을 부를 수 있어 검토 이상."""
+    _limit(request, who)
     return svc.followup(run_id, req, who)
 
 
@@ -145,7 +156,8 @@ def outcome_summary(city: str | None = None, by: str = Query(default="trigger", 
 
 @router.post("/qa", response_model=QAResponse)
 def qa(req: QARequest, request: Request, svc: RunService = Depends(runs),
-       who: Identity = Depends(require("조회"))) -> QAResponse:
+       who: Identity = Depends(require("검토"))) -> QAResponse:
+    _limit(request, who)
     out = svc.qa(req, who)
     request.state.run_id = out.run_id
     return out
