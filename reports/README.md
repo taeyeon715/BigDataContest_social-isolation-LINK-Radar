@@ -17,8 +17,11 @@
 | [EDA-6 사전 경보 재평가](eda6_사전경보재평가/README.md) | 3 |
 | [M1 기대 활동 모델](m1_기대활동모델/README.md) | 2 |
 | [M2 대리 과제 B (보조 과제)](m2_대리과제B/README.md) | 1 |
+| [M3 모델링 결과: 분류 성능과 위험 요인 확인](m3_모델링결과/README.md) | 3 |
 | [R-1 후보·등급 규칙 평가 (rules-v1.0)](r1_등급규칙/README.md) | 1 |
+| [R-2 위험도 결과표: 동 × 집단 × 기준일](r2_위험도결과/README.md) | 4 |
 | [W-1 자원 원장 보강](w1_자원원장/README.md) | 0 |
+| [W-2 자원 추천 평가 (작은 정답 세트)](w2_자원추천평가/README.md) | 0 |
 
 ## 그림 모음
 
@@ -81,8 +84,22 @@
 |---|---|
 | <a href="m2_대리과제B/README.md"><img src="m2_대리과제B/figs/f01_oof_scatter.png" width="420"></a><br>접기 밖 예측 대 실제 <sub>(2. 결과 (행정동 GroupKFold, 접기 밖 예측))</sub> |  |
 
+### [M3 모델링 결과: 분류 성능과 위험 요인 확인](m3_모델링결과/README.md)
+
+| | |
+|---|---|
+| <a href="m3_모델링결과/README.md"><img src="m3_모델링결과/figs/f01_confusion.png" width="420"></a><br>경보 규칙 혼동행렬 <sub>(① 경보 규칙을 분류기로 보기 (EDA-6 와 같은 쌍))</sub> | <a href="m3_모델링결과/README.md"><img src="m3_모델링결과/figs/f02_threshold_curve.png" width="420"></a><br>z 임계값 곡선 (탐지율·합성 오경보율·지연) <sub>(① 경보 규칙을 분류기로 보기 (EDA-6 와 같은 쌍))</sub> |
+| <a href="m3_모델링결과/README.md"><img src="m3_모델링결과/figs/f03_m3_pr_calibration.png" width="420"></a><br>M3: PR 곡선, 보정 곡선, permutation importance <sub>(② M3 이탈 분류 모델 (합성 정답))</sub> |  |
+
 ### [R-1 후보·등급 규칙 평가 (rules-v1.0)](r1_등급규칙/README.md)
 
 | | |
 |---|---|
 | <a href="r1_등급규칙/README.md"><img src="r1_등급규칙/figs/후보수_범위.png" width="420"></a><br>기준일·집단별 후보 수 (점 = 기본, 막대 = 임계값 범위) <sub>(3. 민감도와 후보 수 범위)</sub> |  |
+
+### [R-2 위험도 결과표: 동 × 집단 × 기준일](r2_위험도결과/README.md)
+
+| | |
+|---|---|
+| <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f01_map_gangnam.png" width="420"></a><br>강남 고령층 등급 지도 (기준일 3개) <sub>(3. 지도와 산점도)</sub> | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f02_map_chuncheon.png" width="420"></a><br>춘천 고령층 등급 지도 (기준일 3개) <sub>(3. 지도와 산점도)</sub> |
+| <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f03_structure_access.png" width="420"></a><br>구조(S1) × 접근성(A1) 산점도, 색 = 등급 <sub>(3. 지도와 산점도)</sub> | <a href="r2_위험도결과/README.md"><img src="r2_위험도결과/figs/f04_region_age.png" width="420"></a><br>지역 × 연령 비교 히트맵 <sub>(6. 지역 × 연령 비교 매트릭스)</sub> |
