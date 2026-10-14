@@ -97,7 +97,10 @@ def respond(request: Request, status: int, code: str, message: str) -> JSONRespo
 def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, exc: ApiError):
-        return respond(request, exc.status, exc.code, exc.message)
+        resp = respond(request, exc.status, exc.code, exc.message)
+        for k, v in (getattr(exc, "headers", None) or {}).items():  # 예: 429 Retry-After
+            resp.headers[k] = v
+        return resp
 
     @app.exception_handler(RequestValidationError)
     async def _invalid(request: Request, exc: RequestValidationError):

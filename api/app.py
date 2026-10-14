@@ -18,7 +18,11 @@
 - LINKRADAR_FAKE_DELAY: 가짜 실행이 끝나는 데 걸리는 초 (기본 1.5). real 에서 0 이면 그래프를 요청 안에서 바로 돌림
 - LINKRADAR_WEB_ORIGINS: 허용할 화면 주소 (쉼표로 구분, 기본 http://localhost:5173,http://127.0.0.1:5173)
 - LINKRADAR_ENV: `prod`면 /docs·/redoc·/openapi.json 을 끄고, 토큰 설정이 없으면 시작하지 않음 (기본 dev)
-- LINKRADAR_API_TOKEN / LINKRADAR_API_USER / LINKRADAR_API_ROLE / LINKRADAR_API_TOKENS_FILE: 인증 (api/auth.py)
+- LINKRADAR_API_TOKEN / LINKRADAR_API_USER / LINKRADAR_API_ROLE / LINKRADAR_API_TOKENS_FILE: 인증 (api/auth.py).
+  공용 토큰(LINKRADAR_API_TOKEN)의 기본 역할은 조회. prod 에서 공용 토큰에 검토·승인을 주면 시작하지 않음
+- LINKRADAR_RUN_RATE: 사용자별 실행 만들기·질의응답·이어 묻기 한도 "<횟수>/<초>" (api/limits.py).
+  prod 기본 20/600, dev 는 이 값을 줄 때만 켬. "0" 이면 끔
+- LINKRADAR_TEXT_RETENTION_DAYS: 질문·메모(가린 글) 보존 일수 (api/retention.py, 기본 365). 정리는 명령으로
 
 운영 메모
 - uvicorn 워커는 1개로 띄운다 (SQLite 저장소, api/store.py).
@@ -40,6 +44,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from api import errors, logs
 from api.auth import Auth
+from api.limits import DEFAULT_RATE, RateLimiter, parse_rate
 from api.routes import dashboard, runs, system
 from api.services.fake_data import KST
 from api.services.runs import RunService
@@ -127,6 +132,7 @@ def create_app(
     backend: str | None = None,
     tools_backend: str | None = None,
     llm: str | None = None,
+    run_rate: str | None = None,
 ) -> FastAPI:
     backend = (backend or os.environ.get("LINKRADAR_BACKEND", "fake")).strip().lower()
     if backend not in ("fake", "real"):
@@ -139,6 +145,11 @@ def create_app(
     prod = env == "prod"
     if prod and not auth.enabled:
         raise RuntimeError("LINKRADAR_ENV=prod 에서는 LINKRADAR_API_TOKEN 또는 LINKRADAR_API_TOKENS_FILE 이 필요합니다")
+    if prod:
+        auth.check_prod()
+    if run_rate is None:
+        run_rate = os.environ.get("LINKRADAR_RUN_RATE", DEFAULT_RATE if prod else "0")
+    rate = parse_rate(run_rate)
 
     logs.setup()
     app = FastAPI(
@@ -152,6 +163,7 @@ def create_app(
     app.state.auth = auth
     app.state.env = env
     app.state.backend = backend
+    app.state.run_limiter = RateLimiter(*rate) if rate else None
     clock = clock or (lambda: datetime.now(KST))
     if backend == "real":
         from bigcontest.agent.graph import Agent

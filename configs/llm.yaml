@@ -65,3 +65,10 @@ slots:
     effort: medium
     temperature: null
     max_sentences: 3
+
+# 실행 하나의 LLM 예산 (src/bigcontest/agent/budget.py). API 가 실행·검토 반영·이어 묻기마다 이 실행의 llm_calls 합에서
+# 시작해 세고, 넘으면 LLM 을 부르지 않고 규칙·템플릿으로 대신 (llm_calls.error_code = BUDGET_EXCEEDED).
+# 한 회차 최대 7번(classify 1 + 도구 선택 3 + 설명 3), 회차 3번 + 검토 반영·이어 묻기 몇 번을 넉넉히 덮는 값
+budget:
+  max_calls_per_run: 40
+  max_cost_usd_per_run: 1.0
