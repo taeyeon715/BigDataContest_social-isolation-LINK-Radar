@@ -131,7 +131,8 @@ def _tool_error(name: str, ctx, exc: BaseException):
     else:
         reason = f"{name} 실패 ({type(exc).__name__})" + (f": {exc}" if isinstance(exc, DataSourceError) else "")
     reason += " · 다시 시도 가능" if is_retriable(code) else " · 다시 시도해도 같은 결과"
-    eid, metric = f"ERR-{name.upper().replace('_', '')}", _METRIC_OF.get(name, name)
+    eid = f"ERR-{name.upper().replace('_', '')}"
+    metric = _METRIC_OF.get(name, name)
     if getattr(ctx, "backend", "stub") == "stub":
         from bigcontest.agent.tools import stubs
 
