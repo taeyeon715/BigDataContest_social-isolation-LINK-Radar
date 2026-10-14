@@ -1,0 +1,2 @@
+﻿run_id,started_at,stations,start,end,status,rows,raw_dir,message
+heat-20261014T134648,2026-10-14T13:46:48,강남=108 춘천=101,20250701,20251231,성공,368,external/weather/raw/heat-20261014T134648,

@@ -48,6 +48,8 @@ DEV_FILES: dict[str, str] = {
     "resident_hh": "external/resident/주민등록_세대원수별세대수_2025-07_12.csv",
     "seoul_living": "external/seoul_living/시민생활_10개관심집단_강남_2025-07_12.csv",
     "asos": "external/weather/kma_asos_daily_2025-07_12.csv",
+    "asos_heat": "external/weather/kma_asos_heat_2025-07_12.csv",  # 일 최고 체감온도 근사 (R4 특보 단계)
+    "welfare_recipients": "external/welfare/서울_기초생활수급자_동별_2024.csv",  # 서울 동별 수급자 (표시만)
     "resources": "external/resources/복지자원_원장_v2.csv",
     "adm_names": "ref/adm_cd_names.csv",
     "adm_code_map": "ref/adm_code_map.csv",
@@ -280,6 +282,48 @@ class DataSource:
         if end is not None:
             s = s[s.index <= pd.Timestamp(end)]
         return int((~s).sum())
+
+    def card2_visitors(self) -> pd.DataFrame:
+        """카드 데이터2 가맹점 도시 × 일 × 거주 구분(local) 결제건수 (본사등록 업종 제외, 모든 연령).
+        외지 손님 비중(같은 시도 밖 거주 고객) 계산용. 원천 행은 들고 있지 않고 합계만."""
+
+        def build():
+            d = pd.read_parquet(self.files["card2"], columns=["date", "city", "local", "USE_CNT"],
+                                filters=[("hq", "==", False)])
+            return d.groupby(["date", "city", "local"], observed=True)["USE_CNT"].sum().unstack("local").fillna(0.0)
+
+        return self._get("card2_visitors", build)
+
+    def card2_categories(self) -> pd.DataFrame:
+        """카드 데이터2 (같은 시도 거주, 패널과 같은 거르기) 도시 × 연령 × 성 × 일 × 업종(MCT_RY_CD) 결제건수.
+        업종 다양성(결제량 보정) 계산용."""
+
+        def build():
+            d = self.card2()
+            return d.groupby(["city", "age_g", "SEX_CCD", "date", "MCT_RY_CD"], observed=True)["USE_CNT"].sum()
+
+        return self._get("card2_categories", build)
+
+    def heat(self) -> pd.DataFrame:
+        """일 최고 체감온도 근사 (external/weather/kma_asos_heat_*.csv). 파일이 없는 스냅샷이면 빈 표."""
+        if "asos_heat" not in self.files:
+            return pd.DataFrame(columns=["city", "date", "tmax", "at_max", "at_max_hi"])
+        return self._get("heat", lambda: pd.read_csv(self.files["asos_heat"], parse_dates=["date"]))
+
+    def recipients(self) -> pd.DataFrame:
+        """서울 동별 기초생활수급자 (강남만, adm_cd). 파일이 없는 스냅샷이면 빈 표."""
+        from bigcontest.external import seoul_recipients
+
+        if "welfare_recipients" not in self.files:
+            return pd.DataFrame(columns=["adm_cd", "year", "households", "persons"])
+        return self._get("recipients", lambda: seoul_recipients(self.files["welfare_recipients"], self.files["adm_names"]))
+
+    def resident_pop(self) -> pd.DataFrame:
+        """주민등록 성·연령별 인구 (행정동 × 월 × 성 × 1세 연령)."""
+        from bigcontest.external import resident_population
+
+        return self._get("resident_pop",
+                         lambda: resident_population(self.files["resident_pop"], self.files["adm_code_map"]))
 
     def weather(self) -> pd.DataFrame:
         return self._get("weather", lambda: pd.read_csv(self.files["asos"], parse_dates=["date"]))
