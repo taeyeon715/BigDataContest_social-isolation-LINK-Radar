@@ -5,7 +5,10 @@
 | A | 구조(주민등록 1인세대) + 달력 + 대상 집단 |
 | B | A + 통신(구성·계절: 체류 구성, 춘천 읍·면 겨울 변화) |
 | C | B + 카드(시점·이탈: 결제 시계열, 기대값, 이탈 경보, 반증) |
-| D | C + 자원(관측 거점까지 직선거리) |
+| D | C + 자원(관측 거점까지 직선거리) + 수급자 비율(표시만) |
+
+rules-v1.1: A 에 주민등록 성연령(남성 집단의 대상 인구 비중)·1인세대 순증(표시), C 에 카드 맥락 3종(외지 손님·시간대 리듬·
+업종 다양성)을 넣는다.
 
 시민생활은 어느 비교안에도 입력으로 넣지 않는다 (탐색적 검증 참고, 설계 §7.1).
 도구는 실제 도구(고정 스냅샷)를 한 번만 부르고, 비교안마다 근거를 걸러 같은 규칙 엔진에 넣는다.
@@ -22,15 +25,17 @@ from bigcontest.agent.tools import signal as S
 from bigcontest.agent.tools.stubs import ToolContext
 from bigcontest.rules import LEVEL_ORDER, load_rules
 
-BASE_INPUTS = {"calendar_trigger", "target_group", "structure_vulnerability"}
+BASE_INPUTS = {"calendar_trigger", "target_group", "structure_vulnerability",
+               "structure_target_population", "one_person_net_change"}  # rules-v1.1: 주민등록 성연령·순증
+CARD_CONTEXT = {"holiday_visitor_context", "card_time_rhythm", "card_category_diversity"}  # rules-v1.1 카드 맥락
 VARIANT_INPUTS: dict[str, set[str]] = {
     "A": BASE_INPUTS,
     "B": BASE_INPUTS | {"mobility_layer", "winter_contraction"},
     "C": BASE_INPUTS | {"mobility_layer", "winter_contraction", "card_cohort_series", "expected_activity",
                         "cohort_deviation", "holiday_expectation", "city_common_factor", "weather_asos",
-                        "academic_calendar"},
+                        "academic_calendar"} | CARD_CONTEXT,
 }
-VARIANT_INPUTS["D"] = VARIANT_INPUTS["C"] | {"access_gap"}
+VARIANT_INPUTS["D"] = VARIANT_INPUTS["C"] | {"access_gap", "recipient_rate"}  # 수급자 비율은 표시만 (외부 구조)
 VARIANT_NAME = {"A": "주민등록 + 달력", "B": "A + 통신(구성·계절)", "C": "B + 카드(시점·이탈)", "D": "C + 자원(접근성)"}
 
 TOOLS = ("get_calendar_triggers", "check_request_contract", "get_structure", "get_mobility_layer",

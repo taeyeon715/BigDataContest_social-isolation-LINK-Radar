@@ -1,5 +1,5 @@
 """Signal 도구 (에이전트 설계 §5): 달력 트리거, 이탈 경보(기준일 카드), 반증, 연휴 깊이·회복, 겨울 변화, 폭염 반응,
-후보 종류 분류, 등급(configs/rules.yaml rules-v1.0).
+후보 종류 분류, 등급(configs/rules.yaml rules-v1.1).
 
 - 이탈 경보·반증은 signals/alarm.py 의 **기준일 카드**(records(as_of=...))만 쓴다. 카드 공급 지연(가정 3일)을 빼고
   자른 날까지의 자료로 다시 계산하므로 기준일 뒤 회복·결론이 보이지 않는다.
@@ -10,7 +10,7 @@
 - 폭염(R4)·기상특보(R6) 트리거: 기준일에 발표된 예보 기록만 쓸 수 있다. 2025년 예보 기록이 없으므로 기본은
   "예보 자료 없음 → 판단 보류/확인 필요"(EMPTY). 기준일 뒤 ASOS 실측을 쓰는 것은 `allow_scenario=True` 일 때만,
   **상황 시연(미래 실측 사용)** 으로 표시한 가설 근거로 만든다. strict_as_of 에서는 만들지 않고, 성능·기준일 평가에서 뺀다.
-- 등급(`assign_level`)은 configs/rules.yaml(rules-v1.0)과 bigcontest.rules 로 정한다. 접근성 근거(2026년 원장)는
+- 등급(`assign_level`)은 configs/rules.yaml(rules-v1.1)과 bigcontest.rules 로 정한다. 접근성 근거(2026년 원장)는
   과거 공개 시점을 모르면 "현재 원장 기준 접근성"으로 표시하고, strict_as_of 에서는 등급 축으로 세지 않는다.
 """
 
@@ -44,6 +44,8 @@ from bigcontest.contracts.claims import card_claim, claim_lists
 from bigcontest.contracts.inputs import evaluate_inputs
 from bigcontest.rules import legacy_thresholds, load_rules, rules_version
 from bigcontest.rules import candidates as RC
+from bigcontest.rules import context as X
+from bigcontest.rules.heat import heat_stage
 from bigcontest.rules.levels import Axes, decide, full_rule_id, rule_checks, rule_label
 
 DEVIATION_METRIC = "카드 결제건수 평소 대비 (이탈 경보)"
@@ -64,13 +66,13 @@ ALARM_RULE_FROM = "2025-07~12 전체로 정한 경보 규칙 (EDA-6 합성 주�
 RULE_CALIBRATED_UNTIL = date(2025, 12, 31)  # 경보 임계값·3A 채택 결정에 쓴 자료의 마지막 날
 ACCESS_CURRENT = "현재 원장 기준 접근성"
 
-# 등급 규칙: configs/rules.yaml (rules-v1.0). 예전 이름 STUB_LEVEL_RULES 는 같은 열쇠의 임계값 dict 로 남김
+# 등급 규칙: configs/rules.yaml (rules-v1.1). 예전 이름 STUB_LEVEL_RULES 는 같은 열쇠의 임계값 dict 로 남김
 # (다른 노드·실행 메타데이터가 access_far_km 등을 읽음)
 LEVEL_RULES = load_rules()
 STUB_LEVEL_RULES = legacy_thresholds(LEVEL_RULES)
 # 기상특보 근사 (일자료라 특보 기준과 같지 않음. 임시)
 WARN_RULES = {"호우": ("rain", ">=", 80.0), "대설": ("snow_new", ">=", 5.0), "한파": ("tmin", "<=", -12.0)}
-HEAT_TMAX = 33.0
+HEAT_TMAX = 33.0  # calc_heat_response(탐색)의 폭염일 정의. R4 트리거는 rules.yaml thresholds.heat (특보 단계)
 WINTER_MONTHS = (11, 12, 1, 2)
 RECOVERY_DAYS = 10
 
@@ -131,6 +133,13 @@ def get_calendar_triggers(ctx) -> list[ToolResult]:
         out.append(_trigger(ctx, "W", "W 동절기 (춘천 읍·면)", "춘천 읍·면", mstart, mstart,
                             "날짜 (계절 규칙)", warnings=["관광형 동(여름 방문객 비중 큼)은 따로 확인"],
                             simulated_available_at=mstart))
+    bundle = X.holiday_bundle(holiday_blocks(ds), ds.holiday_names(), as_of)
+    if bundle is not None:  # 명절 전·중·후 묶음 표시 (R1·R2·R3 를 한 사건으로)
+        elderly = req.group == "고령층" or (req.group is None and (req.age_min or 0) >= 60)
+        _, steps = X.holiday_timeline(bundle, as_of, city, elderly)
+        line = X.timeline_text(steps)
+        out = [e.model_copy(update={"warnings": [*e.warnings, line]})
+               if str(e.value)[:2] in ("R1", "R2", "R3") else e for e in out]
     ok_weather = [e for e in weather if e.status == "OK"]
     return (out + ok_weather or [empty(ctx, "TRG", TRIGGER_METRIC, "기준일에 해당하는 트리거 없음")]) + \
         [e for e in weather if e.status != "OK"]
@@ -160,11 +169,11 @@ def weather_triggers(ctx, ds) -> list[ToolResult]:
     rows = w.reindex(targets)
     grain = f"관측소 × 일 (서울 108 / 춘천 101) · {SCENARIO_FLAG}"
     out = []
-    hot = rows[rows["tmax"] >= HEAT_TMAX]
-    if len(hot):
-        d = hot.index[0].date()
-        out.append(_trigger(ctx, "R4-SCN", f"R4 폭염 [{SCENARIO_FLAG}] (최고 {HEAT_TMAX:g}℃ 이상, {d:%m/%d} 실측)",
-                            city, d, d, grain, "asos", [SCENARIO_NOTE], "가설"))
+    stage, heat_note = r4_stage(ds, city, targets)
+    if stage:
+        d = targets[0].date()
+        out.append(_trigger(ctx, "R4-SCN", f"R4 {stage} [{SCENARIO_FLAG}] ({heat_note})",
+                            city, d, targets[-1].date(), grain, "asos_heat", [SCENARIO_NOTE, HEAT_RULE_NOTE], "가설"))
     for kind, (col, op, thr) in WARN_RULES.items():
         hit = rows[rows[col] >= thr] if op == ">=" else rows[rows[col] <= thr]
         if len(hit):
@@ -174,6 +183,33 @@ def weather_triggers(ctx, ds) -> list[ToolResult]:
                                 [SCENARIO_NOTE, f"특보 기준 근사: 일자료 {col} {op} {thr:g} ({TEMP_RULE_NOTE})"],
                                 "가설"))
     return out
+
+
+HEAT_RULE_NOTE = ("R4 폭염 특보 단계 근사 (rules.yaml thresholds.heat): 일 최고 체감온도 = 기상청 여름철 체감온도 식"
+                  "(일 최고기온 × 일 최소 상대습도). 주의보 33℃·경보 35℃ 2일 이상, 중대경보 체감 38℃ 또는 기온 39℃. "
+                  "특보 발표 기록이 아님")
+
+
+def r4_stage(ds, city: str, targets: list[pd.Timestamp]) -> tuple[str | None, str]:
+    """기준일·다음 날 체감온도 → (특보 단계, 설명). 체감온도 파일이 없으면 (None, 사유)."""
+    hd = ds.heat()
+    if hd is None or not len(hd):
+        return None, "체감온도 자료 없음"
+    hd = hd[hd["city"] == city].set_index("date").reindex(targets)
+    days = [(None if pd.isna(a) else float(a), None if pd.isna(t) else float(t))
+            for a, t in zip(hd["at_max"], hd["tmax"])]
+    stage = heat_stage(days, LEVEL_RULES)
+    note = ", ".join(f"{d:%m/%d} 체감 {'-' if a is None else f'{a:.1f}'}℃·최고 {'-' if t is None else f'{t:.1f}'}℃"
+                     for d, (a, t) in zip(targets, days))
+    return stage, f"{note} 실측"
+
+
+def stage_of_trigger(text: str | None) -> str | None:
+    """트리거 문장 → 폭염 특보 단계 (없으면 None)."""
+    for name in ("폭염중대경보", "폭염경보", "폭염주의보"):
+        if name in (text or ""):
+            return name
+    return None
 
 
 def is_scenario(ev: ToolResult) -> bool:
@@ -435,7 +471,32 @@ def check_confounders(ctx) -> list[ToolResult]:
                             warnings=[n3, f"창 안 비 온 날 {r['rain_days_in_window']}"],
                             **{**base, "measured_grain": "관측소 × 일 (서울 108 / 춘천 101)"}))
         out.append(empty(ctx, f"CF4-{key}", "반증: 학사일정", "학사일정 미수집. 반증에서 빠짐 (선택 맥락)"))
+        vc = _visitor_context(ctx, r, cutoff)
+        if vc is not None:
+            out.append(envelope(ctx, f"CF5-{key}", "card2", metric=VISITOR_METRIC, value=vc.verdict,
+                                warnings=[vc.text(), VISITOR_NOTE],
+                                **{**base, "observed_from": vc.block[0], "observed_to": min(vc.block[1], cutoff),
+                                   "simulated_available_at": min(vc.block[1], cutoff) + timedelta(days=lag_days("card2")),
+                                   "measured_grain": "가맹점 시군구 × 일 × 고객 거주 시도(같은 시도/다른 시도)",
+                                   "analysis_cohort": None, "is_shared_context": True}))
     return out
+
+
+VISITOR_METRIC = "반증 맥락: 연휴 외지 손님 비중"
+VISITOR_NOTE = ("도시 단위 맥락 (rules.yaml card_context): 외지 손님이 늘었다는 것은 연휴 이동이 있었다는 뜻일 뿐, "
+                "이 코호트 주민이 떠났거나 가족을 만났다는 증거가 아님. 자동 기각하지 않음")
+HOLIDAY_TRAVEL_NOTE = "도시 공통 하락 + 연휴 외지 손님 급증 (연휴 이동과 일관)"
+
+
+def _visitor_context(ctx, r, cutoff) -> X.VisitorContext | None:
+    """경보 창에 걸친 연휴가 있으면 그 연휴의 외지 손님 비중 (기준일 카드까지). 없으면 None."""
+    ds = open_datasource(ctx.snapshot_id)
+    alarm, w0 = _d(r["alarm_date"]), _d(r["window_start"])
+    blocks = [b for b in holiday_blocks(ds) if b[0] - timedelta(days=1) <= alarm and b[1] + timedelta(days=1) >= w0]
+    if not blocks:
+        return None
+    hol = {d.date() for d in ds.holidays()}
+    return X.visitor_context(ds.card2_visitors(), r["city"], blocks[-1], hol, cutoff, LEVEL_RULES)
 
 
 def _holiday_path_review(ctx, r, cutoff) -> tuple[str, str] | None:
@@ -519,11 +580,12 @@ def calc_winter_contraction(ctx) -> list[ToolResult]:
     if ctx.request.city != "춘천":
         return [empty(ctx, "WIN", WINTER_METRIC, "춘천 읍·면만 해당")]
     ds = open_datasource(ctx.snapshot_id)
+    rhythm = calc_time_rhythm(ctx)
     months = [m.base_month for m in usable_months("tel_age", ctx.as_of, ctx.analysis_mode)]
     summer = [m for m in ("202507", "202509") if m in months]
     winter = [m for m in ("202511", "202512") if m in months]
     if not summer or not winter:
-        return [empty(ctx, "WIN", WINTER_METRIC, "이번 겨울(11·12월) 통신 자료가 기준일에 아직 공개 전 (가정 공개일 기준)")]
+        return [empty(ctx, "WIN", WINTER_METRIC, "이번 겨울(11·12월) 통신 자료가 기준일에 아직 공개 전 (가정 공개일 기준)")] + rhythm
 
     def compute():
         from bigcontest.telecom import AGE_COLS, WKDY_COLS, age_cols, grid_id
@@ -576,7 +638,40 @@ def calc_winter_contraction(ctx) -> list[ToolResult]:
                   f"같은 격자 전 연령 변화 {chall:+.3f}, 차이 {ch60 - chall:+.3f}; 동지역 주민형 60+ {dong60:+.3f}",
                   "주민형 격자는 운영상 대리 규칙(밤 체류·주말 비율). 주민 확인 아님",
                   "6개월 자료라 매년 반복되는 계절 변화인지 미확인 (재현된 계절 수축 아님)"],
-        value_state="observed")]
+        value_state="observed")] + rhythm
+
+
+RHYTHM_METRIC = "카드 시간대 상대 리듬 (고령 − 40대 오전 결제 비중)"
+
+
+def calc_time_rhythm(ctx) -> list[ToolResult]:
+    """카드 데이터1: 같은 달 안에서 고령(60대·70대·80대+) 오전(6~11시) 결제 비중 − 40대 비중 (rules-v1.1 맥락).
+    일조 때문에 모든 연령의 오전 비중이 함께 바뀌는 효과를 연령 간 차이로 일부 지운다. 등급 입력 아님."""
+    city = ctx.request.city
+    cutoff = daily_cutoff("card1", ctx.as_of, ctx.analysis_mode)
+    if cutoff is None:
+        return [empty(ctx, "WIN-TOD", RHYTHM_METRIC, "TIME_AVAILABILITY_UNKNOWN: 카드 실제 공개일을 몰라 strict_as_of 에서 쓰지 않음")]
+    ds = open_datasource(ctx.snapshot_id)
+    band = LEVEL_RULES["thresholds"]["card_context"]["rhythm_band"]
+    t = ds.cached(("rhythm", city, cutoff, band), lambda: X.time_rhythm(ds.card1(), city, cutoff, band))
+    if len(t) < 2:
+        return [empty(ctx, "WIN-TOD", RHYTHM_METRIC, f"{cutoff}까지 관측일 20일 이상인 달이 2개 미만")]
+    first, last = t.index[0], t.index[-1]
+    ch = float(t.loc[last, "차이"] - t.loc[first, "차이"])
+    valid, forbidden = claim_lists("card1", is_shared_context=True)
+    return [envelope(
+        ctx, "WIN-TOD", "card1", metric=RHYTHM_METRIC, value=round(float(t.loc[last, "차이"]), 3),
+        unit="비중 차이", denominator="같은 연령 그 달 카드 데이터1 결제 (모든 시간대), 고령 − 40대", n_obs=len(t),
+        direction="감소" if ch < -0.01 else ("증가" if ch > 0.01 else "변화 없음"),
+        measured_grain="가맹점 시군구 × 월 × 시간대(4구간) × 연령 (카드 데이터1)", applied_scope=f"{city} 가맹점 (거주지 모름)",
+        is_shared_context=True, analysis_cohort="60대·70대·80대+ vs 40대",
+        observed_from=date(2025, first, 1), observed_to=min(cutoff, (pd.Timestamp(2025, last, 1) + pd.offsets.MonthEnd(0)).date()),
+        simulated_available_at=cutoff + timedelta(days=lag_days("card1")), interpretation_status="계산 재현",
+        valid_claims=valid, forbidden_claims=forbidden + ["거주자 단정", "외출 감소 단정", "재현된 계절 수축"],
+        value_state="observed", claim_category="전체 업종",
+        warnings=["달마다 차이: " + ", ".join(f"{m}월 {v * 100:+.1f}%p" for m, v in t["차이"].items()),
+                  f"{first}월 대비 {last}월 {ch * 100:+.1f}%p (고령 오전 비중이 40대보다 {'덜' if ch < 0 else '더'} 높아짐)",
+                  "맥락만 (등급 입력 아님): 카드 데이터1은 거주지가 없어 외지인이 섞이고, 한 해 관측이라 계절 반복 미확인"])]
 
 
 # ---------------------------------------------------------------- 폭염 반응 (탐색)
@@ -652,6 +747,13 @@ INPUT_OF_METRIC = {
     "시민생활 '소통 적음' 비중 (탐색적 참고)": "validation_reference",
     "시민생활 '외출·소통 모두 적음' 비율 (탐색적 참고)": "validation_reference",
     WINTER_METRIC: "winter_contraction",
+    # rules-v1.1 맥락
+    "대상 성·연령 인구 비중": "structure_target_population",
+    "기초생활수급자 비율 (구조 별도 칸, 표시만)": "recipient_rate",
+    "1인세대 월 순증률 (전입 맥락, 표시만)": "one_person_net_change",
+    "반증 맥락: 연휴 외지 손님 비중": "holiday_visitor_context",
+    "카드 시간대 상대 리듬 (고령 − 40대 오전 결제 비중)": "card_time_rhythm",
+    "카드 업종 다양성 (결제량 보정, 평소 대비)": "card_category_diversity",
 }
 REQUIRED_CONFOUNDERS = ("holiday_expectation", "city_common_factor", "weather_asos")
 CITY_LEVEL_SCHEDULED = ("calendar_trigger", "target_group", "card_cohort_series", "validation_reference",
@@ -681,14 +783,34 @@ def _struct_items(structs: list[ToolResult]) -> list[tuple[str, str | None, floa
             if isinstance(e.value, (int, float)) and adm_of(e)]
 
 
-def structure_facts(structs: list[ToolResult], rules: dict | None = None):
-    """구조 근거 → adm → StructFact. 순위는 근거의 '순위 모집단'(도시 × 월 전체)을 씀."""
-    return RC.structure_facts(_struct_items(structs), rules or LEVEL_RULES)
+TARGET_RE = re.compile(r"대상 인구 모집단: .*? (?P<who>\d+~\d+세 \S+) 비중 중앙값 (?P<med>[0-9.]+)")
 
 
-def structure_tops(structs: list[ToolResult], rules: dict | None = None) -> dict[str, tuple[float, int, int]]:
+def target_items(pops: list[ToolResult] | None) -> dict[str, tuple[float, float, str]]:
+    """대상 성·연령 인구 비중 근거 → adm → (비중, 도시 중앙값, 대상 이름). 중앙값은 근거 경고에서 읽음."""
+    out = {}
+    for e in pops or []:
+        if e.status != "OK" or not isinstance(e.value, (int, float)):
+            continue
+        m = next((TARGET_RE.search(w) for w in e.warnings if TARGET_RE.search(w)), None)
+        if m and adm_of(e):
+            out[adm_of(e)] = (float(e.value), float(m.group("med")), m.group("who"))
+    return out
+
+
+def structure_facts(structs: list[ToolResult], rules: dict | None = None, pops: list[ToolResult] | None = None):
+    """구조 근거 → adm → StructFact. 순위는 근거의 '순위 모집단'(도시 × 월 전체)을 씀.
+    pops(대상 성·연령 인구 비중 근거)가 있으면 남성 집단의 구조 상위 조건을 더함 (rules-v1.1)."""
+    if pops is None:  # 섞인 근거 목록을 받으면 대상 인구 비중 근거를 같이 쓴다
+        pops = [e for e in structs if input_of(e) == "structure_target_population"]
+    structs = [e for e in structs if input_of(e) in (None, "structure_vulnerability")]
+    return RC.structure_facts(_struct_items(structs), rules or LEVEL_RULES, target_items(pops))
+
+
+def structure_tops(structs: list[ToolResult], rules: dict | None = None,
+                   pops: list[ToolResult] | None = None) -> dict[str, tuple[float, int, int]]:
     """도시 안 1인세대 비율 상위 동 → (값, 순위, 동 수). 상위 비율 + 절대 최소값 (rules.yaml thresholds.structure)."""
-    return {a: (f.value, f.rank, f.n) for a, f in structure_facts(structs, rules).items() if f.top}
+    return {a: (f.value, f.rank, f.n) for a, f in structure_facts(structs, rules, pops).items() if f.top}
 
 
 def _ok_by_input(evidence: list[ToolResult]) -> dict[str, list[ToolResult]]:
@@ -731,8 +853,15 @@ def classify_candidate_type(evidence: list[ToolResult], req: NormalizedRequest, 
         cohort = (target.analysis_cohort if target else None) or cc.get("analysis_cohort") or "미확인"
         group = (target.service_eligibility_group if target else None) or cc.get("service_eligibility_group")
 
+        guidance = RC.city_guidance(group, rules)
+        # 도시 단위 안내 (rules-v1.1 city_guidance, 청년 남성): 동을 고르지 않고 사건마다 한 건
+        # (W 동절기는 읍·면 계절 공동화 규칙이라 도시 단위 안내에 쓰지 않음)
+        g_trig = [t for t in triggers if not str(t.value).startswith("W")]
+        if guidance:
+            if g_trig:
+                out.append(_city_guidance(next_id(), city, g_trig, target, cohort, group, have))
         # 예정된 점검 (진입: 트리거 + 동마다 구조 상위 또는 접근성 근거, rules.yaml candidate_types)
-        if triggers:
+        elif triggers:
             by_adm: dict[str | None, list[ToolResult]] = {}
             names: dict[str | None, ToolResult] = {}
             for key in ("structure_vulnerability", "access_gap"):
@@ -742,7 +871,8 @@ def classify_candidate_type(evidence: list[ToolResult], req: NormalizedRequest, 
             ctx_by_adm: dict[str | None, list[str]] = {}
             for e in have.get("validation_reference", []):
                 ctx_by_adm.setdefault(adm_of(e), []).append(e.evidence_id)
-            facts = structure_facts(have.get("structure_vulnerability", []), rules)
+            facts = structure_facts(have.get("structure_vulnerability", []), rules,
+                                    have.get("structure_target_population"))
             acc = {adm_of(e): e for e in have.get("access_gap", [])}
             need_axis = rules["candidate_types"]["scheduled_access_review"].get("require_axis_for_entry", True)
             if not by_adm:
@@ -773,9 +903,11 @@ def classify_candidate_type(evidence: list[ToolResult], req: NormalizedRequest, 
 
         # 예상 밖 이탈
         structs = have.get("structure_vulnerability", [])
-        tops = structure_tops(structs, rules)
+        tops = structure_tops(structs, rules, have.get("structure_target_population"))
         ranked = sorted(tops, key=lambda a: tops[a][1])[:3]
         first = ranked or [adm_of(e) for e in sorted(structs, key=lambda e: -float(e.value or 0))[:2]]
+        if guidance:  # 도시 단위 안내 집단: 1인세대 상위 동을 "먼저 확인할 동"으로 붙이지 않음
+            first = []
         series_by_cohort = {e.analysis_cohort: e for e in have.get("card_cohort_series", [])}
         for dev in have.get("cohort_deviation", []):
             key = signal_key(dev.evidence_id)
@@ -806,6 +938,27 @@ def classify_candidate_type(evidence: list[ToolResult], req: NormalizedRequest, 
     return out
 
 
+def _city_guidance(cid, city, triggers, target, cohort, group, have) -> Candidate:
+    """도시 단위 안내 후보 (rules-v1.1 city_guidance). 동 없음, 필수 근거 = 트리거 + 대상 집단."""
+    avail = {"calendar_trigger"} | ({"target_group"} if target else set())
+    avail |= {k for k in ("card_cohort_series", "validation_reference") if have.get(k)}
+    chk = evaluate_inputs("도시 단위 안내", avail)
+    codes = [RC.trigger_code(str(t.value)) or "R?" for t in triggers]
+    main = triggers[RC.primary_trigger(codes)]
+    code = RC.trigger_code(str(main.value)) or "R?"
+    start = main.observed_from or main.as_of
+    ids = [t.evidence_id for t in triggers] + ([target.evidence_id] if target else [])
+    ids += [e.evidence_id for e in have.get("validation_reference", [])]
+    return Candidate(
+        candidate_id=cid, candidate_type="scheduled_access_review", city=city, adm_cd=None,
+        analysis_cohort=cohort, service_eligibility_group=group,
+        trigger="; ".join(str(t.value) for t in triggers), input_status=chk.status,
+        missing_inputs=chk.missing_required, counter_result="해당 없음", evidence_ids=list(dict.fromkeys(ids)),
+        event_id=RC.event_id(city, code, start),
+        event_opened_at=main.simulated_available_at or main.actual_available_at,
+        **_event_extras(triggers, city, group))
+
+
 def _scheduled(cid, city, adm, evs, ok_trig, city_level, target, cohort, group, ctx_ids, have) -> Candidate:
     """예정된 점검 후보 하나 (event_id: 우선 트리거의 사건, 생성일: 트리거 공개일)."""
     winter = any(str(t.value).startswith("W") for t in ok_trig)
@@ -829,7 +982,29 @@ def _scheduled(cid, city, adm, evs, ok_trig, city_level, target, cohort, group, 
         analysis_cohort=cohort, service_eligibility_group=group,
         trigger="; ".join(str(t.value) for t in ok_trig), input_status=chk.status,
         missing_inputs=chk.missing_required, counter_result="해당 없음", evidence_ids=ids,
-        event_id=RC.event_id(city, code, start), event_opened_at=opened)
+        event_id=RC.event_id(city, code, start), event_opened_at=opened, **_event_extras(ok_trig, city, group))
+
+
+def _event_extras(triggers: list[ToolResult], city: str, group: str | None) -> dict:
+    """명절 묶음(R1·R2·R3 → event_bundle_id, event_timeline)과 폭염 특보 단계 (rules-v1.1, 표시용)."""
+    out: dict = {}
+    text = "; ".join(str(t.value) for t in triggers)
+    stage = stage_of_trigger(text)
+    if stage and "R4" in text:
+        out["heat_stage"] = stage
+    hol = [t for t in triggers if str(t.value)[:2] in ("R1", "R2", "R3")]
+    if hol:
+        t = hol[0]
+        try:
+            ds = open_datasource(t.snapshot_id)
+            bundle = X.holiday_bundle(holiday_blocks(ds), ds.holiday_names(), t.as_of)
+        except Exception:  # noqa: BLE001 — 가짜 도구 근거 등 스냅샷이 없으면 묶음 표시만 뺀다
+            bundle = None
+        if bundle is not None:
+            elderly = RC.group_of_label(group) == "고령층"
+            bid, steps = X.holiday_timeline(bundle, t.as_of, city, elderly)
+            out["event_bundle_id"], out["event_timeline"] = bid, steps
+    return out
 
 
 def judge_counter(c: Candidate, conf: dict[str, ToolResult]) -> tuple[str, str]:
@@ -845,20 +1020,31 @@ def judge_counter(c: Candidate, conf: dict[str, ToolResult]) -> tuple[str, str]:
     def note(e: ToolResult) -> str:
         return next((w for w in e.warnings if not w.startswith(("가정한 공개 시점", "검토 결정일", "가짜 도구"))), "")
 
+    travel = conf.get("holiday_visitor_context")
+    travel_ok = travel is not None and travel.status == "OK" and travel.value in ("이동과 일관", "이동 신호 없음")
     if any(e.value == "검토 중" for e in oks):
-        return "보류", f"{REVIEW_PENDING_NOTE} (검토 결정일이 기준일 뒤라 결론을 쓰지 않음)"
+        return "보류", f"{REVIEW_PENDING_NOTE} (검토 결정일이 기준일 뒤라 결론을 쓰지 않음)" + (
+            f"; 연휴 외지 손님 비중(맥락): {note(travel)}" if travel_ok else "")
     rejected = [e for e in oks if e.value == "기각"]
     if rejected:
-        return "기각", "; ".join(f"{e.metric}: {note(e)}" for e in rejected)
+        return "기각", "; ".join(f"{e.metric}: {note(e)}" for e in rejected) + (
+            f"; 연휴 외지 손님 비중(맥락): {note(travel)}" if travel_ok else "")
     path = [e for e in oks if e.value == "기대 경로 안"]
     if path:
         return "기각", "; ".join(f"{e.metric}: {note(e)}" for e in path)
     if any(e.value == "공통 변화" for e in oks):
+        if travel is not None and travel.status == "OK" and travel.value == "이동과 일관":
+            return "보류", (f"{HOLIDAY_TRAVEL_NOTE}: {note(travel)}. 기각하지 않고 연휴 뒤 기대 경로가 끝난 뒤 "
+                           f"평소 수준 회복을 확인 ({CITY_COMMON_NOTE})")
+        if travel is not None and travel.status == "OK" and travel.value == "이동 신호 없음":
+            return "보류", f"{CITY_COMMON_NOTE}; 연휴 외지 손님 급증 없음 → 연휴 이동으로 설명할 근거도 약함 ({note(travel)})"
         return "보류", CITY_COMMON_NOTE
     held = [e for e in oks if e.value == "보류"]
     if held:
         return "보류", "; ".join(f"{e.metric}: {note(e)}" for e in held)
     reason = "반증 통과 (공휴일 기대값·도시 공통요인으로 설명되지 않음)"
+    if travel_ok:
+        reason += f"; 연휴 외지 손님 비중(맥락): {note(travel)}"
     partial = [e for e in oks if e.value in ("설명 일부", "판정 불가")]
     if partial:
         reason += "; " + "; ".join(f"{e.metric} {e.value}: {note(e)}" for e in partial)
@@ -870,12 +1056,12 @@ def confounders_for(c: Candidate, evidence: list[ToolResult]) -> dict[str, ToolR
     out: dict[str, ToolResult] = {}
     for e in evidence:
         key = input_of(e)
-        if key in (*REQUIRED_CONFOUNDERS, "academic_calendar") and e.evidence_id in ids:
+        if key in (*REQUIRED_CONFOUNDERS, "academic_calendar", "holiday_visitor_context") and e.evidence_id in ids:
             out[key] = e
     return out
 
 
-# ---------------------------------------------------------------- 등급 (rules-v1.0)
+# ---------------------------------------------------------------- 등급 (rules-v1.1)
 
 
 def access_known_at_as_of(e: ToolResult) -> bool:
@@ -955,6 +1141,7 @@ def assign_level(candidates: list[Candidate], evidence: list[ToolResult], rules:
         rules = LEVEL_RULES  # 예전 호출(STUB_LEVEL_RULES dict)도 받음
     ver = rules_version(rules)
     structs: list[ToolResult] = []
+    pops: list[ToolResult] = []
     access_ev: dict[str | None, ToolResult] = {}
     by_id = {e.evidence_id: e for e in evidence}
     for e in evidence:
@@ -962,14 +1149,18 @@ def assign_level(candidates: list[Candidate], evidence: list[ToolResult], rules:
             continue
         if input_of(e) == "structure_vulnerability":
             structs.append(e)
+        elif input_of(e) == "structure_target_population":
+            pops.append(e)
         elif input_of(e) == "access_gap":
             access_ev[adm_of(e)] = e
-    facts = structure_facts(structs, rules)
+    facts = structure_facts(structs, rules, pops)
     out = []
     for c in candidates:
         used = [by_id[i] for i in c.evidence_ids if i in by_id]
         ax = Axes(candidate_type=c.candidate_type, input_status=c.input_status, missing_inputs=list(c.missing_inputs),
-                  counter_result=c.counter_result, counter_reason=c.counter_reason, trigger=c.trigger)
+                  counter_result=c.counter_result, counter_reason=c.counter_reason, trigger=c.trigger,
+                  city_guidance=RC.city_guidance(c.service_eligibility_group, rules) and not c.adm_cd,
+                  holiday_travel=c.counter_result == "보류" and (c.counter_reason or "").startswith(HOLIDAY_TRAVEL_NOTE))
         current = False
         if c.candidate_type == "scheduled_access_review":
             ax.structure = facts.get(c.adm_cd) if c.adm_cd else None
@@ -988,8 +1179,122 @@ def assign_level(candidates: list[Candidate], evidence: list[ToolResult], rules:
             **c.model_dump(), "candidate_level": level, "level_reason": f"{d.reason} {rule_label(d, rules)}",
             "rule_id": full_rule_id(d), "rule_version": ver, "rule_checks": rule_checks(ax, rules), "decided_at": as_of or c.decided_at,
             "evidence_confidence": ax.confidence,
-            "response_type": RC.response_type(level, c.service_eligibility_group, rules)}))
+            "response_type": RC.response_type(level, c.service_eligibility_group, rules, d.rule_id),
+            "context": candidate_context(c, evidence, used, ax.structure, rules)}))
     return out
+
+
+# ---------------------------------------------------------------- 후보 맥락 (rules-v1.1, 표시만)
+
+ECONOMIC_CAUSE = "경제 취약형"
+_RANK_RE2 = re.compile(r"(\d+)/(\d+)위")
+
+
+def _rank_of(e: ToolResult) -> tuple[int, int] | None:
+    for w in e.warnings:
+        m = _RANK_RE2.search(w)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    return None
+
+
+def recipient_top(e: ToolResult, rules: dict | None = None) -> bool:
+    """수급자 비율 근거가 도시 안 상위(rules.yaml context_only.recipients.top_share)인가."""
+    r = _rank_of(e)
+    if r is None:
+        return False
+    share = (rules or LEVEL_RULES).get("context_only", {}).get("recipients", {}).get("top_share", 0.3)
+    return r[0] <= max(1, math.ceil(share * r[1]))
+
+
+def _first_warning(e: ToolResult) -> str:
+    return next((w for w in e.warnings if not w.startswith(("가정한 공개 시점", "가짜 도구"))), "")
+
+
+def _ctx(name, text, role="맥락", value=None, unit=None, scope=None, ev=None, affects=False) -> dict:
+    return {"name": name, "text": text, "role": role, "value": value, "unit": unit, "scope": scope,
+            "evidence_id": ev.evidence_id if ev is not None else None, "affects_level": affects}
+
+
+def candidate_context(c: Candidate, evidence: list[ToolResult], used: list[ToolResult], sf, rules: dict) -> list[dict]:
+    """후보 → 맥락 칸 목록 (schemas.ContextSignal). 등급·순서에 쓰지 않음 (대상 인구 비중만 구조 상위 조건)."""
+    out: list[dict] = []
+    city_ev = [e for e in evidence if e.status in ("OK", "EMPTY") and (city_of_evidence(e) or c.city) == c.city]
+    adm = c.adm_cd  # 동 단위 맥락은 그 동 후보에만 (이탈 후보의 '먼저 확인할 동'에는 붙이지 않음)
+    by_key: dict[str, list[ToolResult]] = {}
+    for e in city_ev:
+        k = input_of(e)
+        if k:
+            by_key.setdefault(k, []).append(e)
+
+    def one(key: str, where: str | None) -> ToolResult | None:
+        return next((e for e in by_key.get(key, []) if e.status == "OK" and adm_of(e) == where), None)
+
+    guidance = RC.city_guidance(c.service_eligibility_group, rules) and not c.adm_cd
+    if sf is not None and sf.target_ok is not None and c.adm_cd:
+        applied = bool((rules["thresholds"]["structure"].get("target_population") or {}).get("apply_to_structure"))
+        tail = (f"구조 상위 조건 {'충족' if sf.target_ok else '미충족'}" if applied
+                else "표시만 (등급 조건 아님: 강남에서 근거와 반대로 움직여 채택 안 함, rules.yaml)")
+        out.append(_ctx(f"{sf.target_label} 인구 비중",
+                        f"{sf.target_label} 인구 비중 {sf.target_share:.3f} (도시 중앙값 {sf.target_median:.3f} "
+                        f"{'이상' if sf.target_ok else '미만'}) → {tail}",
+                        "구조 별도 칸", round(sf.target_share, 4), "비율", sf.adm_cd,
+                        one("structure_target_population", sf.adm_cd), applied))
+    if adm and not guidance:
+        rec = one("recipient_rate", adm)
+        if rec is not None:
+            top = recipient_top(rec, rules)
+            out.append(_ctx("기초생활수급자 비율",
+                            f"수급자 비율 {float(rec.value):.1%} ({_first_warning(rec)})"
+                            + (f" → 원인 유형에 '{ECONOMIC_CAUSE}' 추가" if top else "") + ". 등급에 쓰지 않음",
+                            "구조 별도 칸", rec.value, "비율", rec.applied_scope, rec))
+        net = one("one_person_net_change", adm)
+        if net is not None:
+            out.append(_ctx("1인세대 월 순증률",
+                            f"전월 대비 1인세대 {float(net.value):+.2%} ({_first_warning(net)}). 전입 맥락 표시만",
+                            "맥락", net.value, "비율", net.applied_scope, net))
+    no_rec = next((e for e in by_key.get("recipient_rate", []) if e.status == "EMPTY"), None)
+    if no_rec is not None and c.candidate_type == "scheduled_access_review":
+        out.append(_ctx("기초생활수급자 비율", _first_warning(no_rec), "구조 별도 칸", scope=c.city, ev=no_rec))
+    # 카드 맥락 (도시 단위)
+    cf5 = next((e for e in used if input_of(e) == "holiday_visitor_context" and e.status == "OK"), None)
+    if cf5 is not None:
+        out.append(_ctx("연휴 외지 손님 비중", _first_warning(cf5), "반증 맥락", cf5.value, None, f"{c.city} (도시)", cf5))
+    rhythm = next((e for e in by_key.get("card_time_rhythm", []) if e.status == "OK"), None)
+    if rhythm is not None and "W" in [RC.trigger_code(p.strip()) for p in (c.trigger or "").split(";")]:
+        out.append(_ctx("카드 시간대 상대 리듬",
+                        f"{rhythm.warnings[1]} ({rhythm.warnings[0]}). 겨울 수축의 맥락만, 재현된 계절 수축 아님",
+                        "맥락", rhythm.value, "비중 차이", f"{c.city} 가맹점 (도시)", rhythm))
+    divs = [e for e in by_key.get("card_category_diversity", []) if e.status == "OK"
+            and (c.candidate_type == "scheduled_access_review" or e.analysis_cohort == c.analysis_cohort)]
+    if divs:
+        parts = ", ".join(f"{e.analysis_cohort} {float(e.value):.2f}" for e in divs[:6])
+        out.append(_ctx("카드 업종 다양성 (평소 대비)",
+                        f"결제 200건당 업종 수 최근 7일 ÷ 평소: {parts}. 결제량 보정한 생활 폭 대리, 등급에 쓰지 않음",
+                        "맥락", round(float(np.mean([e.value for e in divs])), 3), "평소 대비 비율",
+                        f"{c.city} (도시 × 코호트)", divs[0]))
+    if guidance:
+        lv = [e for e in city_ev if e.status == "OK" and e.metric == "카드 결제건수 최근 7일 평소 대비"]
+        if lv:
+            out.append(_ctx("카드 성별 신호 (최근 7일 평소 대비)",
+                            ", ".join(f"{e.analysis_cohort} {float(e.value):.2f}" for e in lv)
+                            + " (도시 단위, 동을 가리키지 않음)",
+                            "맥락", round(float(np.mean([e.value for e in lv])), 3), "평소 대비 비율",
+                            f"{c.city} (도시 × 코호트)", lv[0]))
+        val = sorted([e for e in by_key.get("validation_reference", []) if e.status == "OK"
+                      and isinstance(e.value, (int, float))], key=lambda e: -float(e.value))[:3]
+        if val:
+            names = ", ".join(f"{(e.applied_scope or '').split(' (')[0].replace(c.city + ' ', '')} {float(e.value):.2%}"
+                              for e in val)
+            out.append(_ctx("시민생활 '외출·소통 모두 적음' 상위 동 (탐색적 참고)",
+                            f"{names}. 등급·순서 입력 아님 (같은 공급자, 관측 기간 미확인)", "맥락", None, None,
+                            c.city, val[0]))
+    return out
+
+
+def economic_vulnerable(c: Candidate) -> bool:
+    """원인 유형 '경제 취약형'을 붙일 후보인가 (맥락의 수급자 비율이 도시 안 상위)."""
+    return any(x.name == "기초생활수급자 비율" and ECONOMIC_CAUSE in x.text for x in c.context)
 
 
 def assign_queue(candidates: list[Candidate], evidence: list[ToolResult], k: int,

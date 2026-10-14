@@ -20,6 +20,17 @@ class StructFact:
     n: int
     population: str  # 순위 모집단 설명 (도시·기준월·동 수)
     top: bool
+    # rules-v1.1 남성 집단: 대상 성·연령 인구 비중과 도시 중앙값 (해당 없으면 None)
+    target_share: float | None = None
+    target_median: float | None = None
+    target_label: str | None = None
+    rate_top: bool | None = None  # 1인세대 비율 기준만 본 상위 여부 (대상 인구 조건 전)
+
+    @property
+    def target_ok(self) -> bool | None:
+        if self.target_share is None or self.target_median is None:
+            return None
+        return self.target_share >= self.target_median
 
 
 @dataclass
@@ -42,6 +53,8 @@ class Axes:
     deviation_drop: float | None = None  # 이탈 크기 (양수 = 하락 비율)
     confidence: str = "보통"
     confidence_why: list[str] = field(default_factory=list)
+    city_guidance: bool = False  # rules-v1.1 도시 단위 안내 집단 (청년 남성)
+    holiday_travel: bool = False  # rules-v1.1 반증 보류가 '도시 공통 하락 + 연휴 외지 손님 급증'
 
 
 @dataclass
@@ -53,7 +66,15 @@ class Decision:
 
 
 def _struct_text(s: StructFact) -> str:
-    return f"구조 취약성 상위(1인세대 비율 {s.value:g}, {s.population} 중 {s.rank}/{s.n}위)"
+    t = f"구조 취약성 상위(1인세대 비율 {s.value:g}, {s.population} 중 {s.rank}/{s.n}위"
+    if s.target_ok is not None and s.target_ok and s.rate_top and s.top and s.target_share is not None:
+        t += f"; {s.target_label or '대상'} 인구 비중 {s.target_share:.3f}, 도시 중앙값 {s.target_median:.3f} 이상"
+    return t + ")"
+
+
+def _target_miss_text(s: StructFact) -> str:
+    return (f"1인세대 비율은 상위({s.rank}/{s.n}위)지만 {s.target_label or '대상'} 인구 비중 {s.target_share:.3f}이 "
+            f"도시 중앙값 {s.target_median:.3f} 미만이라 이 집단의 구조 상위로 보지 않음 (rules-v1.1 target_population)")
 
 
 def _access_text(a: Axes) -> str:
@@ -78,6 +99,8 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
 
     if a.input_status == "보류":
         d = Decision("판단 보류", "HOLD-INPUT", f"필수 근거 결측: {', '.join(a.missing_inputs)}")
+    elif a.counter_result == "보류" and a.holiday_travel:
+        d = Decision("판단 보류", "HOLD-HOLIDAY-TRAVEL", f"반증 보류: {a.counter_reason}")
     elif a.counter_result == "보류":
         d = Decision("판단 보류", "HOLD-COUNTER", f"반증 보류: {a.counter_reason}")
     elif a.counter_result == "기각":
@@ -86,6 +109,12 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
             and a.deviation_drop < th["deviation"]["min_drop"]:
         d = Decision("Level 1", "L1-DEV-SMALL",
                      f"이탈 크기 {a.deviation_drop:.1%}가 절대 최소값 {th['deviation']['min_drop']:.0%} 미만")
+    elif a.city_guidance and (a.candidate_type == "scheduled_access_review" or a.counter_result == "통과"):
+        what = f"예정된 트리거({a.trigger})" if a.candidate_type == "scheduled_access_review" else "반증 통과 이탈"
+        d = Decision("Level 2", "L2-CITY-GUIDANCE",
+                     f"도시 단위 안내 집단 + {what}. 동을 고르지 않음 (1인세대 밀집이 이 집단의 고립과 반대 방향, "
+                     "rules.yaml city_guidance)")
+        d.caps.append("CAP-SHARED-CONTEXT")
     elif a.candidate_type == "scheduled_access_review":
         parts = []
         if s_top:
@@ -113,6 +142,8 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
                          "원장이라 strict_as_of 등급에 쓰지 않음")
         if s_top and a.access_km is not None and a.access_km < far:
             d.reason += f" / 거리 공백 근거 약함(관측 거점까지 {a.access_km:.1f}km)"
+        if a.structure is not None and a.structure.rate_top and not a.structure.top and a.structure.target_ok is False:
+            d.reason += f" / {_target_miss_text(a.structure)}"
     elif a.counter_result == "통과":
         if s_top:
             why = f"{_struct_text(a.structure)} (먼저 확인할 동, 공유 맥락) + 반증 통과 이탈"
@@ -144,7 +175,7 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
 
 
 def rule_label(d: Decision, rules: dict | None = None) -> str:
-    """level_reason 끝에 붙는 표시: [rules-v1.0 L2-STRUCT-TRIGGER+CAP-PARTIAL]."""
+    """level_reason 끝에 붙는 표시: [rules-v1.1 L2-STRUCT-TRIGGER+CAP-PARTIAL]."""
     return f"[{rules_version(rules)} {full_rule_id(d)}]"
 
 
@@ -186,6 +217,11 @@ def rule_checks(a: Axes, rules: dict | None = None) -> list[dict]:
         out.append({"condition": "1인세대 비율 최소값", "met": None if s is None else s.value >= th["structure"]["abs_min"],
                     "value": s.value if s else None, "threshold": th["structure"]["abs_min"], "comparator": ">=",
                     "input": "structure_vulnerability"})
+        applied = bool((th["structure"].get("target_population") or {}).get("apply_to_structure"))
+        if s is not None and s.target_ok is not None and applied:
+            out.append({"condition": f"{s.target_label or '대상'} 인구 비중 ≥ 도시 중앙값", "met": s.target_ok,
+                        "value": round(s.target_share, 4), "threshold": round(s.target_median, 4), "comparator": ">=",
+                        "unit": "비율", "input": "structure_target_population"})
         far = th["access"]["far_km"]
         out.append({"condition": "관측 거점까지 직선거리", "met": None if a.access_km is None else a.access_counts,
                     "value": a.access_km, "threshold": far, "comparator": ">=", "unit": "km", "input": "access_gap",

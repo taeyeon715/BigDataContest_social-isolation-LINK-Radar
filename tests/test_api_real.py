@@ -500,7 +500,7 @@ def test_dashboard_reads_published_monitoring_run(real):
     assert all(levels[c.candidate_id] == c.candidate_level for c in cl.items)  # 등급은 그래프 그대로
     ov = ok(real.get("/overview", params=q), OverviewResponse)
     mp = ok(real.get("/map", params=q), MapResponse)
-    assert ov.monitoring_run_id == mp.monitoring_run_id == rid and ov.rule_version == "rules-v1.0"
+    assert ov.monitoring_run_id == mp.monitoring_run_id == rid and ov.rule_version == "rules-v1.1"
     assert [t.rule for t in ov.triggers] == ["R1"]
     for kind, rng in ov.candidate_counts.items():
         assert rng.low <= rng.count <= rng.high

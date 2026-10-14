@@ -27,6 +27,13 @@ inputs:
   winter_contraction: {name: 춘천 읍·면 겨울 변화, tool: calc_winter_contraction}
   validation_reference: {name: 시민생활 지표 (탐색적 참고), tool: get_validation_reference}
   resources: {name: 복지 자원, tool: find_resources}
+  # rules-v1.1 맥락 (등급 입력 아님. 단 structure_target_population 은 남성 집단의 구조 상위 조건)
+  structure_target_population: {name: 대상 성·연령 인구 비중 (주민등록), tool: get_structure}
+  recipient_rate: {name: 기초생활수급자 비율 (서울 동별, 표시만), tool: get_structure}
+  one_person_net_change: {name: 1인세대 월 순증률 (표시만), tool: get_structure}
+  holiday_visitor_context: {name: 반증 맥락 - 연휴 외지 손님 비중, tool: check_confounders}
+  card_time_rhythm: {name: 카드 시간대 상대 리듬 (맥락), tool: calc_winter_contraction}
+  card_category_diversity: {name: 카드 업종 다양성 (맥락), tool: get_card_cohort_series}
 
 candidate_types:
   scheduled_access_review:
@@ -52,6 +59,13 @@ candidate_types:
 
 # 하위 시나리오: 후보 종류의 목록을 덮어씀
 variants:
+  도시 단위 안내:
+    # rules-v1.1 city_guidance (청년 남성): 동을 고르지 않는 도시 단위 안내 강화 후보. 구조·접근성 축이 필요 없음
+    type: scheduled_access_review
+    required_inputs:
+      - {input: calendar_trigger, core: true}
+      - {input: target_group, core: true}
+    optional_context: [card_cohort_series, validation_reference]
   춘천 동절기 점검:
     type: scheduled_access_review
     required_inputs:
