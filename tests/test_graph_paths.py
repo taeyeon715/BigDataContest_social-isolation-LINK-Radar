@@ -198,7 +198,8 @@ def test_candidates_validate():
 
 def test_signal_revise_then_pass():
     out = run(scenario="confounder_timeout_once")
-    assert out["path"].count("collect_signals") == 2
+    # Guard 처치 retry_failed_tool: 전체 다시 수집이 아니라 실패한 반증 도구만 다시
+    assert out["path"].count("collect_signals") == 1 and out["path"].count("retry_tools") == 1
     assert [g["verdict"] for g in out["guard"] if g["guard"] == "guard_signal"] == ["REVISE", "PASS"]
     assert deviation(out)["counter_result"] == "통과"
 
@@ -207,7 +208,7 @@ def test_signal_revise_third_time_abstains():
     out = run(scenario="confounder_timeout_always")
     sig = [g["verdict"] for g in out["guard"] if g["guard"] == "guard_signal"]
     assert sig == ["REVISE", "REVISE", "REVISE"]  # 세 번째 REVISE 판단 → 한도 넘어 ABSTAIN
-    assert out["path"].count("collect_signals") == 3
+    assert out["path"].count("collect_signals") == 1 and out["path"].count("retry_tools") == 2
     assert "REVISE 2회 넘음" in out["abstain_reason"]
     assert out["path"][-2:] == ["abstain_report", "publish_candidates"]
     assert out["published"]["is_abstain"]

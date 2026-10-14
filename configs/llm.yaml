@@ -58,9 +58,24 @@ slots:
     max_tokens: 1500
     effort: low
     temperature: null
+  investigate:  # 조사 루프: 코드가 만든 미해결 질문 중 확인할 것 고르기 (근거를 본 뒤). 결과는 "추가로 확인한 것"에만
+    model: supervisor
+    prompt: investigate_v1
+    max_tokens: 1500
+    effort: low
+    temperature: null
+    max_picks: 3      # 한 회차에 고르는 질문 수 (= 도구 수) 한도. 코드도 이 값으로 자름
+    max_rounds: 2     # 확인 회차 한도 (추가 조사 회차마다)
+    max_open: 8       # LLM 에 보여 주는 질문 수 한도
+  followup_intent:  # 이어 묻기 질문 종류 (규칙이 못 정할 때만). enum 5개
+    model: supervisor
+    prompt: followup_intent_v1
+    max_tokens: 500
+    effort: low
+    temperature: null
   followup:     # 이어 묻기 답. 근거 카드 안 근거 번호만 인용
     model: supervisor
-    prompt: followup_v2
+    prompt: followup_v3   # v3: 질문 종류(intent)와 템플릿 답(answer_lines)을 받아 보충 설명만
     max_tokens: 3000
     effort: medium
     temperature: null
@@ -68,7 +83,21 @@ slots:
 
 # 실행 하나의 LLM 예산 (src/bigcontest/agent/budget.py). API 가 실행·검토 반영·이어 묻기마다 이 실행의 llm_calls 합에서
 # 시작해 세고, 넘으면 LLM 을 부르지 않고 규칙·템플릿으로 대신 (llm_calls.error_code = BUDGET_EXCEEDED).
-# 한 회차 최대 7번(classify 1 + 도구 선택 3 + 설명 3), 회차 3번 + 검토 반영·이어 묻기 몇 번을 넉넉히 덮는 값
+# 한 회차 최대 9번(classify 1 + 도구 선택 1 + 조사 루프 2 + 설명 3, Guard 처치는 LLM 도구 선택을 다시 하지 않음),
+# 회차 3번 + 검토 반영·이어 묻기 몇 번을 덮는 값
+# 조사 루프(investigate)는 회차마다 LLM 1번, 도구 3개, 2회차까지. 도구 시간 한도를 넘으면 조사 루프를 멈추고 템플릿으로
 budget:
   max_calls_per_run: 40
   max_cost_usd_per_run: 1.0
+  max_tool_ms_per_run: 300000   # 실행 하나의 도구 시간 합 (조사 루프·다시 시도는 이 안에서만)
+
+# 도구 시간 제한 (tools.call_tool). 넘으면 TOOL_TIMEOUT 봉투 (다시 시도할 수 있는 오류)
+# - 기본 20초. 첫 읽기가 큰 도구(접근성 거리·기대 활동)는 따로
+# - 오류 분류: retriable(시간 초과·입출력) / 그 밖(계약·자료 없음·코드 오류)은 다시 시도하지 않음
+tools:
+  timeout_s_default: 20
+  timeout_s:
+    get_access_gap: 60
+    calc_expected_activity: 60
+    find_resources: 40
+  retriable_error_codes: [TOOL_TIMEOUT, TOOL_IO]

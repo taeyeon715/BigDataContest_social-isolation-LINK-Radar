@@ -66,6 +66,11 @@ class AgentState(TypedDict, total=False):
     extra_runs: list[dict]  # 추가 도구 실행 기록 {tool, city, requested}. 다음 회차에도 다시 돌려 근거가 말없이 빠지지 않게
     requested_evidence_ids: list[str]  # 담당자가 추가 조사로 요청한 도구가 낸 근거 (후보 카드에 넣음)
     place_scope: dict | None  # 질문한 동으로 거른 결과 {adm_cds, names, city, city_total, kept} (등급은 도시 전체로)
+    # ---- H4 조사 루프 · Guard 처치
+    investigation: dict | None  # 조사 루프 기록 {extra_round, questions, rounds, items, stopped} (investigation.py)
+    investigation_evidence: list[dict]  # 조사 루프 도구가 낸 근거. 등급·반증 입력(evidence)과 따로 둔다
+    evidence_tools: dict[str, str]  # 근거 ID → "도구|도시" (Guard 처치: 실패한 도구만 다시)
+    remedy: dict | None  # 마지막 Guard 처치 {remedy, rule_ids, targets}
 
 
 EXTRA_FIELDS = (
@@ -74,6 +79,7 @@ EXTRA_FIELDS = (
     "tools_backend", "monitor_cities", "run_meta_dir", "run_meta", "decision_trace",
     "tool_timings", "focus", "extra_plan", "prev_round", "review", "scope_candidate_ids",
     "extra_runs", "requested_evidence_ids", "place_scope",
+    "investigation", "investigation_evidence", "evidence_tools", "remedy",
 )
 DEFAULT_TOOLS_BACKEND = "real"
 STUB_SNAPSHOT_ID = "snap-stub-0001"
@@ -159,6 +165,10 @@ def initial_state(
         "extra_runs": [],
         "requested_evidence_ids": [],
         "place_scope": None,
+        "investigation": None,
+        "investigation_evidence": [],
+        "evidence_tools": {},
+        "remedy": None,
     }
 
 
@@ -191,7 +201,8 @@ def card_dict(state: dict) -> dict | None:
     if "evidence" in packed:
         return packed
     by_id: dict[str, dict] = {}
-    for e in state.get("evidence") or []:
+    # 등급 입력 근거 + 조사 루프 근거 ("추가로 확인한 것"에 인용한 것만 카드에 들어 있음)
+    for e in list(state.get("evidence") or []) + list(state.get("investigation_evidence") or []):
         by_id.setdefault(e["evidence_id"], e)
     ids = list(packed.get("evidence_ids") or [])
     missing = [i for i in ids if i not in by_id]
