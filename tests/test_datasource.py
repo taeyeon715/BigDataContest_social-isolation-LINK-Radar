@@ -44,6 +44,8 @@ def make_root(root: Path, city: str, holidays: dict, n_rows: int, drop_one: bool
         sex = sorted(c2["SEX_CCD"].unique())[0]
         c2 = c2[~((c2["date"] == DROP[0]) & c2["age"].isin(["80대", "90대"]) & (c2["SEX_CCD"] == sex))]
     c2.to_parquet(root / DEV_FILES["card2"])
+    c1 = pd.read_parquet(REAL["card1"])
+    c1[c1["city"] == city].head(n_rows * 50).to_parquet(root / DEV_FILES["card1"])
     for t in ("tel_age", "tel_time", "tel_wkdy"):
         pd.read_parquet(REAL[t]).head(n_rows).to_parquet(root / DEV_FILES[t])
     for k in ("resident_pop", "resident_hh", "seoul_living", "asos"):

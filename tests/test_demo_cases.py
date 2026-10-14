@@ -9,7 +9,10 @@
 - D3 달력 효과로 경보 처리 (10/15): 춘천 20대 여성 10/07 경보는 기각 → Level 1. 기대 활동(EDA-6 기준선)이 연결돼
   필수 근거는 충족.
   같은 날 강남 고령층 경보는 대부분 "확인 필요(도시 공통 변화)" → 판단 보류 (기각 아님)
-- D4 근거 부족 보류: "강남 60대의 밤 활동" → 보류 답변 + 필요한 자료
+- D4 근거 부족 보류: "강남 60대의 밤 체류 인구" → 보류 답변 + 필요한 자료 + 결제 기준 대안 안내.
+  통신은 성연령 표와 시간대 표가 따로라 "60대 밤 체류"는 정말로 알 수 없음
+- D4B 결제 기준이면 답함: "강남 60대의 밤 카드 결제" → 카드 데이터1(보조, 연령 × 시간대 4구간)로 조회.
+  가맹점 기준이고 거주지가 없다는 한계를 같이 적음 (심사 점검: 예전 D4 예시는 카드 데이터1로 답할 수 있었음)
 등급은 configs/rules.yaml (rules-v1.0). D1 강남 7곳 Level 2 (구조 상위·접근성 기준으로 22곳에서 줄어듦),
 D2 읍·면 8곳 중 Level 3 3곳.
 """
@@ -26,7 +29,10 @@ D1 = ("2025-09-26", "추석 전에 강남 1인세대 많은 동의 중장년 남
 D2 = ("2025-12-20", "춘천 읍·면 어르신 겨울철 점검은 어디부터 해야 해?")
 D3 = ("2025-10-15", "추석 연휴 뒤 춘천 20대 여성 카드 결제 이탈 경보를 조사해줘")
 D3B = ("2025-10-15", "추석 연휴 뒤 강남 어르신 카드 결제 이탈 경보를 조사해줘")
-D4 = ("2025-10-20", "강남 60대의 밤 활동은 어때?")
+D4 = ("2025-10-20", "강남 60대의 밤 체류 인구는 어때?")
+D4B = ("2025-10-20", "강남 60대의 밤 카드 결제는 어때?")
+NAMMYEON = ("2025-12-20", "춘천 남면 어르신 어디부터 확인해야 해?")
+GANGNAMDONG = ("2025-12-20", "춘천 강남동 어르신 어디부터 확인해야 해?")
 LLMS = ["none", "fake", "fake_all_tools", "fake_no_tools", "fake_error", "fake_wrong_fact_once"]
 
 
@@ -193,6 +199,71 @@ def test_d4_insufficient_evidence_abstains(agent):
     assert v["contract_check"]["issues"][0]["code"] == "GRAIN_FORBIDDEN_COMBO"
     assert v["answer"]["needed_data"] and v["report"]["is_abstain"]
     assert v["tools_run"] == []  # 계약 검사에서 멈춤
+    # 결제 기준이면 볼 수 있다는 대안 안내 (거주지·체류는 모른다는 한계 포함)
+    alt = [n for n in v["answer"]["needed_data"] if n.startswith("대안:")]
+    assert alt and "카드 데이터1(보조)" in alt[0] and "어디 사는지" in alt[0]
+
+
+def test_d4b_payment_night_answered_by_card1(agent):
+    v = run(agent, "D4B", D4B)["values"]
+    assert v["route"] == "lookup" and v["path"][-1] == "answer" and v["answer"]["status"] == "answered"
+    assert v["contract_check"]["source"] == "card1"
+    assert "카드 데이터1(보조) 사용: 고객 거주지 없음, 데이터2와 합산 금지" in v["contract_check"]["warnings"]
+    assert v["tools_run"] == ["get_card_time_band"]
+    (e,) = [e for e in v["evidence"] if e["status"] == "OK"]
+    assert e["data_version"].startswith("card1@") and e["analysis_cohort"] == "60대"
+    assert e["merchant_region"] == "강남구" and e["customer_residence"] is None  # 데이터1 에는 거주지가 없음
+    assert 0 < e["value"] < 1 and "저녁·밤 18~23시" in e["metric"]
+    assert any("주민인지 알 수 없음" in w for w in e["warnings"])
+    assert any("체류·외출·고립을 뜻하지 않음" in w for w in e["warnings"])
+    t = text(v)
+    assert "거주지 모름" in t and "실제 체류·외출은 알 수 없음" in t
+    assert final_guard_lookup(v) == [("guard_report", "사실", "PASS"), ("guard_report", "표현", "PASS")]
+
+
+def final_guard_lookup(v: dict) -> list[tuple[str, str, str]]:
+    return [(x["guard"], x["check"], x["verdict"]) for x in v["guard"] if x["guard"] == "guard_report"][-2:]
+
+
+# ---------------------------------------------------------------- 질문 속 동 (AG-01·AG-02)
+
+
+def test_nammyeon_question_levels_same_as_monitoring(agent):
+    """질문한 동만 남기지만 등급은 정기 감시(도시 전체)와 같다."""
+    v = run(agent, "NM", NAMMYEON)["values"]
+    assert v["request"]["adm_cds"] == ["32010350"]
+    cands = v["candidates"]
+    assert cands and all("32010350" in {c.get("adm_cd"), *c["check_first_adm"]} for c in cands)
+    mon = build_graph().invoke(initial_state("mon-nm", "monitoring", NAMMYEON[0], tools_backend="real", city="춘천"),
+                               {"recursion_limit": 100})
+    key = lambda c: (c["candidate_type"], c.get("adm_cd"), c["analysis_cohort"])  # noqa: E731
+    mon_lv = {key(c): (c["candidate_level"], c["rule_id"]) for c in mon["candidates"]}
+    for c in cands:
+        assert mon_lv[key(c)] == (c["candidate_level"], c["rule_id"])
+    ps = v["place_scope"]
+    assert ps["city_total"] == len(mon["candidates"]) and ps["kept"] == len(cands)
+    assert "남면" in v["evidence_card"]["title"] and final_guard(v) == PASS3
+
+
+def test_chuncheon_gangnamdong_not_gangnam_gu(agent):
+    v = run(agent, "GND", GANGNAMDONG)["values"]
+    assert v["request"]["city"] == "춘천" and v["request"]["adm_cds"] == ["32010680"]
+    assert all(c["city"] == "춘천" for c in v["candidates"])
+    assert not any(r["city"] == "강남" for r in v["resources"])
+    assert any(s.startswith("질문한 동: 춘천 강남동") for s in v["report"]["fact_sentences"])
+
+
+def test_followup_other_city_on_chuncheon_card(agent):
+    """춘천 실행에서 "강남은 어때?" → 보류 (카드 근거 범위의 '강남동'을 강남구로 읽지 않음)."""
+    from bigcontest.agent.followup import answer_followup
+
+    v = run(agent, "D2", D2)["values"]
+    out = answer_followup(v, "강남은 어때?", "none")
+    assert out["status"] == "abstained" and out["abstain_reason"].startswith("OUT_OF_SCOPE")
+    out = answer_followup(v, "강남구 어르신은 어때?", "none")
+    assert out["status"] == "abstained" and out["abstain_reason"].startswith("OUT_OF_SCOPE")
+    out = answer_followup(v, "남면은 왜 Level 3야?", "none")  # 같은 도시 동은 그대로 답함
+    assert out["status"] == "answered"
 
 
 def test_after_as_of_request_abstains():

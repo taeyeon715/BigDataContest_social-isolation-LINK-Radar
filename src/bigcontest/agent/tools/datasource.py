@@ -38,6 +38,7 @@ from bigcontest.config import ROOT
 # 원천 이름 → 파일 (원천 이름은 grain_contract.yaml 의 sources 와 같게)
 DEV_FILES: dict[str, str] = {
     "card2": "data/interim/card2.parquet",
+    "card1": "data/interim/card1.parquet",
     "tel_age": "data/interim/tel_age.parquet",
     "tel_time": "data/interim/tel_time.parquet",
     "tel_wkdy": "data/interim/tel_wkdy.parquet",
@@ -50,7 +51,7 @@ DEV_FILES: dict[str, str] = {
     "adm_code_map": "ref/adm_code_map.csv",
     "config": "configs/project.yaml",
 }
-DERIVED = {"card2", "tel_age", "tel_time", "tel_wkdy"}  # 정제 규칙을 거친 파일
+DERIVED = {"card2", "card1", "tel_age", "tel_time", "tel_wkdy"}  # 정제 규칙을 거친 파일
 
 
 class DataSourceError(RuntimeError):
@@ -126,6 +127,18 @@ def _card2_from(path: Path) -> pd.DataFrame:
     d = d[d["age"].isin(AGE_MAP)].copy()
     d["age_g"] = d["age"].map(AGE_MAP)
     return d
+
+
+def _card1_from(path: Path) -> pd.DataFrame:
+    """card.load_card1 과 같은 거르기를 지정 파일에 적용 (법인·본사등록·LPG가스 제외, 10대 제외, 80·90대 → 80대+)."""
+    from bigcontest.card import AGE_MAP
+
+    d = pd.read_parquet(path, columns=["date", "city", "TIME_GB", "SEX_CCD", "age", "USE_CNT", "hq", "corp",
+                                       "MCT_RY_CD"])
+    d = d[~d["hq"] & ~d["corp"] & (d["MCT_RY_CD"] != "LPG가스")]
+    d = d[d["age"].isin(AGE_MAP)].copy()
+    d["age_g"] = d["age"].map(AGE_MAP)
+    return d[["date", "city", "TIME_GB", "SEX_CCD", "age_g", "USE_CNT"]]
 
 
 class DataSource:
@@ -214,6 +227,10 @@ class DataSource:
 
     def card2(self) -> pd.DataFrame:
         return self._get("card2", lambda: _card2_from(self.files["card2"]))
+
+    def card1(self) -> pd.DataFrame:
+        """카드 데이터1 (보조, 시간대 4구간). 고객 거주지 칸이 없음. 데이터2와 합산하지 않음."""
+        return self._get("card1", lambda: _card1_from(self.files["card1"]))
 
     def panel(self):
         """경보 패널 (EDA-6 과 같은 입력): 카드 데이터2, 같은 시도 거주, 본사등록 제외, 도시 × 연령 × 성."""

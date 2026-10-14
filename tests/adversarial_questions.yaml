@@ -84,3 +84,29 @@
    expect: {route: lookup, endpoint: answer, request: {group: 청년 남성, sex: null}}}
 - {id: tgt-middle-male-alias, kind: 정상, q: "강남 중장년 남성 1인세대 많은 동은 어디부터 점검해야 해?",
    expect: {route: investigate, endpoint: await_approval, request: {group: 중장년 남성 1인가구}}}
+
+# ---- 질문 속 동·기간 (시스템 점검 2 AG-01·AG-02). 동을 먼저 찾고 그 동으로 도시를 정함
+- {id: place-cc-gangnamdong, kind: 장소, q: "춘천 강남동 어르신 어디부터 확인해야 해?",
+   expect: {route: investigate, endpoint: await_approval, request: {city: 춘천, adm_cds: ["32010680"]}}}
+- {id: place-gangnamdong-only, kind: 장소, q: "강남동 어르신 어디부터 확인해야 해?",
+   expect: {route: investigate, endpoint: await_approval, request: {city: 춘천, adm_cds: ["32010680"]}}}
+- {id: place-gn-yeoksam1, kind: 장소, q: "강남구 역삼1동 1인세대 비율은?",
+   expect: {route: lookup, endpoint: answer, request: {city: 강남, adm_cd: "11230640"}}}
+- {id: place-nammyeon, kind: 장소, q: "춘천 남면 어르신 어디부터 확인해야 해?",
+   expect: {route: investigate, endpoint: await_approval, request: {city: 춘천, adm_cds: ["32010350"]}}}
+- {id: place-nammyeon-no-city, kind: 장소, q: "남면 어르신 어디부터 확인해야 해?",
+   expect: {route: investigate, endpoint: await_approval, request: {city: 춘천, adm_cds: ["32010350"]}}}
+- {id: place-ambiguous-short, kind: 장소, q: "역삼동 어르신 결제는?",
+   expect: {route: out_of_scope, endpoint: abstain_answer, reason: AMBIGUOUS_PLACE}}
+- {id: place-city-conflict, kind: 장소, q: "강남 남면 어르신 어디부터 확인해야 해?",
+   expect: {route: out_of_scope, endpoint: abstain_answer, reason: AMBIGUOUS_PLACE}}
+- {id: period-last-week, kind: 기간, q: "지난주 춘천 고령층 결제는?",
+   expect: {route: lookup, endpoint: answer, request: {period_label: 지난주, period_from: "2025-10-13", period_to: "2025-10-19"}}}
+- {id: period-this-month, kind: 기간, q: "이번 달 춘천 고령층 결제는?",
+   expect: {route: lookup, endpoint: answer, request: {period_label: 이번 달, period_from: "2025-10-01", period_to: "2025-10-20"}}}
+- {id: period-after-as-of, kind: 기간, q: "추석 뒤 춘천 고령층 결제는?", as_of: "2025-09-26",
+   expect: {route: lookup, endpoint: abstain_answer, reason: TIME_PERIOD_AFTER_AS_OF}}
+
+# ---- 결제 기준 연령 × 시간대는 카드 데이터1(보조)로 답함 (심사 D4)
+- {id: card1-age-night, kind: 정상, q: "강남 60대의 밤 카드 결제는 어때?",
+   expect: {route: lookup, endpoint: answer, request: {time_of_day: "18_23", age_min: 60}}}

@@ -18,7 +18,12 @@ from pydantic import ValidationError
 
 from bigcontest.agent import guard as G
 from bigcontest.agent.llm import call_llm, get_llm_safe
+from bigcontest.agent.periods import RELATIVE as PERIOD_LABELS
+from bigcontest.agent.periods import find_period, window
+from bigcontest.agent.places import Place, by_code, dongs, resolve_place
 from bigcontest.agent.schemas import (
+    DATA_END,
+    DATA_START,
     DISCLAIMER,
     Candidate,
     ContractIssue,
@@ -55,6 +60,8 @@ CANDIDATE_TYPES = ("scheduled_access_review", "unexpected_activity_deviation")
 TYPE_KO = {"scheduled_access_review": "예정된 점검", "unexpected_activity_deviation": "예상 밖 이탈"}
 MAX_EXTRA_ROUNDS = 2
 # 카드 거주지 한계 (G-03). 이 템플릿 문장 한 곳에서만 말하고 LLM 설명은 다시 쓰지 않음 (explain_v4)
+CARD1_NOTE = ("한계: 카드 데이터1(보조)은 가맹점 기준 결제를 시간대별로 담은 자료라 고객이 사는 곳이 없고, "
+              "결제 시간대만으로 실제 체류·외출은 알 수 없음. 같은 연령 안의 비중만 비교함")
 RESIDENCE_NOTE = "한계: 카드 자료는 고객이 사는 곳을 시도 단위까지만 담고 있어 시군구·동 단위로는 알 수 없음"
 
 # 정기 감시 요청: 도시는 실행 요청(RunCreateRequest.city)으로, 비우면 두 도시 모두. 집단·지표는 고정
@@ -73,6 +80,9 @@ LOOKUP_TOOL = {
     "시민생활지표": "get_validation_reference",
 }
 
+# 카드 결제 × 시간대 조회는 카드 데이터1(보조)로 (계약이 card1 을 고름)
+CARD1_LOOKUP_TOOL = "get_card_time_band"
+
 # 보류 사유 코드 → 더 확보하면 되는 것
 NEEDED_DATA = {
     "OUT_OF_SCOPE": "도시(강남·춘천)와 지표가 들어간 질문",
@@ -84,6 +94,9 @@ NEEDED_DATA = {
     "TIME_NO_USABLE_DATA": "기준일에 공개일이 확인된 자료 (또는 가정 공개 시점 재생 모드)",
     "TIME_MODEL_AFTER_AS_OF": "기준일 전 자료로 만든 모델·규칙",
     "TIME_MODEL_PROVENANCE_UNKNOWN": "모델·규칙을 만든 자료 기간 기록",
+    "AMBIGUOUS_PLACE": "어느 동인지 정한 질문 (보류 사유의 선택지 중 하나로 다시 묻기)",
+    "TIME_PERIOD_AFTER_AS_OF": "기준일 전 기간을 묻는 질문 (또는 기준일을 바꾼 새 실행)",
+    "TIME_PERIOD_OUT_OF_DATA": "자료 기간(2025-07-01~2025-12-31) 안의 기간을 묻는 질문",
     "TOOL_ERROR": "도구 오류 해결 후 다시 조회",
     "EMPTY": "조회 조건에 맞는 자료",
     "G-05": "근거 카드와 맞는 보고서 문장",
@@ -218,9 +231,21 @@ def _group_service(group: str) -> dict:
     return load_yaml("cohorts.yaml")["groups"][group]["service"]
 
 
-def normalize_question(question: str, as_of: date) -> NormalizedRequest | None:
+def read_question(question: str, as_of: date) -> tuple[NormalizedRequest | None, Place]:
+    """질문 → (정규화한 요청 또는 None, 장소 읽기 결과). 장소가 애매하면 요청 None + place.ambiguous."""
+    place = resolve_place(question)
+    if place.ambiguous:
+        return None, place
+    return normalize_question(question, as_of, place), place
+
+
+def normalize_question(question: str, as_of: date, place: Place | None = None) -> NormalizedRequest | None:
     """질문 → 화이트리스트 값으로 정규화한 요청 (규칙 기반). 못 하면 None (범위 밖).
     조사 질문의 지표는 카드결제(신호)로 둔다. 구조 지표는 조사 경로가 항상 같이 모은다.
+
+    장소: 동 이름 사전으로 동을 먼저 찾고 그 동으로 도시를 정한다 ("춘천 강남동" → 춘천, places.resolve_place).
+    찾은 동은 adm_cds 에 두고, 경로에 맞게 쓰는 법은 scope_request 가 정한다. 애매하면 None.
+    기간: 기간 말은 period_label 에 두고 창은 scope_request 가 정한다 (periods.py 규칙).
 
     대상 조건: 질문에 적힌 성별·연령을 먼저 지킨다.
     - 감시 집단 별칭(어르신 → 고령층, 청년 → 청년 남성, 중장년 → 중장년 남성 1인가구)은 질문에 연령이 따로 없고
@@ -228,14 +253,16 @@ def normalize_question(question: str, as_of: date) -> NormalizedRequest | None:
     - 맞지 않으면 다른 집단으로 바꾸지 않고, 적힌 연령(없으면 집단 말의 연령 범위)과 성별을 그대로 요청에 넣는다.
       지원하지 않는 조합이면 check_availability 가 보류한다
     """
-    city = next((c for c in ("강남", "춘천") if c in question), None)
-    if city is None:
+    place = place or resolve_place(question)
+    if place.ambiguous or place.city is None:
         return None
+    city = place.city
     investigate = _is_investigate(question)
     metric = "카드결제" if investigate else next((m for w, m in _METRIC_WORDS if w in question), None)
     if metric is None:
         return None
-    fields: dict[str, Any] = {"city": city, "metric": metric, "period_to": as_of}
+    fields: dict[str, Any] = {"city": city, "metric": metric, "period_to": as_of, "adm_cds": place.adm_cds,
+                              "period_label": find_period(question)}
     m = re.search(r"([1-9])0\s*대", question)
     group = next((g for w, g in _GROUP_WORDS if w in question), None)
     sex = next((s for w, s in _SEX_WORDS if w in question), None)
@@ -261,6 +288,44 @@ def normalize_question(question: str, as_of: date) -> NormalizedRequest | None:
         return None
 
 
+def scope_request(request: dict, route: str, as_of: date) -> tuple[dict, str | None]:
+    """경로가 정해진 뒤 동·기간을 요청에 반영. (요청, 보류 사유 또는 None).
+
+    - 조사 경로: 등급은 도시 전체·실행 기준일로 계산 (정기 감시와 같음). 동은 adm_cds 로만 남겨
+      assign_queue 가 등급·순서를 정한 뒤 그 동 후보만 남긴다. 기간 창은 쓰지 않음 (기간 말은 기록만)
+    - 조회 경로: 동이 하나면 adm_cd, 여럿이면 adm_cd 차원 (카드는 동 단위가 없어 계약이 보류).
+      기간 말은 periods.window 로 창을 정하고 기준일까지로 자름. 창 시작이 기준일 뒤거나 자료 기간 밖이면 보류
+    """
+    req = dict(request)
+    dims = [d for d in req.get("dimensions") or [] if d != "adm_cd"]
+    req["adm_cd"] = None
+    reason = None
+    if route == "investigate":
+        req["period_from"], req["period_to"] = str(DATA_START), str(as_of)
+    elif route == "lookup":
+        adms = list(req.get("adm_cds") or [])
+        if len(adms) == 1:
+            req["adm_cd"] = adms[0]
+        if adms:
+            dims.append("adm_cd")
+        label = req.get("period_label")
+        win = window(label, as_of) if label else None
+        if label and win is None:
+            reason = f"TIME_PERIOD_OUT_OF_DATA: 질문 기간({label})을 자료 기간에서 찾지 못함"
+        elif win:
+            lo, hi = win
+            if lo > as_of:
+                reason = f"TIME_PERIOD_AFTER_AS_OF: 질문 기간({label}, {lo}~{hi})이 기준일 {as_of} 뒤"
+            else:
+                lo, hi = max(lo, DATA_START), min(hi, as_of, DATA_END)
+                if lo > hi:
+                    reason = f"TIME_PERIOD_OUT_OF_DATA: 질문 기간({label})이 자료 기간({DATA_START}~{DATA_END}) 밖"
+                else:
+                    req["period_from"], req["period_to"] = str(lo), str(hi)
+    req["dimensions"] = dims
+    return NormalizedRequest(**req).model_dump(mode="json"), reason
+
+
 def rule_route(question: str | None, request: dict | None) -> str:
     """규칙 기반 경로 (LLM 이 없거나 실패할 때)."""
     if request is None:
@@ -280,25 +345,60 @@ def intake(state: dict) -> dict:
     if marks:
         return {"request": None, "route": "out_of_scope",
                 "abstain_reason": f"{INDIVIDUAL_CODE}: {G.rules()['individual']['message']} (걸린 표현 {len(marks)}개)"}
-    req = normalize_question(question, as_of)
+    req, place = read_question(question, as_of)
+    if place.ambiguous:  # 동을 고를 수 없음: 짐작하지 않고 선택지를 돌려줌 (LLM 도 부르지 않음)
+        return {"request": None, "route": "out_of_scope",
+                "abstain_reason": f"{AMBIGUOUS_CODE}: {place.ambiguous}. 선택지: {', '.join(place.options)}"}
     return {"request": req.model_dump(mode="json") if req else None}
 
 
 INDIVIDUAL_CODE = "OUT_OF_SCOPE_INDIVIDUAL"
+AMBIGUOUS_CODE = "AMBIGUOUS_PLACE"
+_NO_LLM_CODES = (INDIVIDUAL_CODE, AMBIGUOUS_CODE)
 _ROUTE_RANK = {"out_of_scope": 0, "lookup": 1, "investigate": 2}
+
+
+def llm_fill(request: dict, llm_req: dict, rec: dict | None = None) -> dict:
+    """규칙이 비운 칸만 LLM 값으로 채운다: 동(adm_names, 동 이름 enum) · 기간(period, 기간 이름 enum).
+    규칙이 읽은 칸은 바꾸지 않는다. LLM 동이 요청 도시와 다르면 버린다. 채운 칸·버린 이유는 호출 기록에."""
+    req = dict(request)
+    filled, rejected = [], []
+    names = [n for n in llm_req.get("adm_names") or [] if isinstance(n, str)]
+    if names and not req.get("adm_cds"):
+        cds = list(dict.fromkeys(d.adm_cd for n in names for d in dongs() if d.name == n))
+        cities = {by_code()[c].city for c in cds}
+        if cds and cities == {req.get("city")}:
+            req["adm_cds"] = cds
+            filled.append("adm_cds")
+        else:
+            rejected.append("LLM 동이 요청 도시와 다르거나 사전에 없음")
+    period = llm_req.get("period")
+    if period and not req.get("period_label"):
+        if period in PERIOD_LABELS:
+            req["period_label"] = period
+            filled.append("period_label")
+        else:
+            rejected.append("LLM 기간이 기간 이름 목록 밖")
+    if rec is not None and (filled or rejected):
+        rec["llm_filled"] = filled
+        if rejected:
+            rec["llm_fill_rejected"] = rejected
+    return req
 
 
 def classify(state: dict) -> dict:
     """경로 정하기. LLM 경로는 화이트리스트 값만 받는다.
 
-    - 개인 지목 질문(intake 가 막음)은 LLM 을 부르지 않고 out_of_scope 그대로
+    - 개인 지목·장소가 애매한 질문(intake 가 막음)은 LLM 을 부르지 않고 out_of_scope 그대로
     - LLM 에는 개인정보를 가린 질문만 보낸다. 가린 개수만 llm_log 에 남기고 원문은 남기지 않음
     - 규칙이 질문을 정규화하지 못했을 때만 LLM 이 낸 요청을 (Pydantic 검증 후) 쓴다
-    - 규칙이 정규화한 요청은 LLM 이 바꾸지 못한다. 경로는 올리기만(lookup → investigate) 받고, 낮추기
-      (investigate → lookup / out_of_scope)·범위 밖으로 돌리기는 무시한다. 의견이 다르면 llm_log 에 기록
+    - 규칙이 정규화한 요청은 LLM 이 바꾸지 못한다. 다만 규칙이 비운 동·기간 칸만 LLM 값(enum)으로 채운다 (llm_fill)
+    - 경로는 올리기만(lookup → investigate) 받고, 낮추기(investigate → lookup / out_of_scope)·범위 밖으로 돌리기는
+      무시한다. 의견이 다르면 llm_log 에 기록
+    - 경로가 정해지면 scope_request 로 동·기간을 경로에 맞게 반영 (조사: 등급은 도시 전체·기준일, 조회: 창)
     """
     question, request = state.get("question") or "", state.get("request")
-    if (state.get("abstain_reason") or "").startswith(INDIVIDUAL_CODE):
+    if (state.get("abstain_reason") or "").startswith(_NO_LLM_CODES):
         return {"route": "out_of_scope"}
     route = rule_route(question, request)
     llm, init_rec = _llm(state)
@@ -308,20 +408,33 @@ def classify(state: dict) -> dict:
         rec["question_masked"] = n_masked
     upd: dict[str, Any] = {}
     llm_route = out.get("route") if isinstance(out, dict) else None
-    if request is None and llm_route in ("lookup", "investigate") and out.get("request"):
+    llm_req = dict(out.get("request") or {}) if isinstance(out, dict) else {}
+    extra = {k: llm_req.pop(k, None) for k in ("adm_names", "period")}
+    if request is None and llm_route in ("lookup", "investigate") and llm_req:
         try:
-            req = NormalizedRequest(**{**out["request"], "period_to": _as_of(state)})
-            request = req.model_dump(mode="json")
-            upd["request"] = request
+            base = {**llm_req, "period_to": _as_of(state)}
+            if not base.get("city") and extra["adm_names"]:  # 도시 없이 동만 → 동의 도시
+                cities = {d.city for d in dongs() if d.name in extra["adm_names"]}
+                base["city"] = next(iter(cities)) if len(cities) == 1 else None
+            req = NormalizedRequest(**base).model_dump(mode="json")
+            request = NormalizedRequest(**llm_fill(req, extra, rec)).model_dump(mode="json")
             route = llm_route
         except (ValidationError, TypeError):
             pass
-    elif request is not None and llm_route in ROUTES and llm_route != route:
-        adopted = llm_route if _ROUTE_RANK[llm_route] > _ROUTE_RANK[route] else route
-        if rec is not None:
-            rec["route_disagreement"] = {"rule": route, "llm": llm_route, "adopted": adopted,
-                                         "why": "올리기만 받음" if adopted == llm_route else "낮추기는 무시 (규칙 경로 유지)"}
-        route = adopted
+    elif request is not None:
+        if any(extra.values()):
+            request = NormalizedRequest(**llm_fill(request, extra, rec)).model_dump(mode="json")
+        if llm_route in ROUTES and llm_route != route:
+            adopted = llm_route if _ROUTE_RANK[llm_route] > _ROUTE_RANK[route] else route
+            if rec is not None:
+                rec["route_disagreement"] = {"rule": route, "llm": llm_route, "adopted": adopted,
+                                             "why": "올리기만 받음" if adopted == llm_route else "낮추기는 무시 (규칙 경로 유지)"}
+            route = adopted
+    if request is not None and route in ("lookup", "investigate"):
+        request, why = scope_request(request, route, _as_of(state))
+        upd["request"] = request
+        if why:
+            upd["abstain_reason"] = why
     upd.update({"route": route, "llm_log": _log(state, init_rec, rec)})
     if route == "out_of_scope":
         upd["abstain_reason"] = "OUT_OF_SCOPE: 질문을 도시·지표·집단으로 정규화할 수 없음"
@@ -332,6 +445,7 @@ def classify(state: dict) -> dict:
 
 
 def _time_items(source: str, req: NormalizedRequest):
+    """기간 안 몇 날짜(달)의 공개 시점. 질문 기간이 있으면 그 기간 첫날도 본다 (지난주처럼 끝이 공급 지연 안일 때)."""
     t = grain_contract()["sources"][source]["time"]
     if t["resolution"] == "month":
         y, m = req.period_from.year, req.period_from.month
@@ -339,6 +453,8 @@ def _time_items(source: str, req: NormalizedRequest):
             yield availability(source, base_month=f"{y}{m:02d}")
             y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     elif t["resolution"] == "day":
+        if req.period_label:
+            yield availability(source, day=req.period_from)
         for back in (14, 7, 0):
             d = req.period_to - timedelta(days=back)
             if d >= req.period_from:
@@ -405,13 +521,16 @@ def _contract(state: dict, req: NormalizedRequest) -> ContractResult:
 
 def lookup(state: dict) -> dict:
     req = _req(state)
-    tool = LOOKUP_TOOL.get(req.metric)
+    source = (state.get("contract_check") or {}).get("source")
+    tool = CARD1_LOOKUP_TOOL if source == "card1" else LOOKUP_TOOL.get(req.metric)
     rev = (state.get("evidence_revision") or 0) + 1
     if tool is None:
         return {"abstain_reason": f"EMPTY: {req.metric} 조회 도구 없음", "evidence_revision": rev}
     params = {"by_adm": True} if (tool == "get_mobility_layer" and _backend(state) == "real") else {}
     ctx = _ctx(state, rev)
     results = call_tool(tool, ctx, **params)
+    if len(req.adm_cds) > 1:  # 질문한 동이 여럿: 그 동들과 도시 단위 근거만
+        results = [r for r in results if _adm_of(r) is None or _adm_of(r) in req.adm_cds] or results
     upd: dict[str, Any] = {
         "evidence": _dump(results),
         "evidence_revision": rev,
@@ -757,8 +876,35 @@ def assign_queue(state: dict) -> dict:
                 {"error_code": "SCOPE_CANDIDATE_MISSING", "candidate_ids": ", ".join(missing)}]
         if kept:
             out = kept
+    req = _req(state)
+    if req is not None and req.adm_cds and state.get("mode") == "qa" and state.get("route") == "investigate":
+        # 질문한 동: 등급·순서는 위에서 도시 전체로 정했고, 여기서는 그 동(또는 먼저 확인할 동) 후보만 남김
+        want = set(req.adm_cds)
+        kept = [c for c in out if want & {c.adm_cd, *c.check_first_adm}]
+        upd["place_scope"] = {"adm_cds": list(req.adm_cds), "names": [R.adm_name(a) for a in req.adm_cds],
+                              "city": req.city, "city_total": len(out), "kept": len(kept)}
+        out = kept
     upd["candidates"] = _dump([Candidate(**c.model_dump()) for c in out])
     return upd
+
+
+def scope_sentences(state: dict) -> list[str]:
+    """질문한 동·기간을 어떻게 썼는지 (템플릿). 등급은 도시 전체·기준일로 정했다는 것을 함께 적는다."""
+    req = _req(state)
+    out: list[str] = []
+    ps = state.get("place_scope") or {}
+    if ps:
+        where = "·".join(f"{n} ({a})" for n, a in zip(ps["names"], ps["adm_cds"]))
+        head = f"질문한 동: {ps['city']} {where}. 등급·순서는 {ps['city']} 전체 후보 {ps['city_total']}건으로 정한 뒤 이 동 후보만 남김"
+        out.append(head + (f" ({ps['kept']}건)" if ps["kept"] else ". 이 기준일에 이 동 후보는 없음"))
+    if req is not None and req.period_label:
+        if state.get("route") == "investigate":
+            out.append(f"질문의 기간 말 '{req.period_label}'은 조사 등급에 쓰지 않음 "
+                       f"(등급은 기준일 {state['as_of']}까지 자료로 정함, 정기 감시와 같은 등급)")
+        else:
+            out.append(f"조회 기간: '{req.period_label}' → {req.period_from}~{req.period_to} "
+                       f"(기준일 {state['as_of']}까지로 자름, 공급 지연이 있는 자료는 그보다 앞까지)")
+    return out
 
 
 def candidate_cause(c: Candidate, evidence: list[ToolResult]) -> str:
@@ -812,8 +958,14 @@ def build_card(state: dict) -> dict:
     cities = "·".join(_cities(state)) or req.city
     evidence = _evidence(state)
     cands = _candidates(state)
+    ps = state.get("place_scope") or {}
     if state.get("route") == "lookup":
         title = f"{req.city} {req.metric} 조회"
+    elif ps and not _scoped(state, cands):
+        adms = set(ps["adm_cds"])
+        evidence = (scoped_evidence(evidence, cands, state.get("requested_evidence_ids") or []) if cands
+                    else [e for e in evidence if _adm_of(e) is None or _adm_of(e) in adms])
+        title = f"후보 {len(cands)}건 · {ps['city']} {'·'.join(ps['names'])} (질문한 동) · 기준일 {as_of}"
     elif _scoped(state, cands):
         evidence = scoped_evidence(evidence, cands, state.get("requested_evidence_ids") or [])
         title = (scoped_title(cands[0], as_of) if len(cands) == 1
@@ -935,6 +1087,8 @@ def summary_sentences(cands: list[Candidate], evidence: list[ToolResult]) -> lis
         out.append("참고: 시민생활 지표는 탐색적 참고이며 등급 입력이 아님 (같은 공급자 자료, 관측 기간 미확인)")
     if any(e.customer_residence and e.status == "OK" for e in evidence):
         out.append(RESIDENCE_NOTE)
+    if any(e.metric.endswith("(카드 데이터1 보조)") and e.status == "OK" for e in evidence):
+        out.append(CARD1_NOTE)
     if any(e.metric == S.EXPECTED_METRIC and e.status == "EMPTY" for e in evidence):
         out.append(f"한계: {S.EXPECTED_PENDING}. 이탈 후보는 부분 판정")
     return out
@@ -951,6 +1105,7 @@ def write_report(state: dict) -> dict:
     sentences += [candidate_sentence(c) for c in cands if not (
         many and c.candidate_type == "scheduled_access_review" and c.candidate_level in ("Level 0", "Level 1"))]
     sentences += summary_sentences(cands, card.evidence)
+    sentences += scope_sentences(state)
     access = {_adm_of(e): float(e.value) for e in card.evidence
               if e.metric == ACCESS_METRIC and e.status == "OK" and isinstance(e.value, (int, float))}
     kept, dropped = G.check_resources(state.get("resources") or [])  # G-07 을 못 지날 자원은 대응안에 넣지 않음
@@ -1036,7 +1191,27 @@ def needed_data(state: dict) -> list[str]:
     codes += re.findall(r"\b([A-Z][A-Z_]{3,})\b", reason)
     codes += re.findall(r"G-\d+", reason)
     out = [NEEDED_DATA[c] for c in dict.fromkeys(codes) if c in NEEDED_DATA]
+    alt = alternative_hint(state)
+    if alt:
+        out.append(alt)
     return out or ["판단 보류 사유를 풀 자료"]
+
+
+def alternative_hint(state: dict) -> str | None:
+    """금지 결합으로 보류할 때 같은 질문을 결제 기준으로 볼 수 있으면 대안 안내 (D4).
+    통신은 연령 표와 시간대 표가 따로라 "60대 밤 체류"는 알 수 없지만, 카드 데이터1(보조)에는 연령 × 시간대가 있다.
+    다만 가맹점 기준 결제이고 거주지·체류는 모른다."""
+    req = state.get("request") or {}
+    codes = [i["code"] for i in (state.get("contract_check") or {}).get("issues", [])]
+    if "GRAIN_FORBIDDEN_COMBO" not in codes or req.get("metric") != "체류인구" or not req.get("time_of_day"):
+        return None
+    if "age" not in (req.get("dimensions") or []) and "sex" not in (req.get("dimensions") or []):
+        return None
+    who = (f"{req['age_min']}대" if req.get("age_min") is not None and req.get("age_max") == req["age_min"] + 9
+           else req.get("group") or "그 연령")
+    band = {"00_05": "새벽", "06_11": "오전", "12_17": "낮", "18_23": "밤"}[req["time_of_day"]]
+    return (f"대안: 결제 기준이면 카드 데이터1(보조)로 볼 수 있음 (예: \"{req['city']} {who} {band} 카드 결제는?\"). "
+            "가맹점 기준 결제 시간대일 뿐 그 사람이 어디 사는지·실제 체류·외출은 알 수 없음")
 
 
 def abstain_report(state: dict) -> dict:
@@ -1253,15 +1428,24 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
                             "started_at": started_at, "ms": round(ms, 1)}
     req = st.get("request") or {}
     if name == "intake":
-        step["inputs"] = {k: req.get(k) for k in ("city", "metric", "group") if req.get(k)} | {"mode": st.get("mode")}
+        step["inputs"] = ({k: req.get(k) for k in ("city", "metric", "group", "adm_cds", "period_label") if req.get(k)}
+                          | {"mode": st.get("mode")})
         step["choice"] = "요청 정규화 " + ("됨" if req else "못 함")
         if (st.get("abstain_reason") or "").startswith(INDIVIDUAL_CODE):
             step["rule_ids"], step["reason"] = [INDIVIDUAL_CODE], "개인 지목 질문 (LLM 부르지 않음)"
+        elif (st.get("abstain_reason") or "").startswith(AMBIGUOUS_CODE):
+            step["rule_ids"], step["reason"] = [AMBIGUOUS_CODE], "동을 고를 수 없음: 선택지를 돌려줌 (LLM 부르지 않음)"
+        elif req.get("adm_cds"):
+            step["reason"] = "동 이름 사전으로 동을 먼저 찾고 그 동으로 도시를 정함"
     elif name == "classify":
         step["choice"] = st.get("route")
         rec = _new_llm(before, upd, "classify")
+        if rec and rec.get("llm_filled"):
+            step["inputs"] = {"llm_filled": rec["llm_filled"]}
         if (st.get("abstain_reason") or "").startswith(INDIVIDUAL_CODE):
             step["rule_ids"], step["reason"] = [INDIVIDUAL_CODE], "개인 지목 질문: LLM 부르지 않고 범위 밖"
+        elif (st.get("abstain_reason") or "").startswith(AMBIGUOUS_CODE):
+            step["rule_ids"], step["reason"] = [AMBIGUOUS_CODE], "동을 고를 수 없음: LLM 부르지 않고 되묻기"
         elif rec and rec.get("ok"):
             step["source"] = "llm"
             dis = rec.get("route_disagreement")

@@ -12,6 +12,7 @@ from bigcontest.agent.schemas import ToolResult
 from bigcontest.agent.tools.common import (
     MERCHANT,
     RESIDENCE,
+    SEX_CODE,
     SEX_KO,
     age_code,
     daily_cutoff,
@@ -28,6 +29,7 @@ from bigcontest.contracts.cohort import resolve_cohort
 from bigcontest.contracts.grain import check_request_contract as _contract
 from bigcontest.contracts.grain import get_data_capabilities as _capabilities
 
+SEX_CODE_OF = SEX_CODE  # 남성 → M, 여성 → F
 CARD_METRIC_SERIES = "카드 결제건수 일별 시계열"
 CARD_METRIC_LEVEL = "카드 결제건수 최근 7일 평소 대비"
 CARD_DENOM = "카드 데이터2 결제건수 (같은 시도 거주 고객, 본사등록 업종 제외)"
@@ -209,7 +211,14 @@ def get_card_cohort_series(ctx, days: int = 14) -> list[ToolResult]:
     cut = pd.Timestamp(cutoff)
     if cut < p.dates[0]:
         return [empty(ctx, "SER", CARD_METRIC_SERIES, f"기준일에 쓸 수 있는 카드 자료 없음 ({cutoff} 이전)")]
-    idx = np.where(p.dates <= cut)[0]
+    if req.period_label:  # 질문 기간 창 (nodes.scope_request 가 기준일까지로 자름). 공급 지연 뒤 날까지만
+        cut = min(cut, pd.Timestamp(req.period_to))
+        idx = np.where((p.dates <= cut) & (p.dates >= pd.Timestamp(req.period_from)))[0]
+        if len(idx) == 0:
+            return [empty(ctx, "SER", CARD_METRIC_SERIES,
+                          f"질문 기간({req.period_label})에 기준일까지 쓸 수 있는 카드 자료 없음 (공급 지연, {cutoff}까지)")]
+    else:
+        idx = np.where(p.dates <= cut)[0]
     win = idx[-days:]
     win7 = idx[-7:]
     valid, forbidden = claim_lists("card2", is_shared_context=True)
@@ -250,6 +259,84 @@ def get_card_cohort_series(ctx, days: int = 14) -> list[ToolResult]:
                 warnings=["평소 = 같은 요일 과거 8주 평균 (공휴일 제외, 기준일 전 자료만)"]
                 + card_zero_notes(ds, col, p.dates[win7[0]] - pd.Timedelta(days=56), p.dates[win7[-1]]),
                 **{**common, "denominator": "같은 코호트 같은 요일 과거 8주 평균 (카드 데이터2)"}))
+    return out
+
+
+# ---------------------------------------------------------------- 카드 데이터1 시간대 (보조)
+
+CARD1_METRIC = "카드 결제 시간대 비중 (카드 데이터1 보조)"
+TIME_BAND_KO = {"00_05": "새벽 0~5시", "06_11": "오전 6~11시", "12_17": "낮 12~17시", "18_23": "저녁·밤 18~23시"}
+CARD1_WARNINGS = [
+    "카드 데이터1(보조): 고객 거주지 칸이 없어 결제한 사람이 이 도시 주민인지 알 수 없음",
+    "가맹점 기준 결제 시간대일 뿐 체류·외출·고립을 뜻하지 않음 (밤 체류는 통신 자료로도 연령과 함께 볼 수 없음)",
+    "결제건수는 연령별 배율값이라 같은 연령 안의 시간대 비중만 비교 (연령끼리 건수 비교 안 함)",
+    "데이터2와 합산하지 않음. 법인·본사등록 업종·LPG가스(자동결제) 제외",
+]
+
+
+def get_card_time_band(ctx, days: int = 28) -> list[ToolResult]:
+    """카드 데이터1: 도시 × 연령 결제 중 요청 시간대 비중 (최근 창 vs 바로 앞 같은 길이 창).
+
+    질문에 기간 말이 있으면(request.period_label) 그 창(공급 지연을 뺀 날까지), 없으면 최근 days 일.
+    연령마다 따로 (배율이 연령별이라 연령을 합치지 않음). 성별을 적으면 그 성별만."""
+    ds = open_datasource(ctx.snapshot_id)
+    req, city = ctx.request, ctx.request.city
+    band = req.time_of_day
+    if band not in TIME_BAND_KO:
+        return [error(ctx, "TOD", CARD1_METRIC, "DIMENSION_NOT_AVAILABLE", "시간대가 없는 요청")]
+    cutoff = daily_cutoff("card1", ctx.as_of, ctx.analysis_mode)
+    if cutoff is None:
+        return [empty(ctx, "TOD", CARD1_METRIC, "TIME_AVAILABILITY_UNKNOWN: 카드 실제 공개일을 몰라 strict_as_of 에서 쓰지 않음")]
+    cohorts, res = card_cohorts(req)
+    if not cohorts:
+        return [error(ctx, "TOD", CARD1_METRIC, "COHORT_NOT_SUPPORTED", res.message or "카드 연령 구간 없음")]
+    end = min(cutoff, req.period_to)
+    start = req.period_from if req.period_label else end - pd.Timedelta(days=days - 1).to_pytimedelta()
+    if start > end:
+        return [empty(ctx, "TOD", CARD1_METRIC, f"기준일에 쓸 수 있는 카드 자료가 질문 기간에 없음 (공급 지연, {cutoff}까지)")]
+    n_days = (end - start).days + 1
+    prev_end = start - pd.Timedelta(days=1).to_pytimedelta()
+    prev_start = prev_end - pd.Timedelta(days=n_days - 1).to_pytimedelta()
+    d = ds.card1()
+    d = d[d["city"] == city]
+    sexes = sorted({s for _, s in cohorts})
+    if len(sexes) == 1:
+        d = d[d["SEX_CCD"] == sexes[0]]
+    valid, forbidden = claim_lists("card1", is_shared_context=True)
+    out = []
+    for age in dict.fromkeys(a for a, _ in cohorts):
+        g = d[d["age_g"] == age]
+
+        def share(lo, hi):
+            w = g[(g["date"] >= pd.Timestamp(lo)) & (g["date"] <= pd.Timestamp(hi))]
+            tot = float(w["USE_CNT"].sum())
+            return (float(w.loc[w["TIME_GB"] == band, "USE_CNT"].sum()) / tot if tot else None), tot
+
+        cur, tot = share(start, end)
+        label = f"{age}{' ' + sexes[0] if len(sexes) == 1 else ''}"
+        code = f"TOD-{age_code(age)}{SEX_CODE_OF.get(sexes[0], '') if len(sexes) == 1 else ''}-{band.replace('_', '')}"
+        if cur is None:
+            out.append(empty(ctx, code, CARD1_METRIC, f"이 기간에 {label} 결제 행이 없음", source="card1"))
+            continue
+        prev, ptot = share(prev_start, prev_end) if prev_start >= pd.Timestamp("2025-07-01").date() else (None, 0)
+        direction = None
+        notes = list(CARD1_WARNINGS)
+        if prev is not None:
+            diff = cur - prev
+            direction = "변화 없음" if abs(diff) < 0.01 else ("증가" if diff > 0 else "감소")
+            notes.append(f"비교: 바로 앞 {n_days}일({prev_start}~{prev_end}) 비중 {prev:.3f} (차이 1%p 미만은 변화 없음)")
+        else:
+            notes.append("비교할 앞 기간 자료가 자료 기간(2025-07-01~) 밖이라 방향 없음")
+        out.append(envelope(
+            ctx, code, "card1", metric=f"카드 결제 중 {TIME_BAND_KO[band]} 비중 (카드 데이터1 보조)", value=round(cur, 3),
+            unit="같은 연령 결제 중 비율",
+            denominator=f"{city} 가맹점 {label} 카드 데이터1 결제건수 (모든 시간대)", n_obs=n_days,
+            direction=direction, measured_grain="가맹점 시군구 × 일 × 시간대(4구간) × 성 × 연령 (카드 데이터1)",
+            applied_scope=f"{city} 가맹점 (거주지 모름)", merchant_region=MERCHANT[city], is_shared_context=True,
+            analysis_cohort=label, service_eligibility_group=res.service_eligibility_group if res else None,
+            observed_from=start, observed_to=end, simulated_available_at=end + pd.Timedelta(days=lag_days("card1")).to_pytimedelta(),
+            interpretation_status="계산 재현", valid_claims=valid, forbidden_claims=forbidden + ["거주자 단정", "체류·외출 단정"],
+            value_state="observed", claim_category="전체 업종", warnings=notes))
     return out
 
 

@@ -60,7 +60,8 @@ def _period(e: ToolResult, as_of: date) -> str:
 
 def fact_of(e: ToolResult, as_of: date) -> Fact:
     if e.merchant_region:
-        region = f"{e.merchant_region} 가맹점 · {e.customer_residence} 거주"
+        # 카드 데이터1 은 거주지 칸이 없음 → "거주지 모름"
+        region = f"{e.merchant_region} 가맹점 · " + (f"{e.customer_residence} 거주" if e.customer_residence else "거주지 모름")
         if e.analysis_cohort:
             region += f" {e.analysis_cohort}"
     else:

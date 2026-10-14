@@ -16,6 +16,7 @@ DATA_TOOLS = (
     "get_structure",
     "get_mobility_layer",
     "get_card_cohort_series",
+    "get_card_time_band",
     "get_validation_reference",
 )
 SIGNAL_TOOLS = (
@@ -54,6 +55,7 @@ _REAL = {
     "get_structure": ("data", "get_structure"),
     "get_mobility_layer": ("data", "get_mobility_layer"),
     "get_card_cohort_series": ("data", "get_card_cohort_series"),
+    "get_card_time_band": ("data", "get_card_time_band"),
     "get_validation_reference": ("data", "get_validation_reference"),
     "get_calendar_triggers": ("signal", "get_calendar_triggers"),
     "calc_expected_activity": ("signal", "calc_expected_activity"),

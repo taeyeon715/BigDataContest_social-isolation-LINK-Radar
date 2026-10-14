@@ -65,6 +65,7 @@ class AgentState(TypedDict, total=False):
     scope_candidate_ids: list[str] | None  # 후보로 연 조사: 이 후보만 남김 (등급은 도시 전체 근거로 정한 뒤 거름)
     extra_runs: list[dict]  # 추가 도구 실행 기록 {tool, city, requested}. 다음 회차에도 다시 돌려 근거가 말없이 빠지지 않게
     requested_evidence_ids: list[str]  # 담당자가 추가 조사로 요청한 도구가 낸 근거 (후보 카드에 넣음)
+    place_scope: dict | None  # 질문한 동으로 거른 결과 {adm_cds, names, city, city_total, kept} (등급은 도시 전체로)
 
 
 EXTRA_FIELDS = (
@@ -72,7 +73,7 @@ EXTRA_FIELDS = (
     "verdict", "approval", "final_record", "published", "answer",
     "tools_backend", "monitor_cities", "run_meta_dir", "run_meta", "decision_trace",
     "tool_timings", "focus", "extra_plan", "prev_round", "review", "scope_candidate_ids",
-    "extra_runs", "requested_evidence_ids",
+    "extra_runs", "requested_evidence_ids", "place_scope",
 )
 DEFAULT_TOOLS_BACKEND = "real"
 STUB_SNAPSHOT_ID = "snap-stub-0001"
@@ -157,6 +158,7 @@ def initial_state(
         "scope_candidate_ids": list(scope_candidate_ids) if scope_candidate_ids else None,
         "extra_runs": [],
         "requested_evidence_ids": [],
+        "place_scope": None,
     }
 
 

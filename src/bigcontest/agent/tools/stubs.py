@@ -267,6 +267,32 @@ def get_card_cohort_series(ctx: ToolContext) -> list[ToolResult]:
     ]
 
 
+def get_card_time_band(ctx: ToolContext) -> list[ToolResult]:
+    """카드 데이터1 시간대 비중 (가짜 고정값). 거주지 없음."""
+    start, end = _card_window(ctx)
+    return [
+        _ev(
+            ctx,
+            "TOD",
+            metric="카드 결제 중 저녁·밤 18~23시 비중 (카드 데이터1 보조)",
+            value=0.21,
+            unit="같은 연령 결제 중 비율",
+            denominator="카드 데이터1 결제건수 (모든 시간대)",
+            n_obs=7,
+            measured_grain="가맹점 시군구 × 일 × 시간대(4구간) × 성 × 연령 (카드 데이터1)",
+            applied_scope=f"{ctx.city} 가맹점 (거주지 모름)",
+            merchant_region="춘천시" if ctx.city == "춘천" else "강남구",
+            is_shared_context=True,
+            analysis_cohort="60대",
+            observed_from=start,
+            observed_to=end,
+            simulated_available_at=end + timedelta(days=3),
+            value_state="observed",
+            warnings=["카드 데이터1(보조): 고객 거주지 칸이 없어 결제한 사람이 이 도시 주민인지 알 수 없음"],
+        )
+    ]
+
+
 def get_validation_reference(ctx: ToolContext) -> list[ToolResult]:
     if ctx.city != "강남":
         return [_empty(ctx, "VAL", "시민생활 지표", "시민생활 자료는 강남만 있음")]
@@ -534,6 +560,7 @@ _TOOLS = {
     "get_structure": get_structure,
     "get_mobility_layer": get_mobility_layer,
     "get_card_cohort_series": get_card_cohort_series,
+    "get_card_time_band": get_card_time_band,
     "get_validation_reference": get_validation_reference,
     "check_request_contract": check_request_contract_tool,
     "get_calendar_triggers": get_calendar_triggers,

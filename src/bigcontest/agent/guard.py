@@ -243,9 +243,12 @@ def _directions(text: str) -> set[str]:
 
 
 def _cities_in(text: str) -> set[str]:
-    """문장에 나온 도시 (별칭 포함: 서울 → 강남, 강원 → 춘천)."""
+    """문장에 나온 도시 (별칭 포함: 서울 → 강남, 강원 → 춘천). 동 이름을 먼저 찾아 지우고, 찾은 동의 도시를 더한다
+    ("춘천 강남동" → {춘천}, 서울 강남구가 아님. places.cities_in)."""
+    from bigcontest.agent.places import cities_in
+
     cfg = rules()["narrative"]["cities"]
-    return {c for c, names in cfg.items() if any(n in text for n in names)}
+    return cities_in(text, {c: tuple(names) for c, names in cfg.items()})
 
 
 def _city_of(ev: ToolResult, fact: Fact | None) -> str | None:
