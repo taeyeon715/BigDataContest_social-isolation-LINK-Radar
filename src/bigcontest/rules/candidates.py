@@ -45,10 +45,15 @@ def top_cut(n: int, rules: dict) -> int:
     return max(1, math.ceil(s["top_share"] * n)) if n >= s["small_n"] else n
 
 
-def structure_facts(items: list[tuple[str, str | None, float, list[str]]], rules: dict | None = None
-                    ) -> dict[str, StructFact]:
-    """구조 근거 [(adm, 도시, 값, 경고)] → adm → StructFact (상위 여부 포함). 도시마다 따로 순위."""
+def structure_facts(items: list[tuple[str, str | None, float, list[str]]], rules: dict | None = None,
+                    targets: dict[str, tuple[float, float, str]] | None = None) -> dict[str, StructFact]:
+    """구조 근거 [(adm, 도시, 값, 경고)] → adm → StructFact (상위 여부 포함). 도시마다 따로 순위.
+
+    targets: adm → (대상 성·연령 인구 비중, 도시 중앙값, 대상 이름). rules.yaml target_population.apply_to_structure 가
+    참이면 "상위" = 1인세대 비율 상위 + 대상 인구 비중이 도시 중앙값 이상. 거짓(기본)이면 비중은 표시만."""
     rules = rules or load_rules()
+    targets = targets or {}
+    apply_target = bool((rules["thresholds"]["structure"].get("target_population") or {}).get("apply_to_structure"))
     s = rules["thresholds"]["structure"]
     out: dict[str, StructFact] = {}
     by_city: dict[str | None, list] = {}
@@ -63,8 +68,11 @@ def structure_facts(items: list[tuple[str, str | None, float, list[str]]], rules
             else:
                 rank, n = local[adm]
                 pop = f"{city or '도시'} 받은 근거 {n}개 동"
-            top = rank <= top_cut(n, rules) and v >= s["abs_min"]
-            out[adm] = StructFact(adm, v, rank, n, pop, top)
+            rate_top = rank <= top_cut(n, rules) and v >= s["abs_min"]
+            ts, tm, tl = targets.get(adm, (None, None, None))
+            f = StructFact(adm, v, rank, n, pop, rate_top, ts, tm, tl, rate_top)
+            f.top = rate_top and (f.target_ok is not False or not apply_target)
+            out[adm] = f
     return out
 
 
@@ -170,10 +178,21 @@ def group_of_label(label: str | None) -> str | None:
     return None
 
 
-def response_type(level: str | None, group_label: str | None, rules: dict | None = None) -> str | None:
+def city_guidance(group_label: str | None, rules: dict | None = None) -> bool:
+    """rules-v1.1: 동을 고르지 않고 도시 단위 안내 후보로 두는 집단인가 (rules.yaml thresholds.city_guidance)."""
+    g = group_of_label(group_label)
+    groups = ((rules or load_rules())["thresholds"].get("city_guidance") or {}).get("groups") or []
+    return g is not None and g in groups
+
+
+def response_type(level: str | None, group_label: str | None, rules: dict | None = None,
+                  rule_id: str | None = None) -> str | None:
     rt = (rules or load_rules())["response_types"]
     if level is None:
         return None
+    base = (rule_id or "").split("+")[0]
+    if base in (rt.get("by_rule") or {}):
+        return rt["by_rule"][base]
     g = group_of_label(group_label)
     over = rt.get("by_group", {}).get(g) if g else None
     if over and level in over["levels"]:

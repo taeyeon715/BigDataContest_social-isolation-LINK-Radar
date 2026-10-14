@@ -81,11 +81,11 @@ def test_endpoint_publish_candidates():
     assert out["route"] == "investigate"
     assert "classify" not in out["path"] and "check_availability" in out["path"]
     assert out["path"][-1] == "publish_candidates"
-    # rules-v1.0: 구조 상위·접근성 기준을 못 넘는 동(가짜 퇴계동)은 예정된 점검 후보로 만들지 않음
+    # rules-v1.1: 구조 상위·접근성 기준을 못 넘는 동(가짜 퇴계동)은 예정된 점검 후보로 만들지 않음
     assert len(out["published"]["candidates"]) == 3
     levels = [c["candidate_level"] for c in out["candidates"]]
     assert levels == ["Level 3", "Level 2", "Level 2"]
-    assert all(c["rule_id"] and c["rule_version"] == "rules-v1.0" for c in out["candidates"])
+    assert all(c["rule_id"] and c["rule_version"] == "rules-v1.1" for c in out["candidates"])
     # 예정된 점검은 반증 대상이 아님
     assert all(c["counter_result"] == "해당 없음" for c in by_type(out, "scheduled_access_review"))
     # K=2: 등급은 그대로, 배정만 2건

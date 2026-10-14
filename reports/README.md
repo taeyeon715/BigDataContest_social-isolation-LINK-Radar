@@ -17,7 +17,7 @@
 | [EDA-6 사전 경보 재평가](eda6_사전경보재평가/README.md) | 3 |
 | [M1 기대 활동 모델](m1_기대활동모델/README.md) | 2 |
 | [M2 대리 과제 B (보조 과제)](m2_대리과제B/README.md) | 1 |
-| [R-1 후보·등급 규칙 평가 (rules-v1.0)](r1_등급규칙/README.md) | 1 |
+| [R-1 후보·등급 규칙 평가 (rules-v1.1)](r1_등급규칙/README.md) | 1 |
 | [W-1 자원 원장 보강](w1_자원원장/README.md) | 0 |
 
 ## 그림 모음
@@ -81,7 +81,7 @@
 |---|---|
 | <a href="m2_대리과제B/README.md"><img src="m2_대리과제B/figs/f01_oof_scatter.png" width="420"></a><br>접기 밖 예측 대 실제 <sub>(2. 결과 (행정동 GroupKFold, 접기 밖 예측))</sub> |  |
 
-### [R-1 후보·등급 규칙 평가 (rules-v1.0)](r1_등급규칙/README.md)
+### [R-1 후보·등급 규칙 평가 (rules-v1.1)](r1_등급규칙/README.md)
 
 | | |
 |---|---|

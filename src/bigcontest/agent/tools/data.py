@@ -136,6 +136,129 @@ def get_structure(ctx, adm_cd: str | None = None) -> list[ToolResult]:
             valid_claims=valid, forbidden_claims=forbidden, value_state="observed" if ok else "missing",
             warnings=[rank_warning(population, *ranks[adm])] if adm in ranks else [],
         ))
+    shown = [a for a in _city_adms(ds, city, adm_cd or (ctx.request.adm_cd if ctx.request else None)) if a in h.index]
+    out += structure_context(ctx, ds, city, item, h, shown)
+    return out
+
+
+# ---------------------------------------------------------------- 구조 맥락 (rules-v1.1)
+
+TARGET_POP_METRIC = "대상 성·연령 인구 비중"
+RECIPIENT_METRIC = "기초생활수급자 비율 (구조 별도 칸, 표시만)"
+NET_METRIC = "1인세대 월 순증률 (전입 맥락, 표시만)"
+RECIPIENT_PUBLISHED = pd.Timestamp("2025-12-01").date()  # 서울시 기본통계 자료갱신일 (2024년 값)
+NO_RECIPIENT_CITY = "춘천은 동별 기초생활수급자 공개 자료 없음 (시군구 통계만). 보류 사유가 아니라 자료 한계"
+TARGET_WARN = "대상 인구 모집단:"
+
+
+def target_population_spec(group: str | None, rules: dict | None = None) -> dict | None:
+    """rules.yaml thresholds.structure.target_population 에서 이 집단의 성·연령 (없으면 None)."""
+    from bigcontest.rules import load_rules
+
+    if not group:
+        return None
+    tp = (rules or load_rules())["thresholds"]["structure"].get("target_population") or {}
+    from bigcontest.rules.candidates import group_of_label
+
+    name = group_of_label(group) or group
+    spec = (tp.get("groups") or {}).get(name)
+    return {**spec, "quantile": tp.get("quantile", 0.5), "group": name} if spec else None
+
+
+def structure_context(ctx, ds, city: str, item, h: pd.DataFrame, adms: list[str]) -> list[ToolResult]:
+    """구조 지표 옆의 맥락 근거 (rules-v1.1).
+
+    - POP-<adm>: 남성 집단의 대상 성·연령 인구 비중 + 도시 중앙값 (구조 상위 조건, rules.yaml target_population)
+    - REC-<adm>: 기초생활수급자 비율 (강남만, 표시·원인 유형용. 등급 입력 아님)
+    - NET-<adm>: 1인세대 월 순증률 (전입 맥락, 표시만)
+    """
+    out: list[ToolResult] = []
+    req = ctx.request
+    month = int(item.base_month[4:])
+    label = {a: _adm_label(ds, a) for a in adms}
+    common = dict(observed_from=item.observed_from, observed_to=item.observed_to,
+                  simulated_available_at=item.simulated_available_at, interpretation_status="직접 확인")
+
+    spec = target_population_spec(req.group if req else None)
+    if spec is not None:
+        rp = ds.resident_pop()
+        rp = rp[rp["month"] == month]
+        tot = rp.groupby("adm_cd")["pop"].sum()
+        sel = rp[(rp["sex"] == spec["sex"]) & rp["age"].between(spec["age_min"], spec["age_max"])]
+        share = (sel.groupby("adm_cd")["pop"].sum() / tot).dropna()
+        city_all = share[share.index.isin(_city_adms(ds, city))]
+        med = float(city_all.quantile(spec["quantile"])) if len(city_all) else None
+        who = f"{spec['age_min']}~{spec['age_max']}세 {'남성' if spec['sex'] == '남' else '여성'}"
+        for adm in adms:
+            if adm not in share.index or med is None:
+                continue
+            v = float(share[adm])
+            out.append(envelope(
+                ctx, f"POP-{adm}", "resident_pop", metric=TARGET_POP_METRIC, value=round(v, 4), unit="비율",
+                denominator="총인구 (주민등록, 같은 동·같은 달)", n_obs=int(tot.get(adm, 0)),
+                measured_grain="행정동 × 월 × 성 × 1세 연령", applied_scope=label[adm], analysis_cohort=who,
+                valid_claims=["동별 인구 구성"], forbidden_claims=["1인가구 수", "독거 중장년 남성 수 (1인세대와 곱하지 않음)"],
+                value_state="observed",
+                warnings=[f"{TARGET_WARN} {city} {len(city_all)}개 동 {who} 비중 중앙값 {med:.4f} "
+                          f"({'이상' if v >= med else '미만'}) · 집단 {spec['group']}",
+                          "구조 상위 조건 (rules-v1.1 target_population): 1인세대 비율 상위 + 대상 인구 비중이 도시 중앙값 이상"],
+                **common))
+
+    if city == "강남":
+        rec = ds.recipients()
+        before = ctx.as_of < RECIPIENT_PUBLISHED
+        if ctx.analysis_mode == "strict_as_of" and before:
+            out.append(empty(ctx, "REC", RECIPIENT_METRIC, f"2024년 수급자 통계는 {RECIPIENT_PUBLISHED} 공개라 "
+                             f"strict_as_of 기준일 {ctx.as_of}에는 쓰지 않음"))
+        elif len(rec):
+            rp = ds.resident_pop()
+            m0 = int(rp["month"].min())
+            pop = rp[rp["month"] == m0].groupby("adm_cd")["pop"].sum()
+            rec = rec.dropna(subset=["adm_cd", "persons"]).set_index("adm_cd")
+            rate = (rec["persons"] / pop.reindex(rec.index)).dropna()
+            ranks = {a: i + 1 for i, a in enumerate(sorted(rate.index, key=lambda a: (-rate[a], a)))}
+            n = len(rate)
+            for adm in adms:
+                if adm not in rate.index:
+                    continue
+                out.append(envelope(
+                    ctx, f"REC-{adm}", "welfare_recipients", metric=RECIPIENT_METRIC, value=round(float(rate[adm]), 4),
+                    unit="비율", denominator=f"총인구 (주민등록 2025-{m0:02d})", n_obs=int(pop.get(adm, 0)),
+                    measured_grain="행정동 × 연(2024년 말)", applied_scope=label[adm],
+                    availability_basis="unknown", interpretation_status="직접 확인", value_state="observed",
+                    valid_claims=["동별 기초생활수급자 비율 (구조 맥락)"],
+                    forbidden_claims=["개인·가구의 수급 여부", "수급자 = 고립", "등급 근거"],
+                    warnings=[f"도시 안 {ranks[adm]}/{n}위 (강남 {n}개 동 전체)",
+                              f"분자 2024년 수급자 인원(서울시 기본통계, 공개 {RECIPIENT_PUBLISHED}), 분모 2025-{m0:02d} 주민등록 인구: 연도가 다름",
+                              "구조 별도 칸: 1인세대 비율과 합치지 않고 등급에 쓰지 않음 (원인 유형 '경제 취약형' 표시용)"]
+                    + ([f"기준일 {ctx.as_of}은 공개({RECIPIENT_PUBLISHED}) 전: 지금 공개된 값으로 보여 줌 (당시에는 없던 값)"]
+                       if before else [])))
+    else:
+        out.append(empty(ctx, "REC", RECIPIENT_METRIC, NO_RECIPIENT_CITY))
+
+    prev = month - 1
+    hp = ds.households()
+    hp = hp[hp["month"] == prev].set_index("adm_cd") if prev >= 7 else None
+    if hp is not None and len(hp):
+        net = {}
+        for adm in adms:
+            if adm in h.index and adm in hp.index and pd.notna(h.loc[adm, "1인세대"]) and hp.loc[adm, "1인세대"] > 0:
+                net[adm] = float(h.loc[adm, "1인세대"] / hp.loc[adm, "1인세대"] - 1)
+        full = {}
+        for a in _city_adms(ds, city):
+            if a in h.index and a in hp.index and pd.notna(h.loc[a, "1인세대"]) and hp.loc[a, "1인세대"] > 0:
+                full[a] = float(h.loc[a, "1인세대"] / hp.loc[a, "1인세대"] - 1)
+        ranks = {a: i + 1 for i, a in enumerate(sorted(full, key=lambda a: (-full[a], a)))}
+        for adm, v in net.items():
+            out.append(envelope(
+                ctx, f"NET-{adm}", "resident_hh", metric=NET_METRIC, value=round(v, 4), unit="비율",
+                denominator=f"전월(2025-{prev:02d}) 1인세대 수", n_obs=int(hp.loc[adm, "1인세대"]),
+                measured_grain="행정동 × 월", applied_scope=label[adm], value_state="observed",
+                valid_claims=["1인세대 수의 월 변화 (등록 기준)"],
+                forbidden_claims=["전입자 수 (순증은 전입·전출·분가·사망이 섞임)", "고립 위험 증가"],
+                warnings=[f"도시 안 순증률 {ranks[adm]}/{len(full)}위",
+                          "전입 맥락 표시만 (rules.yaml context_only). 이사 뒤 관계망 약화는 근거 방향이 섞여 위험 요인으로 쓰지 않음"],
+                **common))
     return out
 
 
@@ -259,7 +382,42 @@ def get_card_cohort_series(ctx, days: int = 14) -> list[ToolResult]:
                 warnings=["평소 = 같은 요일 과거 8주 평균 (공휴일 제외, 기준일 전 자료만)"]
                 + card_zero_notes(ds, col, p.dates[win7[0]] - pd.Timedelta(days=56), p.dates[win7[-1]]),
                 **{**common, "denominator": "같은 코호트 같은 요일 과거 8주 평균 (카드 데이터2)"}))
+        div = _diversity(ctx, ds, p, city, age, sex, win7, key, sim, common)
+        if div is not None:
+            out.append(div)
     return out
+
+
+DIVERSITY_METRIC = "카드 업종 다양성 (결제량 보정, 평소 대비)"
+
+
+def _diversity(ctx, ds, p, city, age, sex, win7, key, sim, common):
+    """rules-v1.1 맥락: 하루 결제 N건당 기대 업종 수(희박화 근사)의 최근 7일 평균 ÷ 같은 요일 과거 8주 평균(공휴일 제외).
+    결제량이 줄면 업종 수도 기계적으로 줄어드는 효과를 같은 건수로 맞춰 뺀다. 등급 입력 아님."""
+    from bigcontest.rules import load_rules
+    from bigcontest.rules.context import daily_diversity
+
+    draws = load_rules()["thresholds"]["card_context"]["diversity_draws"]
+    d = ds.cached(("diversity", city, age, sex, draws),
+                  lambda: daily_diversity(ds.card2_categories(), city, age, sex, draws))
+    if d.empty:
+        return None
+    d = d.reindex(p.dates)
+    recent = d.iloc[win7].dropna()
+    base_idx = sorted({i - 7 * k for i in win7 for k in range(1, 9) if i - 7 * k >= 0 and not p.is_hol[i - 7 * k]})
+    base = d.iloc[base_idx].dropna()
+    if len(recent) < 4 or len(base) < 14:
+        return None
+    ratio = float(recent.mean() / base.mean())
+    return envelope(
+        ctx, f"DIV-{key}", "card2", metric=DIVERSITY_METRIC, value=round(ratio, 3), unit="평소 대비 비율",
+        n_obs=len(recent), direction="감소" if ratio < 0.97 else ("증가" if ratio > 1.03 else "변화 없음"),
+        observed_from=p.dates[win7[0]].date(), simulated_available_at=sim,
+        warnings=[f"최근 7일 결제 {draws}건당 기대 업종 수 {recent.mean():.1f}개 vs 평소 {base.mean():.1f}개 "
+                  f"(같은 요일 과거 8주, 공휴일 제외)",
+                  "결제량 보정: 하루 결제를 같은 건수로 맞춘 기대 업종 수 (복원 추출 근사). 업종은 카드 가맹점 업종 78종",
+                  "맥락만 (rules-v1.1, 등급 입력 아님): '생활 폭' 대리. 결제 총량과 따로 움직일 때만 정보가 됨"],
+        **{**common, "denominator": "같은 코호트 같은 요일 과거 8주 평균 (카드 데이터2)"})
 
 
 # ---------------------------------------------------------------- 카드 데이터1 시간대 (보조)

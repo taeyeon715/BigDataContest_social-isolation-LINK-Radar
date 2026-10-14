@@ -52,7 +52,7 @@ def make_root(root: Path, city: str, holidays: dict, n_rows: int, drop_one: bool
         _lines(REAL[k], root / DEV_FILES[k], n_rows)
     led = pd.read_csv(REAL["resources"], dtype=str, keep_default_na=False).head(n_rows)
     led.to_csv(root / DEV_FILES["resources"], index=False, encoding="utf-8")
-    for k in ("adm_names", "adm_code_map"):
+    for k in ("adm_names", "adm_code_map", "asos_heat", "welfare_recipients"):  # rules-v1.1 자료는 통째로
         _lines(REAL[k], root / DEV_FILES[k], None)
     cfg = yaml.safe_load(REAL["config"].read_text(encoding="utf-8"))
     cfg["holidays"] = holidays

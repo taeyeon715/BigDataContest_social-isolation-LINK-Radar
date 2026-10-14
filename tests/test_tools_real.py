@@ -71,14 +71,15 @@ def test_every_tool_returns_envelope(tool, city):
     assert len({r.evidence_id for r in out}) == len(out)  # 근거 ID 중복 없음
     for r in ok(out):
         if r.data_version and "@sha256:" in r.data_version:
-            assert r.data_version.split("@")[0] in ("card2", "tel_age", "resident_hh", "seoul_living", "asos", "resources")
+            assert r.data_version.split("@")[0] in ("card2", "card1", "tel_age", "resident_hh", "resident_pop", "seoul_living",
+                                                    "asos", "resources", "welfare_recipients")
         if r.merchant_region:
             assert r.customer_residence in ("서울", "강원") and r.is_shared_context
     no_late(out, c.as_of)
 
 
 def test_structure_and_access():
-    s = ok(D.get_structure(ctx("강남")))
+    s = [r for r in ok(D.get_structure(ctx("강남"))) if r.metric == "1인세대 비율"]
     assert len(s) == 22 and all(0 < r.value < 1 for r in s)
     assert all(r.observed_to == date(2025, 9, 30) for r in s)  # 10/15 에는 9월분까지 (공개 가정 10일)
     acc_gn = ok(W.get_access_gap(ctx("강남", group="고령층")))
@@ -146,8 +147,9 @@ def test_strict_mode_card_is_not_used():
 
 def test_winter_contraction_respects_publication():
     assert S.calc_winter_contraction(ctx("춘천", "2025-12-10"))[0].status == "EMPTY"  # 11월분 공개 전
-    (w,) = S.calc_winter_contraction(ctx("춘천", "2025-12-20"))
+    w, tod = S.calc_winter_contraction(ctx("춘천", "2025-12-20"))  # rules-v1.1: 시간대 상대 리듬(맥락)이 뒤에 붙음
     assert w.status == "OK" and w.value < 1 and w.observed_to == date(2025, 11, 30)
+    assert tod.metric == S.RHYTHM_METRIC and tod.status == "OK" and tod.observed_to <= date(2025, 12, 20)
 
 
 def test_find_resources_maps_ledger_values():

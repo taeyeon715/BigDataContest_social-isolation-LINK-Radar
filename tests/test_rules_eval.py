@@ -30,7 +30,7 @@ def d1_evidence():
 @pytest.mark.parametrize("city", ["강남", "춘천"])
 def test_i08_same_level_full_vs_filtered(city):
     c = ctx_for(dev_snapshot_id(), city, D1, "고령층")
-    full = [e for e in call_tool("get_structure", c) if e.status == "OK"]
+    full = [e for e in call_tool("get_structure", c) if e.status == "OK" and e.metric == "1인세대 비율"]
     tops = S.structure_tops(full)
     n = len(full)
     for e in full:

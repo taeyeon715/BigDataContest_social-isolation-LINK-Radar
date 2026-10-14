@@ -78,10 +78,11 @@ def map_codes(src_codes: pd.Series, source_system: str, pop: pd.Series | None = 
     return src_codes.map(dict(zip(m["source_code"], m["target_adm_cd"])))
 
 
-def resident_population() -> pd.DataFrame:
-    """주민등록 성·연령별 인구 → 행정동 × 월 × 성 × 1세 연령 (long). 변환 실패 값은 NA + pop_na_reason."""
-    d = pd.read_csv(EXT / "resident" / "주민등록_성연령별인구_2025-07_12.csv", dtype=str)
-    d["adm_cd"] = map_codes(d["행정기관코드"], "mois_adm_cd2")
+def resident_population(path=None, map_path=None) -> pd.DataFrame:
+    """주민등록 성·연령별 인구 → 행정동 × 월 × 성 × 1세 연령 (long). 변환 실패 값은 NA + pop_na_reason.
+    path·map_path: 고정 스냅샷 파일(없으면 레포 기본)."""
+    d = pd.read_csv(path or EXT / "resident" / "주민등록_성연령별인구_2025-07_12.csv", dtype=str)
+    d["adm_cd"] = map_codes(d["행정기관코드"], "mois_adm_cd2", map_path=map_path)
     d["month"] = pd.to_datetime(d["기준연월"]).dt.month
     cols = [c for c in d.columns if re.match(r"^\d+세(이상 )?(남자|여자)$", c)]
     long = d.melt(id_vars=["adm_cd", "month"], value_vars=cols, var_name="k", value_name="pop")
@@ -100,6 +101,34 @@ def resident_households(path=None, map_path=None) -> pd.DataFrame:
         d[c], _ = to_number(d[c], f"주민등록 {c}")
     d["one_person_rate"] = d["1인세대"] / d["전체세대수"]
     return d[["adm_cd", "month", "전체세대수", "1인세대", "one_person_rate"]]
+
+
+RECIPIENTS_FILE = EXT / "welfare" / "서울_기초생활수급자_동별_2024.csv"
+
+
+def seoul_recipients(path=None, names_path=None, gu: str = "강남구", city: str = "강남") -> pd.DataFrame:
+    """서울시 국민기초생활보장 수급자(동별) 원본 CSV → 강남 행정동 × 연도 (총 수급 가구·인원).
+
+    원본은 머리 4줄(시점·구분·단위·성별) 뒤에 '구, 동, 값…'. 동 이름으로 ref/adm_cd_names.csv 와 잇는다
+    (같은 이름이 없으면 버리지 않고 adm_cd 결측). '-'(자료없음)은 결측, 0으로 채우지 않는다."""
+    raw = pd.read_csv(path or RECIPIENTS_FILE, header=None, dtype=str, encoding="utf-8-sig")
+    year, kind, unit, sub = (raw.iloc[i].tolist() for i in range(4))
+    body = raw.iloc[4:]
+    body = body[(body[0] == gu) & ~body[1].isin(["소계", "기타"])]
+    cols = {"households": None, "persons": None}
+    for j in range(2, raw.shape[1]):
+        if kind[j] == "총 수급자" and sub[j] == "소계":
+            if str(unit[j]).startswith("가구"):
+                cols["households"] = j
+            elif str(unit[j]).startswith("인원"):
+                cols["persons"] = j
+    names = pd.read_csv(names_path or ROOT / "ref" / "adm_cd_names.csv", dtype=str)
+    names = names[names["city"] == city].set_index("adm_nm")["adm_cd"]
+    out = pd.DataFrame({"adm_nm": body[1].to_numpy(), "year": int(year[cols["persons"]])})
+    for k, j in cols.items():
+        out[k], _ = to_number(body[j].replace("-", None).reset_index(drop=True), f"수급자 {k}")
+    out["adm_cd"] = out["adm_nm"].map(names)
+    return out[["adm_cd", "adm_nm", "year", "households", "persons"]]
 
 
 SL_FILE = EXT / "seoul_living" / "시민생활_10개관심집단_강남_2025-07_12.csv"

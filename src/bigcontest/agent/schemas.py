@@ -226,6 +226,31 @@ class RuleCheck(_Model):
     level_if_met: CandidateLevel | None = None
 
 
+class ContextSignal(_Model):
+    """후보에 붙는 맥락 칸 (rules-v1.1). 등급·순서에 쓰지 않는다(affects_level=False). 반증 맥락은 판단 보류의 사유만 바꿈."""
+
+    name: str  # 예: 연휴 외지 손님 비중
+    value: float | int | str | None = None
+    unit: str | None = None
+    text: str  # 한 줄 설명 (값·비교·한계)
+    role: Literal["맥락", "반증 맥락", "구조 별도 칸"] = "맥락"
+    scope: str | None = None  # 도시 / 동 이름 등 (값의 단위)
+    evidence_id: str | None = None
+    affects_level: bool = False
+
+
+class TimelineStep(_Model):
+    """명절 전·중·후 묶음의 한 칸 (R1·R2·R3 를 한 사건으로)."""
+
+    phase: Literal["전", "중", "후"]
+    code: Literal["R1", "R2", "R3"]
+    label: str
+    start: date
+    end: date
+    status: Literal["지남", "지금", "예정"]
+    applies: bool = True  # 이 집단·도시에 적용되는 단계인지 (R3 는 춘천 고령층만)
+
+
 class Candidate(_Model):
     candidate_id: str
     candidate_type: CandidateType
@@ -249,7 +274,7 @@ class Candidate(_Model):
     # 등급을 정한 규칙과 조건별 충족 여부 (등급 엔진이 채움. 없으면 explain_level 은 level_reason 만 씀)
     # --- 등급 규칙(configs/rules.yaml) 칸. 모두 선택 칸 ---
     rule_id: str | None = None  # 예: L2-STRUCT-TRIGGER, L3-...+CAP-PARTIAL
-    rule_version: str | None = None  # 예: rules-v1.0
+    rule_version: str | None = None  # 예: rules-v1.1
     rule_checks: list[RuleCheck] = Field(default_factory=list)
     event_id: str | None = None  # 같은 사건이면 같은 값 (예: 강남:R1:20251003). 같은 사건으로 한 번만 만듦
     event_opened_at: date | None = None  # 후보가 생긴 날 (트리거 공개일 = 연휴 D-7, 이탈은 경보일 + 공급 지연)
@@ -259,6 +284,11 @@ class Candidate(_Model):
     # 후보 목록 응답에만 채움 (조사 전 자원 미리 보기를 좁힘). 원인 유형 → 필요 유형 (configs/need_types.yaml)
     cause_type: str | None = None
     need_types: list[str] = Field(default_factory=list)
+    # --- rules-v1.1 선택 칸 (표시용, 등급 입력 아님) ---
+    context: list[ContextSignal] = Field(default_factory=list)  # 카드 맥락·수급자 비율·1인세대 순증 등
+    event_bundle_id: str | None = None  # 명절 묶음 (예: 춘천:명절:20251003). R1·R2·R3 후보가 같은 값
+    event_timeline: list[TimelineStep] = Field(default_factory=list)  # 명절 전·중·후
+    heat_stage: str | None = None  # R4: 폭염주의보 / 폭염경보 / 폭염중대경보 (상황 시연에서만)
 
     @model_validator(mode="after")
     def _check(self) -> Candidate:

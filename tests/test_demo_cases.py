@@ -13,7 +13,7 @@
   통신은 성연령 표와 시간대 표가 따로라 "60대 밤 체류"는 정말로 알 수 없음
 - D4B 결제 기준이면 답함: "강남 60대의 밤 카드 결제" → 카드 데이터1(보조, 연령 × 시간대 4구간)로 조회.
   가맹점 기준이고 거주지가 없다는 한계를 같이 적음 (심사 점검: 예전 D4 예시는 카드 데이터1로 답할 수 있었음)
-등급은 configs/rules.yaml (rules-v1.0). D1 강남 7곳 Level 2 (구조 상위·접근성 기준으로 22곳에서 줄어듦),
+등급은 configs/rules.yaml (rules-v1.1). D1 강남 7곳 Level 2 (구조 상위·접근성 기준으로 22곳에서 줄어듦),
 D2 읍·면 8곳 중 Level 3 3곳.
 """
 
@@ -84,7 +84,7 @@ def test_d1_gangnam_structure_review(agent):
     assert st["waiting"] and v["route"] == "investigate"  # 끝점: 승인 대기
     assert final_guard(v) == PASS3
     by_adm = {c["adm_cd"]: c for c in v["candidates"] if c["candidate_type"] == "scheduled_access_review"}
-    # rules-v1.0: 구조 상위(도시 22개 동 전체 중 상위 30%, 1인세대 비율 0.35 이상)나 접근성 근거가 있는 동만 후보
+    # rules-v1.1: 구조 상위(도시 22개 동 전체 중 상위 30%, 1인세대 비율 0.35 이상)나 접근성 근거가 있는 동만 후보
     assert len(by_adm) == 7 and all("R1 추석" in c["trigger"] for c in by_adm.values())
     assert all(c["candidate_level"] == "Level 2" and c["rule_id"] == "L2-STRUCT-TRIGGER" for c in by_adm.values())
     assert {"11230640", "11230520"} <= set(by_adm)  # 역삼1동·논현1동 (1인세대 비율 상위)
@@ -96,7 +96,7 @@ def test_d1_gangnam_structure_review(agent):
     t = text(v)
     assert "거리 공백 근거 약함" in t
     assert "시민생활" in t and "탐색적 참고" in t
-    assert "rules-v1.0" in t
+    assert "rules-v1.1" in t
     assert v["resources"] and all(r["operating_status"] == "확인 필요" for r in v["resources"])  # 가용성 확인 필요
     assert all(r["city"] == "강남" for r in v["resources"])
     # 공식 페이지로 확인일을 채운 외로움안녕120(전화형)이 추천에 들어감
@@ -129,7 +129,7 @@ def test_d2_chuncheon_winter_review(agent):
     assert st["waiting"] and final_guard(v) == PASS3
     assert "calc_winter_contraction" in v["tools_run"]
     cands = v["candidates"]
-    # 읍·면 10곳 중 구조 상위 또는 직선 5km 이상인 8곳만 후보 (rules-v1.0 진입 규칙)
+    # 읍·면 10곳 중 구조 상위 또는 직선 5km 이상인 8곳만 후보 (rules-v1.1 진입 규칙)
     assert len(cands) == 8 and all(c["trigger"].startswith("W 동절기") for c in cands)
     assert all(c["input_status"] == "충족" for c in cands)  # 동절기 점검 필수 근거(겨울 변화) 포함
     lv = {c["adm_cd"]: c["candidate_level"] for c in cands}
@@ -184,7 +184,7 @@ def test_d3_city_common_drop_is_not_rejected(agent):
     assert not any(c["counter_result"] == "기각" for c in cs)
     held = [c for c in cs if c["candidate_level"] == "판단 보류"]
     assert len(held) == 5 and all("확인 필요" in c["counter_reason"] for c in held)
-    # 9/19 60대 남성 경보는 창 평균 하락이 절대 최소값(10%) 미만 → Level 1 (rules-v1.0)
+    # 9/19 60대 남성 경보는 창 평균 하락이 절대 최소값(10%) 미만 → Level 1 (rules-v1.1)
     assert [c["rule_id"] for c in cs if c["candidate_level"] == "Level 1"] == ["L1-DEV-SMALL"]
     assert final_guard(v) == PASS3
 

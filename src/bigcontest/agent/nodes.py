@@ -4,7 +4,7 @@
 - 연결(분기)은 graph.py 한 곳에만 있다. 승인 대기의 `interrupt` 도 graph.py 에서 부르고,
   여기에는 요청 만들기(`approval_request`)와 응답 처리(`apply_approval`)만 둔다.
 - 도구는 `tools.call_tool` 로 부른다. 상태의 `tools_backend` 가 real 이면 실제 도구(고정 스냅샷), stub 이면 가짜 도구.
-- 후보 분류·반증 판정·등급은 tools.signal 에 있다. 등급은 configs/rules.yaml (rules-v1.0, bigcontest.rules).
+- 후보 분류·반증 판정·등급은 tools.signal 에 있다. 등급은 configs/rules.yaml (rules-v1.1, bigcontest.rules).
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ from bigcontest.contracts.grain import check_request_contract
 from bigcontest.contracts.inputs import required_tools
 from bigcontest.contracts.time import Provenance, availability, check_time_contract
 
-# 예전 이름 (테스트·API 가 씀). 값은 configs/rules.yaml 임계값 (rules-v1.0)
+# 예전 이름 (테스트·API 가 씀). 값은 configs/rules.yaml 임계값 (rules-v1.1)
 STUB_LEVEL_RULES = S.STUB_LEVEL_RULES
 CITY_COMMON_NOTE = S.CITY_COMMON_NOTE
 REVIEW_PENDING_NOTE = S.REVIEW_PENDING_NOTE
@@ -1098,7 +1098,7 @@ def check_findings(state: dict) -> dict:
 
 
 def assign_level(state: dict) -> dict:
-    """후보마다 등급 (configs/rules.yaml rules-v1.0, tools.signal.assign_level). 기각 → Level 1 + 사유,
+    """후보마다 등급 (configs/rules.yaml rules-v1.1, tools.signal.assign_level). 기각 → Level 1 + 사유,
     보류 → 판단 보류. 모든 후보에 rule_id·rule_version."""
     return {"candidates": _dump(S.assign_level(_candidates(state), _evidence(state), as_of=_as_of(state)))}
 
@@ -1156,8 +1156,11 @@ def candidate_cause(c: Candidate, evidence: list[ToolResult]) -> str:
     access = {_adm_of(e): float(e.value) for e in evidence
               if e.metric == ACCESS_METRIC and e.status == "OK" and isinstance(e.value, (int, float))}
     adm = c.adm_cd or (c.check_first_adm[0] if c.check_first_adm else None)
-    return cause_for(c.trigger if c.candidate_type == "scheduled_access_review" else None, access.get(adm),
-                     S.STUB_LEVEL_RULES["access_far_km"])
+    cause = cause_for(c.trigger if c.candidate_type == "scheduled_access_review" else None, access.get(adm),
+                      S.STUB_LEVEL_RULES["access_far_km"])
+    if S.economic_vulnerable(c):  # rules-v1.1: 수급자 비율 도시 안 상위 동 (강남, 표시·자원 매칭만)
+        cause += f"+{S.ECONOMIC_CAUSE}"
+    return cause
 
 
 def match_resources(state: dict) -> dict:
@@ -1345,7 +1348,7 @@ def summary_sentences(cands: list[Candidate], evidence: list[ToolResult]) -> lis
     out = []
     low = [c for c in cands if c.candidate_type == "scheduled_access_review" and c.candidate_level in ("Level 0", "Level 1")]
     if low:
-        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 근거 하나만(트리거)이라 Level 1 (구조·접근성 기준 미달) [rules-v1.0]")
+        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 근거 하나만(트리거)이라 Level 1 (구조·접근성 기준 미달) [rules-v1.1]")
     far = S.STUB_LEVEL_RULES["access_far_km"]
     for city in dict.fromkeys(c.city for c in cands):
         acc = [e for e in evidence if e.metric == ACCESS_METRIC and e.status == "OK"
