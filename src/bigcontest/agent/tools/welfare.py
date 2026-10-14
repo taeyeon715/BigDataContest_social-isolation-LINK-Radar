@@ -154,6 +154,11 @@ def _item(m: M.Match, r, grp: str | None, note: str, group_label: str) -> dict:
     }
 
 
+def resource_id_params(group: str | None, need_type: str | None, cause_type: str | None, limit: int) -> dict:
+    """자원 찾기 근거 ID 에 넣는 계산 인자 (스냅샷은 params_hash 가 더함)."""
+    return {"tool": "find_resources", "group": group, "need_type": need_type, "cause_type": cause_type, "limit": limit}
+
+
 def find_resources(ctx, adm_cd: str | None, group: str | None, need_type: str | None = None,
                    cause_type: str | None = None, limit: int = 5) -> tuple[ToolResult, list[dict]]:
     """필요 유형·자격 필터 → 제외 규칙 → 상위 limit (match.select_resources). (요약 봉투, 자원 dict 목록).
@@ -162,8 +167,10 @@ def find_resources(ctx, adm_cd: str | None, group: str | None, need_type: str | 
     city = ctx.request.city
     grp = group if group in GROUPS else None
     code = f"RES-{adm_cd or 'CITY'}"
+    # 같은 동이라도 필요 유형·원인 유형·집단·limit 이 다르면 다른 계산 → ID 끝에 인자 해시 (K-01)
+    id_params = resource_id_params(group, need_type, cause_type, limit)
     if adm_cd is None:
-        return empty(ctx, code, "복지 자원 후보", "행정동이 정해지지 않아 자원 매칭 안 함"), []
+        return empty(ctx, code, "복지 자원 후보", "행정동이 정해지지 않아 자원 매칭 안 함", id_params=id_params), []
     led = ds.ledger()
     note = ledger_time_note(led, ctx.as_of)
     sub, recs = _ledger_city(ds, city)  # 결과는 스냅샷별 캐시
@@ -189,7 +196,7 @@ def find_resources(ctx, adm_cd: str | None, group: str | None, need_type: str | 
         warn.append(f"확인할 자원(추천 제외) 외 {len(sel.excluded) - MAX_EXCLUDED_SHOWN}건")
     valid, forbidden = claim_lists("resources")
     env = envelope(
-        ctx, code, "resources", metric="복지 자원 후보", value=len(items), unit="건",
+        ctx, code, "resources", id_params=id_params, metric="복지 자원 후보", value=len(items), unit="건",
         denominator=(f"원장 {len(led)}건 중 관할·자격·필요 유형 필터 통과 {sel.n_candidates}건, 제외 규칙 통과 "
                      f"{sel.n_valid}건의 상위 {len(ranked)}건 + {CRISIS_LABEL} {len(crisis)}건"),
         measured_grain="시설·서비스 1건", applied_scope=f"{city} {ds.adm_index.get(adm_cd, {}).get('adm_nm', '')} ({adm_cd})",
@@ -247,7 +254,8 @@ def check_eligibility(ctx, resource_id: str, group: str | None) -> list[ToolResu
     reason = res["reason"]
     if res["verdict"] == "확인 필요" and not re.match(r"확인 필요\(", reason):
         reason = f"확인 필요({M.CHECK_ELIG}): {reason}"
-    return [envelope(ctx, f"ELG-{resource_id}", "resources", metric="자격 확인", value=ELIG.get(res["verdict"], "확인 필요"),
+    return [envelope(ctx, f"ELG-{resource_id}", "resources", id_params={"tool": "check_eligibility", "group": group},
+                     metric="자격 확인", value=ELIG.get(res["verdict"], "확인 필요"),
                      measured_grain="시설·서비스 1건", applied_scope=resource_id, service_eligibility_group=group,
                      interpretation_status="직접 확인" if res["verdict"] != "확인 필요" else "미확인",
                      warnings=[reason, ledger_time_note(led, ctx.as_of)], value_state="observed", **TIME_FIELDS)]

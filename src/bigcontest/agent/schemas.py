@@ -539,9 +539,10 @@ class InvestigationItem(_Model):
     round: int = Field(ge=1)
     source: Literal["llm", "rule"] = "rule"  # 누가 골랐나
     why: str | None = None  # 고른 이유 (LLM 이유는 Guard 표현 검사를 지난 것만)
-    status: Literal["answered", "unanswered", "no_data", "error", "dropped"]
+    status: Literal["answered", "unanswered", "no_data", "error", "dropped", "quarantined"]
     finding: str  # 템플릿 결과 문장
     evidence_ids: list[str] = Field(default_factory=list)
+    reason_code: str | None = None  # 확인 못 함(quarantined)의 사유 코드 (G-08·G-11·G-14·도구 오류 코드)
 
 
 class Investigation(_Model):

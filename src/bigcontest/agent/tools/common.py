@@ -1,11 +1,15 @@
 """실제 도구 공통: 반환 봉투 만들기, 시간 계약(기준일에 쓸 수 있던 달·날), 근거 ID.
 
-근거 ID 는 `EV-<기준일>-<도시>-<도구 코드>[-<대상>]` 이다 (같은 입력 + 같은 스냅샷 → 같은 ID).
+근거 ID 는 `EV-<기준일>-<도시>-<도구 코드>[-<대상>][-<계산 해시>]` 이다 (같은 입력 + 같은 스냅샷 → 같은 ID).
+같은 대상이라도 계산 인자(필요 유형·원인 유형·집단·limit 등)가 다르면 결과가 다르므로, 그런 도구는 인자와 스냅샷의
+짧은 해시를 끝에 붙인다 (`id_params`). 계산이 같으면 ID 가 같고, 다르면 ID 가 다르다.
 예상 밖 이탈의 근거(DEV)와 반증(CF1~CF4)은 같은 신호 키로 끝나 후보마다 짝을 맞춘다 (`signal_key`).
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from datetime import date, timedelta
 
@@ -90,10 +94,18 @@ def usable_months(source: str, as_of: date, mode: str) -> list[DataAvailability]
 # ---------------------------------------------------------------- 봉투
 
 
-def evidence_id(ctx, code: str, city: str | None = None) -> str:
+def params_hash(snapshot_id: str | None, params: dict) -> str:
+    """계산 인자 + 스냅샷 → 짧은 해시 8자리 (같은 계산이면 항상 같음)."""
+    body = json.dumps({"snapshot_id": snapshot_id, **params}, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:8]
+
+
+def evidence_id(ctx, code: str, city: str | None = None, id_params: dict | None = None) -> str:
+    """근거 ID. id_params 가 있으면 계산 인자·스냅샷의 해시를 붙여 같은 대상의 다른 계산을 구분한다."""
     city = city or (ctx.request.city if ctx.request else None)
     prefix = f"{CITY_CODE[city]}-" if city else ""
-    return f"EV-{ctx.as_of:%Y%m%d}-{prefix}{code}"
+    suffix = f"-{params_hash(ctx.snapshot_id, id_params)}" if id_params is not None else ""
+    return f"EV-{ctx.as_of:%Y%m%d}-{prefix}{code}{suffix}"
 
 
 def envelope(ctx, code: str, source: str | None, city: str | None = None, **kw) -> ToolResult:
@@ -102,8 +114,9 @@ def envelope(ctx, code: str, source: str | None, city: str | None = None, **kw) 
     from bigcontest.contracts.claims import fill_claims
 
     category = kw.pop("claim_category", None)  # 할 수 있는 말의 {업종} 값 (모르면 측정 단위에서 찾거나 뺌)
+    id_params = kw.pop("id_params", None)
     base = dict(
-        evidence_id=evidence_id(ctx, code, city),
+        evidence_id=evidence_id(ctx, code, city, id_params),
         analysis_mode=ctx.analysis_mode,
         as_of=ctx.as_of,
         snapshot_id=ctx.snapshot_id,

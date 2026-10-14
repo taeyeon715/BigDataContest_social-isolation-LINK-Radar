@@ -530,8 +530,13 @@ def _dong_scope(city: str, adm_cd: str | None) -> str:
     return f"{city} {name} ({adm_cd})" if name else f"{city} ({adm_cd})"
 
 
-def find_resources(ctx: ToolContext, adm_cd: str | None, group: str | None) -> tuple[ToolResult, list[dict]]:
-    """자원 후보. 봉투는 요약(건수)이고 자원 상세는 따로 돌려준다."""
+def find_resources(ctx: ToolContext, adm_cd: str | None, group: str | None, need_type: str | None = None,
+                   cause_type: str | None = None, limit: int = 5) -> tuple[ToolResult, list[dict]]:
+    """자원 후보. 봉투는 요약(건수)이고 자원 상세는 따로 돌려준다.
+    가짜 목록은 인자와 무관하지만, 근거 ID 는 실제 도구처럼 계산 인자 해시를 붙인다 (다른 호출이 같은 ID 를 쓰지 않게)."""
+    from bigcontest.agent.tools.common import params_hash
+    from bigcontest.agent.tools.welfare import resource_id_params
+
     items = [dict(r) for r in RESOURCES[ctx.city]]
     if ctx.scenario == "out_of_area_resource":
         items.append(dict(OUT_OF_AREA_RESOURCE))
@@ -539,7 +544,7 @@ def find_resources(ctx: ToolContext, adm_cd: str | None, group: str | None) -> t
         items.append(dict(NO_SOURCE_RESOURCE))
     env = _ev(
         ctx,
-        f"RES-{adm_cd or ctx.city}",
+        f"RES-{adm_cd or ctx.city}-{params_hash(ctx.snapshot_id, resource_id_params(group, need_type, cause_type, limit))}",
         metric="복지 자원 후보",
         value=len(items),
         unit="건",

@@ -228,7 +228,7 @@ def _find_resources(ctx, adm_cd, group, **kw):
     if getattr(ctx, "backend", "stub") == "stub":
         from bigcontest.agent.tools import stubs
 
-        fn = lambda: stubs.find_resources(ctx, adm_cd, group)  # noqa: E731
+        fn = lambda: stubs.find_resources(ctx, adm_cd, group, **kw)  # noqa: E731
     else:
         from bigcontest.agent.tools import welfare
 

@@ -601,9 +601,11 @@ export interface InvestigationItem {
   round: number
   source: 'llm' | 'rule'
   why?: string | null
-  status: 'answered' | 'unanswered' | 'no_data' | 'error' | 'dropped'
+  status: 'answered' | 'unanswered' | 'no_data' | 'error' | 'dropped' | 'quarantined'
   finding: string
   evidence_ids: string[]
+  /** 확인 못 함(quarantined)의 사유 코드 (G-08·G-11·G-14·도구 오류 코드) */
+  reason_code?: string | null
 }
 
 /** 보고서 "추가로 확인한 것" 칸 */
