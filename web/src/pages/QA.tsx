@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, type QAResponse } from '../api'
 import { ClaimsBox, EvidenceTable, withRefs } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
-import { Badge, Card, ErrorBox, HoldNotice, TimeLabelBar } from '../components/ui'
+import { Badge, Card, ErrorBox, HoldNotice, TimeLabelBar , RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { ERROR_TEXT } from '../lib/labels'
 
@@ -80,6 +80,8 @@ export default function QA() {
   const [res, setRes] = useState<QAResponse | null>(null)
   const [err, setErr] = useState<ApiError | null>(null)
   useFooterRun(res?.run_id)
+  const { can } = useRole()
+  const noRole = !can('검토') // 질의응답은 LLM 비용을 써서 검토 권한 이상 (API 명세 §1)
 
   const ask = async (question: string) => {
     if (!question.trim()) return
@@ -113,17 +115,22 @@ export default function QA() {
             }}
           >
             <input className="field flex-1 py-3 text-base" placeholder="예: 강남 1인세대 비율 상위 동은?" value={q} onChange={(e) => setQ(e.target.value)} aria-label="질문" />
-            <button className="btn-primary px-6" disabled={busy || !q.trim()}>
+            <button className="btn-primary px-6" disabled={busy || !q.trim() || noRole}>
               {busy ? '확인 중…' : '묻기'}
             </button>
           </form>
           <div className="mt-3 flex flex-wrap gap-2">
             {EXAMPLES.map((x) => (
-              <button key={x} className="rounded-pill border border-line px-3 py-1 text-xs text-ink-800 hover:bg-canvas" onClick={() => ask(x)} disabled={busy}>
+              <button key={x} className="rounded-pill border border-line px-3 py-1 text-xs text-ink-800 hover:bg-canvas" onClick={() => ask(x)} disabled={busy || noRole}>
                 {x}
               </button>
             ))}
           </div>
+          {noRole && (
+            <div className="mt-3">
+              <RoleNote need="검토" />
+            </div>
+          )}
           <div className="mt-3 text-xs text-ink-600">
             기준일 {as_of} · 질문에 도시가 없으면 {city}. 숫자·지역·방향이 든 문장은 사실 검사가 끝난 뒤에만 보입니다.
           </div>

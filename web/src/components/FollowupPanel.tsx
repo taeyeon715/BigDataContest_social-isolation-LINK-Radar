@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api, ApiError, MAX_QUESTION, type FollowupResponse } from '../api'
 import { ERROR_TEXT, errorText, splitReason } from '../lib/labels'
 import { withRefs } from './EvidenceTable'
+import { RoleNote, useRole } from './ui'
 
 export const FOLLOWUP_NOTE = '새 조사를 하지 않고 이 보고서의 근거만으로 답합니다.'
 const EXAMPLES = ['이 후보는 왜 이 등급이야?', '어떤 근거가 가장 중요해?']
@@ -58,7 +59,10 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
 }
 
 /** 이어 묻기: 이 실행의 근거 카드 안에서만 답함 */
-export function FollowupPanel({ runId, disabled, onCite }: { runId: string; disabled?: boolean; onCite: (id: string) => void }) {
+export function FollowupPanel({ runId, disabled: off, onCite }: { runId: string; disabled?: boolean; onCite: (id: string) => void }) {
+  const { can } = useRole()
+  const noRole = !can('검토') // 이어 묻기는 LLM 비용을 써서 검토 권한 이상
+  const disabled = off || noRole
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -105,6 +109,7 @@ export function FollowupPanel({ runId, disabled, onCite }: { runId: string; disa
           {busy ? '묻는 중…' : '묻기'}
         </button>
       </form>
+      {noRole && <RoleNote need="검토" />}
       <div className="flex flex-wrap gap-1">
         {EXAMPLES.map((x) => (
           <button key={x} className="chip bg-canvas text-ink-600 hover:bg-brand-50" disabled={disabled || busy} onClick={() => ask(x)}>

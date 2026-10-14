@@ -50,7 +50,7 @@ describe('후보 상세: 필요 유형으로 좁힌 자원 미리 보기', () =>
     expect(await screen.findByTestId('resource-preview')).toHaveTextContent('14건 중 1건')
     expect(screen.getByTestId('resource-preview-needs')).toHaveTextContent('안부·관계·이동 지원·생필품')
     expect(screen.getByTestId('resource-preview-needs')).toHaveTextContent('120건 중')
-    expect(resources).toHaveBeenCalledWith(expect.objectContaining({ cause_type: '계절 공동화형', adm_cd: '51110330' }))
+    expect(resources).toHaveBeenCalledWith(expect.objectContaining({ cause_type: '계절 공동화형', adm_cd: '51110330' }), expect.anything())
   })
 })
 

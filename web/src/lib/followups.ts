@@ -20,7 +20,7 @@ export function followState(f: Pick<FollowUp, 'follow_up_on' | 'state'>, as_of: 
 
 /** 이 도시의 후속 확인 (서버가 도시·기준일로 거르고 state 를 붙여 줌) */
 export function useFollowUps(city: City, as_of: string) {
-  const res = useAsync(() => api.followups({ city, as_of }), [city, as_of])
+  const res = useAsync((signal) => api.followups({ city, as_of }, { signal }), [city, as_of])
   const items = res.data?.items ?? []
   return { ...res, items, byId: new Map(items.map((f) => [f.candidate_id, f])) }
 }

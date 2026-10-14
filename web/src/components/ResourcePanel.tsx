@@ -1,4 +1,6 @@
+import type { KeyboardEvent } from 'react'
 import type { Judgement, ResourceRecommendation, RunResource } from '../api'
+import { isAdminOffice } from '../lib/labels'
 import { Badge } from './ui'
 
 export type JudgementDraft = Record<string, { judgement: Judgement | null; memo: string }>
@@ -23,6 +25,51 @@ export function resourceFlags(r: ResourceRecommendation): { label: string; tone:
     out.push({ label: '위치 확인 필요', tone: 'caution' })
   if (r.warnings.some((w) => w.startsWith('권역 외'))) out.push({ label: '권역 외', tone: 'gray' })
   return out
+}
+
+/** 판정 라디오 묶음: Tab 은 묶음에 한 번만 멈추고(고른 것, 없으면 첫째), ←/→/↑/↓ 로 옮기며 고름 (FE-13) */
+export function JudgementRadios({
+  label,
+  value,
+  disabled,
+  onPick,
+}: {
+  label: string
+  value: Judgement | null
+  disabled?: boolean
+  onPick: (j: Judgement) => void
+}) {
+  const focusIdx = value ? JUDGEMENTS.indexOf(value) : 0
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+    if (!step || disabled) return
+    e.preventDefault()
+    const cur = JUDGEMENTS.indexOf((document.activeElement as HTMLElement | null)?.dataset.judgement as Judgement)
+    const next = JUDGEMENTS[((cur < 0 ? focusIdx : cur) + step + JUDGEMENTS.length) % JUDGEMENTS.length]
+    onPick(next)
+    const btn = e.currentTarget.querySelector<HTMLButtonElement>(`[data-judgement="${next}"]`)
+    btn?.focus()
+  }
+  return (
+    <div className="flex rounded-pill border border-line p-0.5" role="radiogroup" aria-label={label} onKeyDown={onKey}>
+      {JUDGEMENTS.map((j, i) => (
+        <button
+          key={j}
+          type="button"
+          role="radio"
+          aria-checked={value === j}
+          tabIndex={i === focusIdx ? 0 : -1}
+          data-judgement={j}
+          disabled={disabled}
+          className={`rounded-pill px-3 py-1 text-xs font-semibold ${value === j ? JUDGE_STYLE[j].on : 'text-ink-600 hover:bg-canvas'}`}
+          onClick={() => onPick(j)}
+        >
+          {value === j && <span aria-hidden>{JUDGE_STYLE[j].mark} </span>}
+          {j}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 /** 실행 자원이 이 실행의 몇 후보에 추천됐나 (GET /runs/{id}/resources 의 candidate_ids) */
@@ -55,6 +102,11 @@ export function ResourcePanel({
                   {r.resource_type} · 대상 {r.target_group ?? '—'} ·{' '}
                   {r.phone_based ? '거리와 무관(전화)' : r.distance_km !== null ? `직선 ${r.distance_km}km` : '거리 모름'}
                 </div>
+                {isAdminOffice(r) && (
+                  <div className="mt-0.5 text-xs text-ink-600" data-testid="admin-office-note">
+                    행정 창구라 안부·관계 거점(노인복지관·사회복지관) 거리에는 넣지 않습니다.
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-1">
                 {resourceFlags(r).map((f) => (
@@ -80,28 +132,20 @@ export function ResourcePanel({
                 </ul>
               )}
               <div className="mt-1">
-                출처 확인일 {r.verified_date} · {r.resource_id}
+                출처 확인일 {r.verified_date} · 자원 번호 {r.resource_id}
               </div>
             </details>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <div className="flex rounded-pill border border-line p-0.5" role="radiogroup" aria-label={`${r.name} 판정`}>
-                {JUDGEMENTS.map((j) => (
-                  <button
-                    key={j}
-                    role="radio"
-                    aria-checked={d.judgement === j}
-                    disabled={disabled}
-                    className={`rounded-pill px-3 py-1 text-xs font-semibold ${d.judgement === j ? JUDGE_STYLE[j].on : 'text-ink-600 hover:bg-canvas'}`}
-                    onClick={() => onChange(r.resource_id, { ...d, judgement: j })}
-                  >
-                    {d.judgement === j && <span aria-hidden>{JUDGE_STYLE[j].mark} </span>}
-                    {j}
-                  </button>
-                ))}
-              </div>
+              <JudgementRadios
+                label={`${r.name} 판정`}
+                value={d.judgement}
+                disabled={disabled}
+                onPick={(j) => onChange(r.resource_id, { ...d, judgement: j })}
+              />
               <input
-                className="field min-w-[200px] flex-1 py-1.5"
+                className="field min-w-0 flex-1 basis-[200px] py-1.5"
                 placeholder="메모 (예: 연휴 운영 여부 확인 필요)"
+                aria-label={`${r.name} 메모`}
                 value={d.memo}
                 disabled={disabled}
                 onChange={(e) => onChange(r.resource_id, { ...d, memo: e.target.value })}

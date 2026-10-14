@@ -1,11 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, type Candidate, type CandidateType, type OverviewResponse, type ReleasedCandidate } from '../api'
 import { FollowUpBadge } from '../components/CandidateCard'
 import { PageBody, PageHero } from '../components/Layout'
 import { OutcomeSummaryCard } from '../components/OutcomeSummary'
-import { Badge, Card, Empty, ErrorBox, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
+import { AsyncBlock, Badge, Card, Empty, ErrorBox, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { followState, useFollowUps } from '../lib/followups'
 import { TYPE_LABEL, candidatePlace, daysBetween, groupOf } from '../lib/labels'
@@ -82,6 +81,37 @@ export function releasedOf(o: OverviewResponse): { id: string; c: ReleasedCandid
   return o.released_candidate_ids.map((id) => ({ id, c: null, reason: null }))
 }
 
+type CountRow = { kind: string; key: CandidateType; count: number; low: number; high: number }
+
+/** 후보 수 막대 + 범위 선 (CSS만, 차트 라이브러리 없이). 막대 = 지금 수, 가는 선 = 임계값을 바꿀 때 범위 */
+export function CountBars({ rows }: { rows: CountRow[] }) {
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.count, r.high)))
+  const pct = (v: number) => `${(v / max) * 100}%`
+  const summary = rows.map((r) => `${r.kind} ${r.count}건 (범위 ${r.low}~${r.high}건)`).join(', ')
+  return (
+    <div role="img" aria-label={`후보 종류별 수와 임계값 범위: ${summary}`} data-testid="count-bars" className="flex flex-col gap-4">
+      {rows.map((r) => (
+        <div key={r.key} className="grid grid-cols-[88px_minmax(0,1fr)_72px] items-center gap-3" aria-hidden>
+          <div className="text-sm font-semibold text-ink-900">{r.kind}</div>
+          <div className="relative h-7 rounded-md bg-canvas">
+            <div className="absolute inset-y-0 left-0 rounded-md" style={{ width: pct(r.count), background: TYPE_COLOR[r.key] }} />
+            {/* 범위 선: low~high */}
+            <div className="absolute top-1/2 h-0.5 -translate-y-1/2 bg-ink-900" style={{ left: pct(r.low), width: `calc(${pct(r.high)} - ${pct(r.low)})` }} />
+            <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: pct(r.low) }} />
+            <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: `calc(${pct(r.high)} - 2px)` }} />
+          </div>
+          <div className="text-xs text-ink-800">
+            <b className="text-sm">{r.count}건</b>
+            <div className="text-ink-600">
+              범위 {r.low}~{r.high}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function NoticeBar({ o, query }: { o: OverviewResponse; query: string }) {
   const t = o.triggers[0]
   const sched = o.candidate_counts.scheduled_access_review?.count ?? 0
@@ -90,7 +120,7 @@ export function NoticeBar({ o, query }: { o: OverviewResponse; query: string }) 
   return (
     <div className="flex flex-col gap-3 rounded-pill bg-ink-900 px-5 py-3 text-white sm:flex-row sm:items-center sm:justify-between" data-testid="notice-bar">
       <div className="flex items-center gap-3">
-        <span className="chip bg-white/15 text-white">알림</span>
+        <span className="chip bg-ink-900/25 text-white">알림</span>
         <span className="font-semibold">
           {label} · 예정된 점검 {sched}건
         </span>
@@ -104,10 +134,10 @@ export function NoticeBar({ o, query }: { o: OverviewResponse; query: string }) 
 
 export default function Overview() {
   const { city, as_of, query } = useFilters()
-  const ov = useAsync(() => api.overview(as_of, city), [as_of, city])
-  const snap = useAsync(() => api.activeSnapshot(), [])
-  const caps = useAsync(() => api.capabilities(), [])
-  const cands = useAsync(() => api.candidates(as_of, city), [as_of, city])
+  const ov = useAsync((signal) => api.overview(as_of, city, { signal }), [as_of, city])
+  const snap = useAsync((signal) => api.activeSnapshot({ signal }), [])
+  const caps = useAsync((signal) => api.capabilities({ signal }), [])
+  const cands = useAsync((signal) => api.candidates(as_of, city, undefined, undefined, { signal }), [as_of, city])
   const o = ov.data
   const total = o ? totalRange(o) : null
   const nowList = useMemo(() => cands.data?.items ?? [], [cands.data])
@@ -123,7 +153,7 @@ export default function Overview() {
   const chart = o
     ? (Object.keys(TYPE_LABEL) as CandidateType[]).map((k) => {
         const r = o.candidate_counts[k]
-        return { kind: TYPE_LABEL[k], key: k, count: r?.count ?? 0, range: `${r?.low ?? 0}~${r?.high ?? 0}` }
+        return { kind: TYPE_LABEL[k], key: k, count: r?.count ?? 0, low: r?.low ?? 0, high: r?.high ?? 0 }
       })
     : []
 
@@ -132,41 +162,48 @@ export default function Overview() {
       <PageHero title="현황" big sources={['overview', 'candidates']}>
         <div className="grid items-end gap-6 md:grid-cols-[1fr_340px]">
           <div>
-            <div className="text-sm text-white/80">
+            <div className="text-sm text-white">
               {city} · 기준일 {as_of}
             </div>
             {ov.loading && !o ? (
-              <div className="mt-2 h-12 w-48 animate-pulse rounded-xl bg-white/20" />
+              <div className="mt-2 h-12 w-48 animate-pulse rounded-xl bg-ink-900/30" />
+            ) : ov.error && !o ? (
+              <div className="mt-2 rounded-xl bg-ink-900/30 px-4 py-3 text-white" data-testid="hero-error">
+                <div className="font-semibold">후보 수를 불러오지 못했습니다</div>
+                <div className="text-sm">아래 오류 안내를 보고 다시 시도하세요. 0건이라는 뜻이 아닙니다.</div>
+              </div>
             ) : total && o ? (
               <div className="mt-1">
-                <div className="text-sm text-white/90">먼저 검토할 후보</div>
+                <div className="text-sm text-white">먼저 검토할 후보</div>
                 <div className="flex flex-wrap items-baseline gap-3">
                   <span className="text-hero-num font-black" data-testid="hero-count">
                     전체 {total.count}건
                   </span>
-                  <span className="rounded-pill bg-white/15 px-3 py-1 text-sm" data-testid="hero-range">
+                  <span className="rounded-pill bg-ink-900/25 px-3 py-1 text-sm" data-testid="hero-range">
                     임계값에 따라 {total.low}~{total.high}건
                   </span>
                 </div>
-                <div className="mt-1 text-sm text-white/90">
+                <div className="mt-1 text-sm text-white">
                   {chart.map((c) => `${c.kind} ${c.count}`).join(' · ')}
                 </div>
-                <div className="mt-1 text-xs text-white/80">기각된 이탈 경보는 세지 않음. 등급별 수는 후보 목록에서.</div>
+                <div className="mt-1 text-xs text-white">기각된 이탈 경보는 세지 않음. 등급별 수는 후보 목록에서.</div>
               </div>
             ) : null}
           </div>
-          <div className="rounded-card bg-white/12 p-5 ring-1 ring-white/25 backdrop-blur-sm" data-testid="trigger-card">
+          <div className="rounded-card bg-ink-900/25 p-5 ring-1 ring-white/40 backdrop-blur-sm" data-testid="trigger-card">
             <div className="mb-2 flex items-center gap-2">
               <span className="chip bg-white text-brand-700">이번 주 트리거</span>
             </div>
-            {o && o.triggers.length === 0 && <div className="text-white/90">이 날은 확인할 트리거가 없습니다.</div>}
+            {!o && ov.loading && <div className="h-5 w-40 animate-pulse rounded bg-ink-900/30" />}
+            {!o && ov.error && <div className="text-white">트리거를 불러오지 못했습니다.</div>}
+            {o && o.triggers.length === 0 && <div className="text-white">이 날은 확인할 트리거가 없습니다.</div>}
             <ul className="flex flex-col gap-2">
               {o?.triggers.map((t) => (
                 <li key={t.trigger_id}>
                   <div className="font-bold">
                     {t.rule} {t.name}
                   </div>
-                  <div className="text-xs text-white/80">
+                  <div className="text-xs text-white">
                     시작 {t.starts_on}
                     {t.note ? ` · ${t.note}` : ''}
                   </div>
@@ -177,19 +214,20 @@ export default function Overview() {
         </div>
       </PageHero>
       <PageBody>
-        {ov.error && <ErrorBox error={ov.error} onRetry={ov.reload} />}
-        {cands.loading && !cands.data ? (
-          <Card>
-            <Loading />
-          </Card>
-        ) : cands.data ? (
+        {cands.data ? (
           <TodayRow items={today} budget={cands.data.selection_budget} query={query} />
-        ) : null}
+        ) : (
+          <Card title="오늘 먼저 볼 후보">
+            <div data-testid="today-row">
+              {cands.error ? <ErrorBox error={cands.error} onRetry={cands.reload} /> : <Loading label="후보 목록 불러오는 중" onRetry={cands.reload} />}
+            </div>
+          </Card>
+        )}
         {o && <NoticeBar o={o} query={query} />}
         {o && <TimeLabelBar label={o.time_label} />}
         <div className="grid gap-5 lg:grid-cols-2">
           <Card
-            title={`이번 주 후속 확인 ${thisWeek}건`}
+            title={fu.data ? `이번 주 후속 확인 ${thisWeek}건` : '이번 주 후속 확인'}
             right={
               <Link to={`/candidates${query}&tab=follow`} className="text-xs font-semibold text-brand-700 hover:underline">
                 후속 확인 전체 보기 →
@@ -197,8 +235,8 @@ export default function Overview() {
             }
           >
             <div data-testid="follow-card">
-              {fu.loading && !fu.data ? (
-                <Loading />
+              {!fu.data ? (
+                fu.error ? <ErrorBox error={fu.error} onRetry={fu.reload} /> : <Loading onRetry={fu.reload} />
               ) : soon.length === 0 ? (
                 <Empty>기준일부터 7일 안에 후속 확인할 후보가 없습니다.</Empty>
               ) : (
@@ -223,6 +261,7 @@ export default function Overview() {
           </Card>
           <OutcomeSummaryCard city={city} />
           <Card title="새로 생긴 / 해제된 후보" right={<span className="text-xs text-ink-600">{o?.compared_as_of ? `${o.compared_as_of} 목록과 비교` : '지난 7일과 비교'}</span>}>
+            {!o && (ov.error ? <ErrorBox error={ov.error} onRetry={ov.reload} /> : <Loading onRetry={ov.reload} />)}
             {o && o.new_candidate_ids.length === 0 && released.length === 0 && <Empty>바뀐 후보가 없습니다.</Empty>}
             {o && (
               <div className="flex flex-col gap-4">
@@ -269,34 +308,14 @@ export default function Overview() {
           </Card>
         </div>
         <Card title="후보 수 (범위와 함께)">
-          {ov.loading && !o ? (
-            <Loading />
-          ) : o ? (
-            <>
-              <div className="h-52" aria-label="후보 종류별 수와 임계값 범위">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 48, top: 4, bottom: 4 }} barCategoryGap={28}>
-                    <CartesianGrid horizontal={false} stroke="#E3E7EF" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: '#4A5163' }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="kind" width={90} tick={{ fontSize: 12, fill: '#14171F' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v, _n, p) => [`${v}건 (범위 ${(p.payload as { range: string }).range}건)`, '후보 수']} cursor={{ fill: '#F2F4F8' }} />
-                    <Bar
-                      dataKey="count"
-                      radius={[0, 4, 4, 0]}
-                      isAnimationActive={false}
-                      shape={(props: unknown) => {
-                        const p = props as { x: number; y: number; width: number; height: number; payload: { key: CandidateType } }
-                        return <rect x={p.x} y={p.y} width={Math.max(p.width, 0)} height={p.height} rx={4} fill={TYPE_COLOR[p.payload.key]} />
-                      }}
-                    >
-                      <LabelList dataKey="range" position="right" formatter={(v: unknown) => `${v}`} style={{ fontSize: 12, fill: '#4A5163' }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="text-xs text-ink-600">막대 = 지금 기준의 수, 오른쪽 숫자 = 임계값을 바꿀 때의 범위. 후보 수는 범위와 함께만 말합니다.</div>
-            </>
-          ) : null}
+          <AsyncBlock state={ov}>
+            {() => (
+              <>
+                <CountBars rows={chart} />
+                <div className="mt-3 text-xs text-ink-600">막대 = 지금 기준의 수, 가는 선 = 임계값을 바꿀 때의 범위. 후보 수는 범위와 함께만 말합니다.</div>
+              </>
+            )}
+          </AsyncBlock>
         </Card>
         {/* 출처·버전은 접어서 맨 아래. 스냅샷 하나만 늘 보임 */}
         <details className="card group p-5 sm:p-6">
@@ -325,7 +344,8 @@ export default function Overview() {
                 {s.name}
               </Badge>
             ))}
-            {snap.error && <ErrorBox error={snap.error} />}
+            {snap.error && <ErrorBox error={snap.error} onRetry={snap.reload} />}
+            {caps.error && <ErrorBox error={caps.error} onRetry={caps.reload} />}
           </div>
         </details>
       </PageBody>

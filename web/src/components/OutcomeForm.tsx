@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, OUTCOME_FIELDS, OUTCOME_LABEL, api, type OutcomeCounts, type OutcomeRecord } from '../api'
 import { errorText, fmtTime } from '../lib/labels'
+import { PersonName, RoleNote, useRole } from './ui'
 
 const EMPTY: OutcomeCounts = { checked_households: 0, contacted: 0, absent: 0, new_links: 0, crises_found: 0 }
 
@@ -22,6 +23,7 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
   const [saved, setSaved] = useState<OutcomeRecord | null>(null)
   const [draft, setDraft] = useState<OutcomeCounts>(EMPTY)
   const [busy, setBusy] = useState(false)
+  const { can } = useRole() // 현장 결과 저장은 검토 권한 이상
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [key, setKey] = useState(() => newKey(runId, candidateId))
 
@@ -88,16 +90,17 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button className="btn-primary" disabled={busy || !!problem} onClick={save}>
+        <button className="btn-primary" disabled={busy || !!problem || !can('검토')} onClick={save}>
           {busy ? '저장 중…' : saved ? '고쳐 저장' : '결과 저장'}
         </button>
         {saved && (
           <span className="text-xs text-ink-600" data-testid="outcome-saved">
-            마지막 저장 {fmtTime(saved.created_at)} · {saved.recorded_by}
+            마지막 저장 {fmtTime(saved.created_at)} · <PersonName name={saved.recorded_by} />
           </span>
         )}
         {msg && <span className={`text-xs ${msg.ok ? 'text-okay' : 'text-caution'}`}>{msg.text}</span>}
       </div>
+      {!can('검토') && <RoleNote need="검토" />}
     </div>
   )
 }

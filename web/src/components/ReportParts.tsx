@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import type { CandidateAction, LevelExplanation, RuleCheck, TraceStep } from '../api'
 import { LIST_NOTE } from '../api'
-import { NODE_LABEL, TRACE_SOURCE_LABEL } from '../lib/labels'
+import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, mentionsHub, plainText } from '../lib/labels'
 import { Term } from './Term'
 
 /** 내일 아침 체크리스트: 꺼낼 명단 / 연락할 곳 / 방법 / 기한 / 확인할 영역 */
@@ -124,15 +124,7 @@ export function LevelExplain({ exp, checks }: { exp?: LevelExplanation | null; c
   if (rows.length === 0) return null
   return (
     <div data-testid="level-explain">
-      <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs font-semibold text-ink-600">
-        <span>등급을 정한 조건</span>
-        {exp?.rule_id && (
-          <span className="font-normal">
-            규칙 {exp.rule_id}
-            {exp.rule_version ? ` (${exp.rule_version})` : ''}
-          </span>
-        )}
-      </div>
+      <div className="mb-1 text-xs font-semibold text-ink-600">등급을 정한 조건</div>
       <ul className="flex flex-col gap-1">
         {rows.map((c) => {
           const mark = c.met === true ? '✓ 충족' : c.met === false ? '✕ 미충족' : '? 자료 없음'
@@ -141,7 +133,7 @@ export function LevelExplain({ exp, checks }: { exp?: LevelExplanation | null; c
           return (
             <li key={c.condition} className="flex flex-wrap items-center gap-2 text-sm" data-testid="rule-check">
               <span className={`chip ${tone}`}>{mark}</span>
-              <span className="font-semibold text-ink-900">{c.condition}</span>
+              <span className="font-semibold text-ink-900">{plainText(c.condition)}</span>
               <span className="text-ink-600">
                 값 {fmt(c.value, c.unit)}
                 {hasThreshold && <> · 기준 {fmt(c.threshold, c.unit)}</>}
@@ -155,8 +147,20 @@ export function LevelExplain({ exp, checks }: { exp?: LevelExplanation | null; c
       </ul>
       {exp && exp.what_if.length > 0 && (
         <div className="mt-2 rounded-xl bg-canvas px-3 py-2 text-xs text-ink-800">
-          <b>무엇이 바뀌면 등급이 바뀌나</b> · {exp.what_if.join(' · ')}
+          <b>무엇이 바뀌면 등급이 바뀌나</b> · {exp.what_if.map(plainText).join(' · ')}
         </div>
+      )}
+      {rows.some((c) => mentionsHub(c.condition)) && (
+        <div className="mt-1 text-xs text-ink-600" data-testid="hub-note-level">
+          {HUB_NOTE}
+        </div>
+      )}
+      {exp?.rule_id && (
+        <details className="mt-1 text-xs text-ink-600" data-testid="rule-id-details">
+          <summary className="cursor-pointer select-none">자세히 (규칙 이름)</summary>
+          규칙 {exp.rule_id}
+          {exp.rule_version ? ` · ${exp.rule_version}` : ''}
+        </details>
       )}
     </div>
   )

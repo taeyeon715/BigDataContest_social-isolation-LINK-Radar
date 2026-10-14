@@ -1,6 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import type { EvidenceCard, ToolResult } from '../api'
-import { INTERP_LABEL, MODE_LABEL, fmtValue, replaceInputCodes } from '../lib/labels'
+import { HUB_NOTE, INTERP_LABEL, MODE_LABEL, fmtValue, mentionsHub, plainText, replaceInputCodes } from '../lib/labels'
 import { Term } from './Term'
 import { Badge } from './ui'
 
@@ -20,7 +20,7 @@ export function evidenceLine(e: ToolResult): { head: string; sub: string | null 
   const scope = place && !e.metric.includes(place) ? `${place} ` : ''
   const value = e.status === 'ERROR' || e.value === null ? '자료 없음' : fmtValue(e.value, e.unit)
   const dir = e.direction && e.direction !== '변화 없음' ? ` (${e.direction})` : ''
-  return { head: `${scope}${e.metric} ${value}${dir}`, sub: e.valid_claims[0] ?? null }
+  return { head: plainText(`${scope}${e.metric} ${value}${dir}`), sub: e.valid_claims[0] ? plainText(e.valid_claims[0]) : null }
 }
 
 /** 기술 정보 (분모·측정 단위·기간·방식·근거 ID). "자세히"를 눌러야 보임 */
@@ -70,6 +70,9 @@ export function EvidenceTable({
   highlight?: string | null
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const check = !!onToggle
+  // 좁은 화면(sm 미만)에서는 표 대신 행마다 카드처럼 쌓음 (FE-07)
+  const cell2 = check ? 'max-sm:col-start-2' : ''
   const flip = (id: string) =>
     setOpen((s) => {
       const n = new Set(s)
@@ -79,12 +82,12 @@ export function EvidenceTable({
     })
   return (
     <div className="rounded-2xl border border-line">
-      <table className="w-full border-collapse text-sm" data-testid="evidence-table">
-        <thead className="bg-canvas">
+      <table className="w-full table-fixed border-collapse text-sm max-sm:block" data-testid="evidence-table">
+        <thead className="bg-canvas max-sm:hidden">
           <tr>
             {onToggle && <th className="th w-14 rounded-tl-2xl">확인</th>}
             <th className={`th ${onToggle ? '' : 'rounded-tl-2xl'}`}>근거와 뜻</th>
-            <th className="th w-36">
+            <th className="th w-32">
               <Term>해석 상태</Term>
             </th>
             <th className="th w-20 rounded-tr-2xl">
@@ -92,19 +95,22 @@ export function EvidenceTable({
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="max-sm:block">
           {card.evidence.map((e) => {
             const line = evidenceLine(e)
             const isOpen = open.has(e.evidence_id) || highlight === e.evidence_id
             return (
               <Fragment key={e.evidence_id}>
-                <tr id={e.evidence_id} className={`border-t border-line ${highlight === e.evidence_id ? 'bg-brand-50' : ''}`}>
+                <tr
+                  id={e.evidence_id}
+                  className={`border-t border-line first:border-t-0 max-sm:grid max-sm:py-1 ${check ? 'max-sm:grid-cols-[36px_minmax(0,1fr)]' : 'max-sm:grid-cols-1'} ${highlight === e.evidence_id ? 'bg-brand-50' : ''}`}
+                >
                   {onToggle && (
-                    <td className="td">
+                    <td className="td max-sm:row-span-3 max-sm:pr-0">
                       <input
                         type="checkbox"
                         className="h-4 w-4"
-                        aria-label={`${e.evidence_id} 확인함`}
+                        aria-label={`${line.head} 확인함`}
                         checked={checked?.has(e.evidence_id) ?? false}
                         onChange={() => onToggle(e.evidence_id)}
                       />
@@ -115,6 +121,11 @@ export function EvidenceTable({
                       {line.head}
                     </div>
                     {line.sub && <div className="mt-0.5 text-ink-800">{line.sub}</div>}
+                    {mentionsHub(e.metric) && (
+                      <div className="mt-0.5 text-xs text-ink-600" data-testid="hub-note-evidence">
+                        {HUB_NOTE}
+                      </div>
+                    )}
                     {((e.value_state && e.value_state !== 'observed') || e.is_shared_context) && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {e.value_state && e.value_state !== 'observed' && <Badge tone="caution">{VALUE_STATE[e.value_state]}</Badge>}
@@ -126,16 +137,16 @@ export function EvidenceTable({
                       </div>
                     )}
                   </td>
-                  <td className="td">
+                  <td className={`td max-sm:py-0 ${cell2}`}>
                     <Badge tone={INTERP_TONE[e.interpretation_status]}>{INTERP_LABEL[e.interpretation_status] ?? e.interpretation_status}</Badge>
                   </td>
-                  <td className="td text-right">
+                  <td className={`td text-right max-sm:py-1 max-sm:text-left ${cell2}`}>
                     <button
                       type="button"
                       className="whitespace-nowrap rounded-pill px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
                       aria-expanded={isOpen}
                       aria-controls={`${e.evidence_id}-more`}
-                      aria-label={`${e.metric} ${isOpen ? '접기' : '자세히'}`}
+                      aria-label={`${plainText(e.metric)} ${isOpen ? '접기' : '자세히'}`}
                       onClick={() => flip(e.evidence_id)}
                     >
                       {isOpen ? '접기' : '자세히'}
@@ -143,8 +154,8 @@ export function EvidenceTable({
                   </td>
                 </tr>
                 {isOpen && (
-                  <tr id={`${e.evidence_id}-more`} className="bg-canvas/60">
-                    <td className="td" colSpan={onToggle ? 4 : 3}>
+                  <tr id={`${e.evidence_id}-more`} className="bg-canvas/60 max-sm:block">
+                    <td className="td max-sm:block" colSpan={onToggle ? 4 : 3}>
                       <Details e={e} />
                     </td>
                   </tr>
@@ -159,7 +170,7 @@ export function EvidenceTable({
 }
 
 /** 할 수 있는 말 / 하면 안 되는 말 */
-export function ClaimsBox({ card }: { card: EvidenceCard }) {
+export function ClaimsBox({ card, fold = true }: { card: EvidenceCard; fold?: boolean }) {
   const valid = Array.from(new Set(card.evidence.flatMap((e) => e.valid_claims)))
   const forbidden = Array.from(new Set(card.evidence.flatMap((e) => e.forbidden_claims)))
   return (
@@ -168,18 +179,29 @@ export function ClaimsBox({ card }: { card: EvidenceCard }) {
         <div className="text-xs font-semibold text-okay">할 수 있는 말</div>
         <ul className="mt-1 list-disc pl-5">
           {valid.map((v, i) => (
-            <li key={i}>{v}</li>
+            <li key={i}>{plainText(v)}</li>
           ))}
         </ul>
       </div>
-      <div className="rounded-2xl bg-canvas px-4 py-3">
-        <div className="text-xs font-semibold text-ink-600">하면 안 되는 말</div>
-        <ul className="mt-1 list-disc pl-5 text-ink-600">
-          {forbidden.map((v) => (
-            <li key={v}>{v}</li>
-          ))}
-        </ul>
-      </div>
+      {fold ? (
+        <details className="rounded-2xl bg-canvas px-4 py-3" data-testid="forbidden-claims">
+          <summary className="cursor-pointer select-none text-xs font-semibold text-ink-600">하면 안 되는 말 {forbidden.length}개 (펼쳐 보기)</summary>
+          <ul className="mt-1 list-disc pl-5 text-ink-600">
+            {forbidden.map((v) => (
+              <li key={v}>{plainText(v)}</li>
+            ))}
+          </ul>
+        </details>
+      ) : (
+        <div className="rounded-2xl bg-canvas px-4 py-3">
+          <div className="text-xs font-semibold text-ink-600">하면 안 되는 말</div>
+          <ul className="mt-1 list-disc pl-5 text-ink-600">
+            {forbidden.map((v) => (
+              <li key={v}>{plainText(v)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

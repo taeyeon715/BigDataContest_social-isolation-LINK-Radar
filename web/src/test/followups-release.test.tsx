@@ -98,7 +98,7 @@ describe('현황: 해제된 후보와 사유', () => {
     )
     const card = await screen.findByTestId('follow-card')
     await waitFor(() => expect(within(card).getByTestId('follow-up-badge')).toHaveTextContent('후속 확인 기한 지남 09-20'))
-    expect(followups).toHaveBeenCalledWith({ city: '강남', as_of: '2025-09-26' })
+    expect(followups).toHaveBeenCalledWith({ city: '강남', as_of: '2025-09-26' }, expect.anything())
     expect(runs).not.toHaveBeenCalled()
     expect(history).not.toHaveBeenCalled()
   })
@@ -140,7 +140,7 @@ describe('후보 상세: 조사 시작·자원 미리 보기', () => {
   it('조사 전 자원은 "n건 중 m건"으로 미리 보이고 도시·limit 을 보낸다', async () => {
     const { resources } = mount()
     expect(await screen.findByTestId('resource-preview')).toHaveTextContent('12건 중 1건')
-    expect(resources).toHaveBeenCalledWith(expect.objectContaining({ adm_cd: '11230510', city: '강남', limit: 5 }))
+    expect(resources).toHaveBeenCalledWith(expect.objectContaining({ adm_cd: '11230510', city: '강남', limit: 5 }), expect.anything())
   })
 
   it('조사 시작은 화면이 읽은 정기 감시 실행(monitoring_run_id)과 도시를 같이 보낸다', async () => {

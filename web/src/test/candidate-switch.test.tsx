@@ -83,6 +83,8 @@ function setup({ kind = 'different', histories = {}, status = {}, runRev }: Opts
 }
 
 const radio = (name: string) => screen.getByRole('radio', { name })
+// 근거 확인 체크는 지표 이름으로 읽힘 (근거 ID 대신). 화면에는 지금 실행의 근거 한 줄만 있음
+const evCheck = () => screen.getByRole('checkbox', { name: / 확인함$/ })
 const memoBox = () => screen.getByLabelText('담당자 메모') as HTMLTextAreaElement
 const followBox = () => screen.getByLabelText('후속 확인일') as HTMLInputElement
 
@@ -92,7 +94,7 @@ async function editAThenSwitch() {
   await userEvent.click(radio('적합'))
   await userEvent.type(memoBox(), 'A 메모')
   await userEvent.type(followBox(), '2025-10-01')
-  await userEvent.click(screen.getByLabelText('EV-run-A 확인함'))
+  await userEvent.click(evCheck())
   await userEvent.click(screen.getByRole('button', { name: 'to B' }))
   expect((await screen.findAllByText('auditresource B run-B'))[0]).toBeInTheDocument()
 }
@@ -109,7 +111,7 @@ describe('후보 전환 때 검토 편집값 분리', () => {
     expect(radio('적합')).toHaveAttribute('aria-checked', 'false')
     expect(memoBox().value).toBe('')
     expect(followBox().value).toBe('')
-    expect(screen.getByLabelText('EV-run-B 확인함')).not.toBeChecked()
+    expect(evCheck()).not.toBeChecked()
     await userEvent.click(screen.getByRole('button', { name: '검토 저장' }))
     await waitFor(() => expect(review).toHaveBeenCalled())
     expect(review).toHaveBeenLastCalledWith(
@@ -122,7 +124,7 @@ describe('후보 전환 때 검토 편집값 분리', () => {
     const { review } = setup({ kind: 'different' })
     await editAThenSwitch()
     await userEvent.click(radio('보류'))
-    await userEvent.click(screen.getByLabelText('EV-run-B 확인함'))
+    await userEvent.click(evCheck())
     await userEvent.click(screen.getByRole('button', { name: '검토 저장' }))
     await waitFor(() => expect(review).toHaveBeenCalled())
     expect(review).toHaveBeenLastCalledWith(
@@ -156,13 +158,13 @@ describe('후보 전환 때 검토 편집값 분리', () => {
     await waitFor(() => expect(memoBox().value).toBe('B 저장'))
     expect(radio('부적합')).toHaveAttribute('aria-checked', 'true')
     expect(followBox().value).toBe('2025-10-09')
-    expect(screen.getByLabelText('EV-run-B 확인함')).toBeChecked()
+    expect(evCheck()).toBeChecked()
     await userEvent.click(screen.getByRole('button', { name: 'to A' }))
     expect((await screen.findAllByText('auditresource A run-A'))[0]).toBeInTheDocument()
     await waitFor(() => expect(memoBox().value).toBe('A 저장'))
     expect(radio('적합')).toHaveAttribute('aria-checked', 'true')
     expect(followBox().value).toBe('2025-10-01')
-    expect(screen.getByLabelText('EV-run-A 확인함')).toBeChecked()
+    expect(evCheck()).toBeChecked()
     await userEvent.click(screen.getByRole('button', { name: '검토 저장' }))
     await waitFor(() => expect(review).toHaveBeenCalled())
     expect(review).toHaveBeenLastCalledWith(
