@@ -207,13 +207,13 @@ export function ClaimsBox({ card, fold = true }: { card: EvidenceCard; fold?: bo
 }
 
 /** 답 문장 안의 [EV-…] 를 근거 표 행으로 가는 버튼으로 */
-export function withRefs(text: string, onRef: (id: string) => void): ReactNode[] {
+export function withRefs(text: string, onRef: (id: string) => void, refName?: (id: string) => string | undefined): ReactNode[] {
   return text.split(/(\[EV-[0-9A-Za-z-]+\])/g).map((part, i) => {
     const m = part.match(/^\[(EV-[0-9A-Za-z-]+)\]$/)
     if (!m) return <span key={i}>{part}</span>
     return (
-      <button key={i} className="mx-0.5 rounded bg-brand-50 px-1 font-mono text-xs text-brand-700 hover:bg-brand-100" onClick={() => onRef(m[1])}>
-        {m[1]}
+      <button key={i} title={m[1]} className={`mx-0.5 rounded bg-brand-50 px-1 text-xs text-brand-700 hover:bg-brand-100 ${refName?.(m[1]) ? '' : 'font-mono'}`} onClick={() => onRef(m[1])}>
+        {refName?.(m[1]) ?? m[1]}
       </button>
     )
   })

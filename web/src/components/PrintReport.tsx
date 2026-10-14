@@ -89,7 +89,7 @@ export function PrintReport({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-ink-900 pb-3">
         <div>
           <div className="text-xs text-ink-600">LINK-Radar 검토 보고서</div>
-          <h1 className="text-lg font-bold">{card.title}</h1>
+          <h1 className="text-lg font-bold">{card.title.replace(/^후보 C-\d{8}-\d{3} · /, '')}</h1>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className="rounded border-2 border-ink-900 px-2 py-0.5 text-sm font-black" data-testid="distribution-mark">
@@ -116,7 +116,7 @@ export function PrintReport({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-ink-900 text-left text-xs text-ink-600">
-              <th className="w-10 py-1 pr-2">번호</th>
+              <th className="w-16 whitespace-nowrap py-1 pr-2">번호</th>
               <th className="py-1 pr-2">근거와 뜻</th>
               <th className="py-1 pr-2">값</th>
               <th className="py-1 pr-2">관측 기간</th>
@@ -128,7 +128,7 @@ export function PrintReport({
               const l = evidenceLine(e)
               return (
                 <tr key={e.evidence_id} className="border-b border-line align-top">
-                  <td className="py-1 pr-2 text-xs font-semibold">근거 {i + 1}</td>
+                  <td className="whitespace-nowrap py-1 pr-2 text-xs font-semibold">근거 {i + 1}</td>
                   <td className="py-1 pr-2">
                     <b>{l.head}</b>
                     {l.sub && <div className="text-xs">{l.sub}</div>}
