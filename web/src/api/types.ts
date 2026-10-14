@@ -48,6 +48,8 @@ export type ApiErrorCode =
   | 'NO_ACTIVE_SNAPSHOT'
   | 'INTERNAL_ERROR'
   | 'AGENT_ERROR' // 실행 상태 errors[].error_code (그래프 예외)
+  | 'RATE_LIMITED' // 429, Retry-After(초) 뒤 다시
+  | 'BUDGET_EXCEEDED' // 실행 하나의 LLM 예산을 다 씀 (llm_calls 기록, 규칙·템플릿으로 대신)
 
 export interface ErrorResponse {
   error_code: string

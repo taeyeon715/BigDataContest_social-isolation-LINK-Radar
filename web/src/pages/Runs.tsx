@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type RunHistoryResponse } from '../api'
 import { PageBody, PageHero } from '../components/Layout'
-import { Badge, Card, Empty, ErrorBox, Loading } from '../components/ui'
+import { Badge, Card, Empty, ErrorBox, Loading, PersonName } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { DECISION_LABEL as DECISION, MODE_LABEL, PHASE_LABEL, REVISION_REASON_LABEL as REASON, fmtTime } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
@@ -33,7 +33,7 @@ function HistoryRow({ runId }: { runId: string }) {
           <ul className="flex flex-col gap-1 text-xs">
             {d.reviews.map((r) => (
               <li key={r.review_id}>
-                {r.review_id} · {r.reviewer} · 판 {r.report_revision_before}→{r.report_revision_after}
+                {r.review_id} · <PersonName name={r.reviewer} /> · 판 {r.report_revision_before}→{r.report_revision_after}
                 {r.follow_up_on && ` · 후속 ${r.follow_up_on}`}
                 <div className="text-ink-600">{r.resource_judgements.map((j) => `${j.resource_id} ${j.judgement}`).join(', ')}</div>
               </li>
@@ -47,7 +47,7 @@ function HistoryRow({ runId }: { runId: string }) {
           <ul className="text-xs">
             {d.approvals.map((a) => (
               <li key={a.approval_id}>
-                {a.approval_id} · {DECISION[a.decision]} · {a.report_revision}판 · {a.approver}
+                {a.approval_id} · {DECISION[a.decision]} · {a.report_revision}판 · <PersonName name={a.approver} />
                 <div className="break-all font-mono text-ink-600">{a.idempotency_key}</div>
               </li>
             ))}

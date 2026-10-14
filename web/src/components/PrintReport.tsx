@@ -12,6 +12,7 @@ import {
   fmtValue,
   groupOf,
   isActionSentence,
+  nameText,
   refsToText,
   reportText,
   roundChangesView,
@@ -77,7 +78,7 @@ export function PrintReport({
     ['보고서 판', `${report.report_revision}판 (근거 ${card.evidence_revision}판)`],
     ['스냅샷', snapshotId],
     ['실행 ID', runId],
-    ['결재', approval ? `${DECISION_LABEL[approval.decision] ?? approval.decision} · ${approval.approver} · ${fmtTime(approval.created_at)} · ${approval.report_revision}판` : '승인 전'],
+    ['결재', approval ? `${DECISION_LABEL[approval.decision] ?? approval.decision} · ${nameText(approval.approver)} · ${fmtTime(approval.created_at)} · ${approval.report_revision}판` : '승인 전'],
   ]
   if (followUp) meta.push(['후속 확인일', followUp])
 

@@ -4,6 +4,7 @@ import type { Decision, MoreFocus, RunStatusResponse } from '../api'
 import { ApiError, MAX_EXTRA_ROUNDS } from '../api'
 import { PHASE_LABEL, errorText, fmtTime } from '../lib/labels'
 import { MoreForm, type MoreCandidate } from './MoreForm'
+import { PersonName, RoleNote, useRole } from './ui'
 
 type RunLike = Pick<RunStatusResponse, 'status' | 'report_revision' | 'report_stale' | 'abstain_reason'> &
   Partial<Pick<RunStatusResponse, 'run_id' | 'snapshot_id' | 'published_report_revision' | 'extra_rounds'>>
@@ -180,7 +181,7 @@ function DoneCard({
       </div>
       {done && (
         <div className="mt-1 text-sm text-ink-800" data-testid="approval-done-by">
-          승인자 {done.approver} · {fmtTime(done.created_at)}
+          승인자 <PersonName name={done.approver} /> · {fmtTime(done.created_at)}
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
@@ -203,7 +204,7 @@ function DoneCard({
 /** 승인 요청 오류: 쉬운 문장 먼저, 서버 문장은 보조, 코드는 작게 */
 function DecideError({ error }: { error: Error }) {
   const code = error instanceof ApiError ? error.code : null
-  const { title, detail } = errorText(code, error.message, '승인 요청에 실패했습니다.')
+  const { title, detail } = errorText(code, error.message, '승인 요청에 실패했습니다.', error instanceof ApiError ? error.retryAfter : null)
   return (
     <div className="rounded-xl bg-caution-soft px-3 py-2 text-ink-900" role="alert">
       <div className="font-semibold">{title}</div>
@@ -245,8 +246,10 @@ export function ApprovalPanel({
   const [moreOpen, setMoreOpen] = useState(false)
   const [exhausted, setExhausted] = useState(false) // 서버가 EXTRA_ROUNDS_EXCEEDED 로 답함
   const block = approvalBlock(run, shown)
-  const approveBlocked = block !== null || !!run.abstain_reason
-  const otherBlocked = block !== null
+  const { can } = useRole()
+  const noRole = !can('승인') // 승인·보류·추가 조사는 승인 역할 (API 명세 §1)
+  const approveBlocked = block !== null || !!run.abstain_reason || noRole
+  const otherBlocked = block !== null || noRole
   const remaining = exhausted ? 0 : remainingRounds(run)
   const unmet = (checks ?? []).filter((c) => !c.ok)
 
@@ -315,6 +318,7 @@ export function ApprovalPanel({
           </ul>
         </div>
       )}
+      {noRole && !block && <RoleNote need="승인" />}
       {block && (
         <div className="rounded-xl bg-canvas px-3 py-2 text-ink-800" data-testid="approval-block">
           {block}

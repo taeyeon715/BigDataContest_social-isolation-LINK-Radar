@@ -26,7 +26,7 @@ import { ActionPlanView, CheckAreasView, DecisionTrace, LevelExplain, MorningChe
 import { ResourcePanel, type JudgementDraft } from '../components/ResourcePanel'
 import { OutcomeForm } from '../components/OutcomeForm'
 import { Term } from '../components/Term'
-import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
+import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip , PersonName, RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { useRunPoll } from '../lib/useRunPoll'
 import {
@@ -251,6 +251,9 @@ export default function CandidateDetail() {
   const [previewErr, setPreviewErr] = useState<ApiError | null>(null)
   const [previewTick, setPreviewTick] = useState(0)
   const [approverShown, setApproverShown] = useState<string | null>(null)
+  // 조사 시작·검토 저장은 검토 권한 이상 (API 명세 §1). 공용 토큰은 기본 조회라 잠그고 이유를 보임
+  const { can } = useRole()
+  const canReview = can('검토')
   const [card, setCard] = useState<EvidenceCard | null>(null)
   const [report, setReport] = useState<ReportResponse | null>(null)
   const [history, setHistory] = useState<RunHistoryResponse | null>(null)
@@ -519,8 +522,9 @@ export default function CandidateDetail() {
     })
     // 승인자는 서버가 기록한 이름으로 보임 (인증을 켜면 토큰의 이름). 응답에 없으면 이력에서 (FE-16)
     if (res?.approver && runRef.current === runId) setApproverShown(res.approver)
-    await refresh()
+    // 이력(승인자·시각)을 먼저 받아 두고 상태를 바꿔, 완료 카드가 승인자 없이 잠깐 뜨지 않게
     await reloadHistory(runId)
+    await refresh()
   }
 
   const toggleChecked = (eid: string) => {
@@ -663,7 +667,8 @@ export default function CandidateDetail() {
                 <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason) : '—'}
                 {candidate.trigger && ` · 트리거 ${candidate.trigger}`}
               </div>
-              {mentionsHub(`${candidate.level_reason ?? ''} ${(candidate.rule_checks ?? []).map((c) => c.condition).join(' ')}`) && (
+              {/* 등급 조건 표가 있으면 그 아래 한 번만 보임 */}
+              {!exp && !(candidate.rule_checks?.length ?? 0) && mentionsHub(candidate.level_reason ?? '') && (
                 <div className="mt-1 text-xs text-ink-600" data-testid="hub-note">
                   {HUB_NOTE}
                 </div>
@@ -725,9 +730,14 @@ export default function CandidateDetail() {
           {lookedUp && !runId && (
             <Card title="조사 실행">
               <p className="mb-3 text-ink-600">이 후보로 만든 실행이 없습니다. 조사를 시작하면 근거 카드·자원·보고서를 만들고 승인 대기에서 멈춥니다.</p>
-              <button className="btn-primary" onClick={start} disabled={starting}>
+              <button className="btn-primary" onClick={start} disabled={starting || !canReview}>
                 {starting ? '시작하는 중…' : '조사 시작'}
               </button>
+              {!canReview && (
+                <div className="mt-2">
+                  <RoleNote need="검토" />
+                </div>
+              )}
               {startErr && (
                 <div className="mt-3">
                   <ErrorBox error={startErr} onRetry={start} />
@@ -762,7 +772,7 @@ export default function CandidateDetail() {
             <div className="rounded-2xl border border-caution/40 bg-caution-soft px-4 py-3 text-ink-900" role="alert" data-testid="run-failed">
               <div className="font-semibold">{ERROR_TEXT[agentError] ?? ERROR_TEXT.AGENT_ERROR}</div>
               <div className="mt-1 text-xs text-ink-600">오류 코드 {agentError}</div>
-              <button className="btn-primary mt-3" onClick={start} disabled={starting}>
+              <button className="btn-primary mt-3" onClick={start} disabled={starting || !canReview}>
                 새 실행으로 다시 조사
               </button>
             </div>
@@ -843,9 +853,10 @@ export default function CandidateDetail() {
                   </label>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <button className="btn-primary" onClick={saveReview} disabled={run.status !== 'awaiting_approval' || !canSave}>
+                  <button className="btn-primary" onClick={saveReview} disabled={run.status !== 'awaiting_approval' || !canSave || !canReview}>
                     검토 저장
                   </button>
+                  {!canReview && <RoleNote need="검토" />}
                   {dirty && <span className="text-xs text-caution">저장하지 않은 변경이 있습니다</span>}
                   {saveMsg && (
                     <span className="text-sm text-brand-700" role="status">
@@ -954,7 +965,7 @@ export default function CandidateDetail() {
                       <div className="mt-3 border-t border-line pt-3 text-xs text-ink-600">
                         {history.approvals.map((a) => (
                           <div key={a.approval_id} title={`기록 ID ${a.approval_id}`}>
-                            {DECISION_LABEL[a.decision] ?? a.decision} · {a.report_revision}판 · {a.approver} · {fmtTime(a.created_at)}
+                            {DECISION_LABEL[a.decision] ?? a.decision} · {a.report_revision}판 · <PersonName name={a.approver} /> · {fmtTime(a.created_at)}
                           </div>
                         ))}
                       </div>
@@ -991,7 +1002,7 @@ export default function CandidateDetail() {
                     {showPath ? '에이전트 경로 접기' : '에이전트 경로 보기'}
                   </button>
                   {ready && run.status !== 'awaiting_approval' && (
-                    <button className="btn-ghost py-1" onClick={start}>
+                    <button className="btn-ghost py-1" onClick={start} disabled={!canReview}>
                       새 실행으로 다시 조사
                     </button>
                   )}

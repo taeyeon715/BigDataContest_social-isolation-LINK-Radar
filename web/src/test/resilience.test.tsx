@@ -4,11 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError, type RunStatusResponse } from '../api'
+import { api, ApiError, currentRole, setRole, type RunStatusResponse } from '../api'
 import { ApprovalPanel, ConfirmDialog, preChecks } from '../components/ApprovalPanel'
 import { pageMarginCss, PrintReport } from '../components/PrintReport'
 import { JudgementRadios } from '../components/ResourcePanel'
-import { Loading, SLOW_TEXT, STUCK_TEXT } from '../components/ui'
+import { ErrorBox, Loading, PersonName, SLOW_TEXT, STUCK_TEXT } from '../components/ui'
 import { evidenceIndex, plainText, refsToText, reportText, splitRefs } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
 import { backoffMs, MAX_RETRIES, useRunPoll } from '../lib/useRunPoll'
@@ -24,6 +24,7 @@ vi.mock('../components/Layout', () => ({
 }))
 
 afterEach(() => {
+  setRole('승인')
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
@@ -323,5 +324,39 @@ describe('보고서 문장의 근거 코드 → 이름표 (FE-09)', () => {
     expect(sheet.querySelector('style')?.textContent).toContain('@bottom-right')
     expect(pageMarginCss('내부용(대외비)')).toContain('"내부용(대외비)"')
     expect(pageMarginCss('a"b')).toContain('"a\\"b"')
+  })
+})
+
+describe('권한·횟수 한도·공용 계정 (보안 브랜치 반영)', () => {
+  it('조회 역할이면 승인·보류·추가 조사를 잠그고 "승인 권한이 필요합니다"', () => {
+    setRole('조회')
+    render(<ApprovalPanel run={{ status: 'awaiting_approval', report_revision: 1, report_stale: false, abstain_reason: null }} onDecide={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '승인' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '보류' })).toBeDisabled()
+    expect(screen.getByTestId('role-note')).toHaveTextContent('승인 권한이 필요합니다')
+  })
+
+  it('POST 가 403 FORBIDDEN 이면 역할을 낮춰 잡는다 (실행 만들기 → 조회)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error_code: 'FORBIDDEN', message: '검토 권한이 필요합니다.', details: [] }), { status: 403 }),
+    )
+    await expect(api.createRun({ mode: 'qa', candidate_id: 'C-1', as_of: '2025-09-26' } as never)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(currentRole()).toBe('조회')
+  })
+
+  it('429 RATE_LIMITED 는 Retry-After 초를 쉬운 문장에 넣는다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error_code: 'RATE_LIMITED', message: 'too many', details: [] }), { status: 429, headers: { 'Retry-After': '42' } }),
+    )
+    const e = await api.qa({ question: 'x', as_of: '2025-09-26' }).catch((x) => x)
+    expect(e.retryAfter).toBe(42)
+    render(<ErrorBox error={e} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('42초 뒤 다시 시도하세요')
+  })
+
+  it('"공용:<이름>" 은 그대로 보이고 공용 계정 표시를 붙인다', () => {
+    render(<PersonName name="공용:demo" />)
+    expect(screen.getByText(/공용:demo/)).toBeInTheDocument()
+    expect(screen.getByTestId('shared-account')).toHaveTextContent('공용 계정')
   })
 })

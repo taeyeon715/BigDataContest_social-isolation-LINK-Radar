@@ -56,11 +56,51 @@ export function requestHeaders(hasBody: boolean, token: string = API_TOKEN): Rec
 export class ApiError extends Error {
   status: number
   code: string
-  constructor(status: number, code: string, message: string) {
+  /** 429 RATE_LIMITED 의 Retry-After (초) */
+  retryAfter: number | null
+  constructor(status: number, code: string, message: string, retryAfter: number | null = null) {
     super(message)
     this.status = status
     this.code = code
+    this.retryAfter = retryAfter
   }
+}
+
+// ---- 역할 (조회 < 검토 < 승인). 서버에 "나는 누구" 경로가 없어 화면이 짐작한다:
+// - VITE_API_ROLE 로 정해 주면 그 값
+// - 토큰이 없으면 개발 모드(서버가 모두 허용) → 승인
+// - 토큰이 있으면 공용 토큰 기본값인 조회로 시작
+// 그리고 403 FORBIDDEN 을 받으면 그 요청에 필요한 역할보다 낮다고 보고 내림.
+export type Role = '조회' | '검토' | '승인'
+export const ROLE_RANK: Record<Role, number> = { 조회: 0, 검토: 1, 승인: 2 }
+function initialRole(): Role {
+  const env = import.meta.env.VITE_API_ROLE as string | undefined
+  if (env === '조회' || env === '검토' || env === '승인') return env
+  return API_TOKEN ? '조회' : '승인'
+}
+let role: Role = initialRole()
+const roleListeners = new Set<() => void>()
+export function currentRole(): Role {
+  return role
+}
+export function setRole(r: Role) {
+  if (r === role) return
+  role = r
+  roleListeners.forEach((fn) => fn())
+}
+export function onRoleChange(fn: () => void): () => void {
+  roleListeners.add(fn)
+  return () => roleListeners.delete(fn)
+}
+/** 경로에 필요한 역할 (API 명세 §1). 403 을 받으면 이보다 한 단계 낮다고 봄 */
+export function roleNeeded(method: string, path: string): Role {
+  if (method !== 'POST') return '조회'
+  return /\/approve$/.test(path) ? '승인' : '검토'
+}
+function noteForbidden(method: string, path: string) {
+  const need = roleNeeded(method, path)
+  const below: Role = need === '승인' ? '검토' : '조회'
+  if (ROLE_RANK[role] > ROLE_RANK[below]) setRole(below)
 }
 
 // 응답 헤더 X-Data-Source 를 경로 종류별로 기억한다. 같은 서버라도 현황·지도는 가짜, 실행은 실제일 수 있어
@@ -165,7 +205,11 @@ async function request<T>(
     if (!res.ok) {
       const e = (data ?? {}) as Partial<ErrorResponse>
       const fallback = res.status >= 500 ? `API 서버에 문제가 생겼습니다 (HTTP ${res.status}). 잠시 뒤 다시 시도하세요.` : '요청을 처리할 수 없습니다.'
-      throw new ApiError(res.status, e.error_code ?? 'HTTP_ERROR', e.message ?? fallback)
+      const code = e.error_code ?? 'HTTP_ERROR'
+      if (res.status === 403 && code === 'FORBIDDEN') noteForbidden(method, path)
+      const ra = Number(res.headers.get('Retry-After'))
+      const retryAfter = res.status === 429 && Number.isFinite(ra) && ra > 0 ? ra : null
+      throw new ApiError(res.status, code, e.message ?? fallback, retryAfter)
     }
     if (text && data === null) throw new ApiError(res.status, 'BAD_RESPONSE', 'API 응답을 읽을 수 없습니다.')
     return data as T

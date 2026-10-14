@@ -176,6 +176,9 @@ export function replaceInputCodes(text: string): string {
 export const ERROR_TEXT: Record<string, string> = {
   NETWORK_ERROR: 'API 서버에 연결할 수 없습니다.',
   TIMEOUT: 'API가 제시간에 답하지 않았습니다. 잠시 뒤 다시 시도하세요.',
+  FORBIDDEN: '이 일을 할 권한이 없습니다. 조사·질문·검토 저장은 검토 권한, 승인은 승인 권한이 필요합니다.',
+  RATE_LIMITED: '짧은 시간에 요청이 많아 잠시 막혔습니다. 조금 뒤 다시 시도하세요.',
+  BUDGET_EXCEEDED: '이 조사에 쓸 수 있는 AI 사용량을 다 써서, 규칙과 정해진 문장으로 대신 만들었습니다.',
   BAD_RESPONSE: 'API 응답을 읽을 수 없습니다.',
   GRAIN_FORBIDDEN_COMBO: '질문에 필요한 조합(예: 나이와 시간대)을 함께 담은 자료가 없습니다.',
   TIME_NO_USABLE_DATA: '이 기준일에 쓸 수 있는 자료가 없습니다.',
@@ -199,11 +202,17 @@ export const ERROR_TEXT: Record<string, string> = {
 }
 
 /** 서버 문장보다 쉬운 문장을 먼저 보일 오류 코드 */
-const PLAIN_FIRST = new Set(['CANDIDATE_NOT_IN_RUN', 'RUN_NOT_READY', 'AGENT_ERROR', 'IDEMPOTENCY_KEY_REUSED', 'RUN_NOT_AWAITING_APPROVAL', 'EXTRA_ROUNDS_EXCEEDED'])
+const PLAIN_FIRST = new Set(['FORBIDDEN', 'RATE_LIMITED', 'BUDGET_EXCEEDED', 'CANDIDATE_NOT_IN_RUN', 'RUN_NOT_READY', 'AGENT_ERROR', 'IDEMPOTENCY_KEY_REUSED', 'RUN_NOT_AWAITING_APPROVAL', 'EXTRA_ROUNDS_EXCEEDED'])
 
 /** 오류를 화면에 보일 문장: 제목(쉬운 문장)과, 서버 문장이 다르면 보조 문장 */
-export function errorText(code: string | null | undefined, message: string | null | undefined, fallback = '요청을 처리하지 못했습니다.'): { title: string; detail: string | null } {
-  const plain = code ? ERROR_TEXT[code] : undefined
+export function errorText(
+  code: string | null | undefined,
+  message: string | null | undefined,
+  fallback = '요청을 처리하지 못했습니다.',
+  retryAfter: number | null = null,
+): { title: string; detail: string | null } {
+  let plain = code ? ERROR_TEXT[code] : undefined
+  if (code === 'RATE_LIMITED' && retryAfter) plain = `짧은 시간에 요청이 많아 잠시 막혔습니다. ${retryAfter}초 뒤 다시 시도하세요.`
   const title = (code && PLAIN_FIRST.has(code) ? plain : undefined) || message || plain || fallback
   return { title, detail: message && message !== title ? message : null }
 }
@@ -277,6 +286,7 @@ export function plainText(s: string): string {
   return s
     .replace(/관측(된)? 거점(까지)?\s*(직선)?\s*거리/g, HUB_LABEL)
     .replace(/관측(된)? 거점/g, '안부·관계 거점(노인복지관·사회복지관)')
+    .replace(/거리은\(는\)/g, '거리는')
 }
 
 /** 이 문장이 거점 거리 이야기인가 (행정복지센터 안내를 붙일지) */
@@ -313,4 +323,13 @@ export function refsToText(text: string, idx: Map<string, { n: number; name: str
 /** 보고서 문장 가공 (화면·인쇄 같이 씀): 자원 코드 → 이름, 입력 코드 → 한국어, 거점 이름 */
 export function reportText(s: string, resourceNames: Record<string, string> = {}): string {
   return plainText(replaceInputCodes(s.replace(/\bR\d{4}\b/g, (m) => resourceNames[m] ?? m)))
+}
+
+/** 공용 토큰으로 기록된 이름 ("공용:<이름>") 인가. 화면은 이름을 그대로 보이고 "공용 계정" 표시만 붙인다 */
+export function isSharedName(name: string | null | undefined): boolean {
+  return !!name && name.startsWith('공용:')
+}
+/** 글자용 (인쇄): "공용:demo (공용 계정)" */
+export function nameText(name: string): string {
+  return isSharedName(name) ? `${name} (공용 계정 · 누가 했는지 따로 적어 두세요)` : name
 }

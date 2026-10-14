@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Candidate, CandidateLevel, CandidateType } from '../api'
-import { ApiError } from '../api'
+import { ApiError, ROLE_RANK, currentRole, onRoleChange, type Role } from '../api'
 import { Term } from './Term'
-import { errorText, LEVEL_LEGEND, LEVEL_NAME, TYPE_LABEL, counterView } from '../lib/labels'
+import { errorText, isSharedName, LEVEL_LEGEND, LEVEL_NAME, TYPE_LABEL, counterView } from '../lib/labels'
 
 const LEVEL_STYLE: Record<CandidateLevel, string> = {
   'Level 0': 'bg-lv0 text-ink-800',
@@ -152,7 +152,7 @@ export function Empty({ children }: { children: ReactNode }) {
 /** 오류: 쉬운 문장이 제목, 코드는 작은 회색 글자. compact 는 이미 보이는 값 위에 얹는 한 줄 */
 export function ErrorBox({ error, onRetry, compact = false }: { error: ApiError | Error; onRetry?: () => void; compact?: boolean }) {
   const code = error instanceof ApiError ? error.code : 'ERROR'
-  const { title, detail } = errorText(code, error.message)
+  const { title, detail } = errorText(code, error.message, undefined, error instanceof ApiError ? error.retryAfter : null)
   if (compact)
     return (
       <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-caution-soft px-3 py-1.5 text-xs text-ink-900" role="alert">
@@ -227,4 +227,33 @@ export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?:
     dark: 'bg-ink-900 text-white',
   }[tone]
   return <span className={`chip ${cls}`}>{children}</span>
+}
+
+/** 지금 역할(짐작)과 need 이상인지. 403 을 받으면 내려가고 화면이 다시 그려짐 */
+export function useRole(): { role: Role; can: (need: Role) => boolean } {
+  const [r, setR] = useState<Role>(currentRole())
+  useEffect(() => onRoleChange(() => setR(currentRole())), [])
+  return { role: r, can: (need: Role) => ROLE_RANK[r] >= ROLE_RANK[need] }
+}
+
+/** 권한이 모자라 버튼을 잠갔을 때 한 줄 안내 */
+export function RoleNote({ need }: { need: Role }) {
+  return (
+    <div className="text-xs text-ink-600" data-testid="role-note">
+      {need} 권한이 필요합니다. 지금 계정은 {currentRole()} 권한이라 볼 수만 있습니다. 담당자 계정(토큰)으로 들어오세요.
+    </div>
+  )
+}
+
+/** 검토자·승인자 이름. 공용 토큰 기록("공용:<이름>")이면 그대로 보이고 "공용 계정" 표시를 붙임 */
+export function PersonName({ name }: { name: string }) {
+  if (!isSharedName(name)) return <>{name}</>
+  return (
+    <>
+      {name}{' '}
+      <span className="chip bg-canvas text-ink-600" title="여럿이 같이 쓰는 공용 계정으로 기록됐습니다. 실제로 누가 했는지는 따로 적어 두세요." data-testid="shared-account">
+        공용 계정
+      </span>
+    </>
+  )
 }
