@@ -411,12 +411,43 @@ def build_supplement(cfg: dict | None = None, offline: bool = False, now: dateti
     return out[V2_COLS + [c for c in L.NEW_COLS if c not in V2_COLS]]
 
 
+def diff_supplement(new: pd.DataFrame, old: pd.DataFrame) -> dict:
+    """보강 원장 두 판 비교 (resource_id 기준). 추가·빠짐·값이 바뀐 행 수를 칸별로."""
+    if old.empty or new.empty:
+        return {"same": old.equals(new), "added": list(new.get("resource_id", [])), "removed": [], "changed": {}}
+    a, b = new.set_index("resource_id"), old.set_index("resource_id")
+    added = sorted(set(a.index) - set(b.index))
+    removed = sorted(set(b.index) - set(a.index))
+    both = a.index.intersection(b.index)
+    changed = {}
+    for c in [c for c in a.columns if c in b.columns]:
+        n = int((a.loc[both, c] != b.loc[both, c]).sum())
+        if n:
+            changed[c] = n
+    same = (not added and not removed and not changed and list(new.columns) == list(old.columns)
+            and list(new["resource_id"]) == list(old["resource_id"]))
+    return {"same": same, "added": added, "removed": removed, "changed": changed}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="자원 원장 보강 수집")
     ap.add_argument("--offline", action="store_true", help="API 를 부르지 않고 raw 의 마지막 성공 원문으로 다시 만듦")
+    ap.add_argument("--check", action="store_true", help="지금 추가자원_원장.csv 와 비교만 하고 쓰지 않음")
+    ap.add_argument("--write", action="store_true",
+                    help="지금 파일과 달라도 새 값으로 바꿈 (기본은 같을 때만 씀. 시연 결과가 몰래 바뀌지 않게)")
     a = ap.parse_args(argv)
     cfg = load_config()
     sup = build_supplement(cfg, offline=a.offline)
+    prev = pd.read_csv(cfg["supplement"], dtype=str, keep_default_na=False) if cfg["supplement"].exists() else pd.DataFrame()
+    diff = diff_supplement(sup, prev)
+    print(f"지금 파일과 같음: {diff['same']} (추가 {len(diff['added'])}, 빠짐 {len(diff['removed'])}, "
+          f"바뀐 칸 {diff['changed']})")
+    if diff["added"] or diff["removed"]:
+        print("추가:", diff["added"][:20], "빠짐:", diff["removed"][:20])
+    if a.check or (not diff["same"] and not a.write and not prev.empty):
+        if not a.check:
+            print("값이 달라 파일을 바꾸지 않았습니다 (바꾸려면 --write)")
+        return diff
     sup.to_csv(cfg["supplement"], index=False, encoding="utf-8")
     print(f"{cfg['supplement'].relative_to(ROOT)}: {len(sup)}건")
     print(sup.groupby(["city", "resource_kind", "subtype"]).size().to_string())

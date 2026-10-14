@@ -1,6 +1,6 @@
 # 외부 공공데이터
 
-대회 규정에 따라 사용한 외부 데이터의 원본과 출처를 함께 둡니다. 모두 무료·공개 데이터입니다. 수집일은 2026-10-13입니다.
+대회 규정에 따라 사용한 외부 데이터의 원본과 출처를 함께 둡니다. 모두 무료·공개 데이터입니다. 파일 다운로드는 2026-10-13, API(ASOS·E-Gen·복지로)는 2026-10-14에 받았습니다(아래 "수집 기록").
 
 | 파일 | 내용 | 출처 | 기간 | 라이선스 |
 |---|---|---|---|---|
@@ -9,11 +9,12 @@
 | `seoul_living/시민생활_10개관심집단_강남_2025-07_12.csv` | 서울 시민생활 데이터: 행정동 × 성 × 5세 연령 × 월, 고립 관련 집단 수 (강남만 추출) | [서울 열린데이터광장 OA-22266](https://data.seoul.go.kr/dataList/OA-22266/F/1/datasetView.do) | 2025년 7~12월 | 공공누리 1유형(출처표시) |
 | `seoul_living/시민생활_29개통신정보_강남_2025-07_12.csv` | 같은 데이터의 통신 지표(통화 대상자 수, 이동 등) | [서울 열린데이터광장 OA-22267](https://data.seoul.go.kr/dataList/OA-22267/F/1/datasetView.do) | 2025년 7~12월 | 공공누리 1유형(출처표시) |
 | `chuncheon/춘천_독거노인현황_20251114_cp949.csv` | 춘천 행정동 × 연령대 독거노인 수 | [공공데이터포털 15081202](https://www.data.go.kr/data/15081202/fileData.do) | 2025-11-14 기준 | 이용허락범위 제한 없음 |
-| `weather/kma_asos_daily_2025-07_12.csv` (원본 응답: `weather/raw/`, 로컬에만 두고 git으로 추적하지 않음) | 기상청 ASOS 일자료: 평균·최저·최고기온, 강수량, 신적설, 습도, 풍속. 서울(108)은 강남 대표, 춘천(101) | [공공데이터포털 기상청 지상(종관, ASOS) 일자료 조회서비스](https://www.data.go.kr/data/15059093/openapi.do). `uv run python -m bigcontest.weather`로 수집 | 2025년 7~12월 | 공공누리 1유형(출처표시) |
+| `weather/kma_asos_daily_2025-07_12.csv` (원본 응답: `weather/raw/`, 로컬에만 두고 git으로 추적하지 않음) | 기상청 ASOS 일자료: 평균·최저·최고기온, 강수량, 신적설, 습도, 풍속. 서울(108)은 강남 대표, 춘천(101) | [공공데이터포털 기상청 지상(종관, ASOS) 일자료 조회서비스](https://www.data.go.kr/data/15059093/openapi.do). `uv run python -m bigcontest.weather`로 수집, `--offline`으로 원문에서 다시 만듦 | 2025년 7~12월 | 공공누리 1유형(출처표시) |
 | `weather/openmeteo_seoul_2025-07_12.json`, `weather/openmeteo_chuncheon_2025-07_12.json` | 일별 최고·최저기온, 강수량 (서울·춘천 지점) | [Open-Meteo Historical API](https://open-meteo.com/) (재분석 자료, 비교용) | 2025년 7~12월 | CC BY 4.0 |
-| `resources/복지자원_원장.csv` | 강남·춘천 복지시설·서비스 745건 (8종 분류) | 여러 공공데이터. 원본별 URL·SHA256은 `resources/원본_출처목록.csv` | 2026년 기준 | 각 원본 라이선스 |
+| `resources/복지자원_원장.csv` | 강남·춘천 복지시설·서비스 745건 (8종 분류). 원본 12개에서 `uv run python -m bigcontest.resources.build_ledger`로 다시 만듦 (원본은 `resources/raw/원장_원본/`, git 추적 안 함. 좌표는 다시 구하지 않음) | 여러 공공데이터. 원본별 URL·SHA256은 `resources/원본_출처목록.csv` | 2026년 기준 | 각 원본 라이선스 |
 | `resources/복지자원_원장_v2.csv` (+ `resources/정정_기록.csv`) | 위 원장에 상태 칸을 붙이고 보강 자원을 뒤에 붙인 것 (원래 745건의 칸·값·행 순서 그대로). 이용 방법(`delivery_channel`), 좌표 상태(`coordinate_status`), 자격 기준(`eligibility_rule_status`), 운영 상태(`operating_status`), 운영 시간(`schedule`), 휴일 운영(`holiday_open`), 서비스 범위(`service_area`), 자원 묶음(`resource_kind`: 시설·전화 상담·제도·사업·사람), 참고(`note`), 고정 ID(`resource_id`), 원천 행 ID(`source_record_id`, API 자원만), 날짜 확인일(`last_verified`). 모르는 값은 미상. 손으로 고친 값은 정정 기록에 쌓음. `uv run python -m bigcontest.resources.ledger`로 다시 만듦 (규칙: `src/bigcontest/resources/ledger.py`) | 위 원장 + 규칙 | 2026년 기준 | 각 원본 라이선스 |
 | `resources/추가자원_원장.csv` (+ `resources/수동_추가자원.csv`, `resources/수집_기록.csv`) | 보강 자원 320건: E-Gen 휴일 운영 약국·병의원·응급의료기관, 복지로 고립 관련 제도·사업, 노인맞춤돌봄 수행기관, 공식 페이지로 넣은 지역 사업·사람 자원. `uv run python -m bigcontest.resources.sources`로 다시 받음 (원문은 `resources/raw/`, git 추적 안 함) | 공공데이터포털 15000576·15000736·15000563·15090532·15108347·15004317, 강남구·춘천시·서울시 공식 페이지 | 2026-10-14 조회 | 이용허락범위 제한 없음 (공식 페이지는 출처 표시) |
+| `holidays/공휴일_2025-07_12.csv` (페이지 사본: `holidays/raw/`, git 추적 안 함) | 2025-07~12 공휴일 8일. `configs/project.yaml` 목록과 같은지 확인용 | [한국천문연구원 천문우주지식정보 2025년 월력요항](https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025) (우주항공청 관보 게재 자료). `uv run python -m bigcontest.holidays` | 2025년 | 공공 정보 (출처 표시) |
 
 ## 주의
 - **날씨 자료**는 기상청 ASOS 관측값을 씁니다. 강수량이 빈 날은 비가 오지 않은 날(0)로 봅니다. Open-Meteo 재분석 자료는 처음 탐색에 썼고 비교용으로만 남깁니다. 두 자료는 최고기온은 거의 같지만(상관 0.99, Open-Meteo가 평균 1℃ 낮음) **33℃ 이상 날 수가 크게 다릅니다**(춘천 ASOS 30일 vs Open-Meteo 14일). 폭염 분석(I-6)은 ASOS로 다시 계산합니다.
@@ -21,7 +22,8 @@
 - 시민생활의 `(전체)`가 붙은 집단(예: `외출-커뮤니케이션이 모두 적은 집단(전체)`)은 **1인가구가 아니라 전체 인구** 중 해당하는 사람 수입니다. 비율을 낼 때 총인구로 나눕니다. 나머지 집단은 1인가구 기준입니다.
 - **주민등록 1인세대 ≠ 1인가구**(주소만 따로 둔 경우 등이 섞임).
 - **춘천 독거노인 파일**은 일부 읍·면에서 독거노인 수가 그 동의 1인세대 수보다 많아 정의가 불분명합니다. 순위로만 씁니다.
-- **복지자원 좌표**는 키 없는 지오코더(ArcGIS)로 얻은 탐색용 값입니다. 최종 제출 전 도로명주소 API 좌표로 바꿀 예정입니다.
+- **복지자원 좌표**는 키 없는 지오코더(Esri ArcGIS World Geocoder, 2026-10-13)로 얻은 탐색용 값입니다. Esri는 결과 저장을 따로 다루므로 도로명주소 좌표 API 좌표로 바꿀 예정입니다(좌표 키 승인 대기, 아직 바꾸지 않음). 지오코더 응답은 레포·제출 묶음에 넣지 않습니다.
+- **기상특보는 받지 않았습니다.** R4·R6는 ASOS 일자료로 근사합니다(폭염 최고 ≥33℃, 호우 일강수 ≥80mm, 대설 신적설 ≥5cm, 한파 최저 ≤−12℃). 특보 발표 기준과 다릅니다. 자세한 것은 `docs/데이터_설명.md`.
 
 ## 서울 시민생활 데이터: 기준월·관측 기간·공개일
 
@@ -45,3 +47,18 @@
 - 통신·카드와 "같은 달"로 붙이지 않습니다.
 
 **'(전체)' 집단과 기초수급자·장애인**: 매뉴얼 21쪽 '조작적 정의 기준(반응변수)' 표에서 `외출이 매우 적은 집단(전체)`·`외출-커뮤니케이션이 모두 적은 집단(전체)`의 기초생활수급자·장애인 여부 칸이 `X`입니다. 표에 범례는 없지만 "해당하지 않는 사람"으로 읽힙니다(해석). 이 조건은 **모형 학습용 정답(반응변수) 정의**입니다. 실제 집계는 모든 사람의 확률을 계산해 연령대별 상위 2%를 셉니다(22쪽). 23쪽은 "추정대상은 모두 서울시민 전체"라고 적습니다. 따라서 "집계에서 수급자·장애인을 뺀다"는 문장은 없고, "학습 정의가 수급자·장애인을 빼서 그들의 고립 양상을 덜 반영할 수 있다"까지만 말할 수 있습니다.
+
+## 수집 기록
+
+API 원문은 `external/**/raw/`에 그대로 두고 git으로 올리지 않습니다(키는 URL에만 들어가고 원문 본문에는 없음). 실행마다 기록 한 줄을 남깁니다.
+
+| 자료 | 기록 | 원문 위치 | 다시 만들기 |
+|---|---|---|---|
+| ASOS 일자료 | `weather/수집_기록.csv` | `weather/raw/asos-<시각>/` (JSON 2개 + `fetch_log.json`, 키 가림) | `uv run python -m bigcontest.weather --offline` |
+| E-Gen·복지로 (9개 출처) | `resources/수집_기록.csv` | `resources/raw/<출처>/<실행 ID>/page*.xml` | `uv run python -m bigcontest.resources.sources --offline` |
+| 공휴일 | `holidays/공휴일_2025-07_12.csv` (`checked_at`) | `holidays/raw/kasi_calendarData_2025.html` | `uv run python -m bigcontest.holidays --offline` |
+| 원장 745건 | `resources/원본_출처목록.csv` (SHA256) | `resources/raw/원장_원본/` (원본 12개) | `uv run python -m bigcontest.resources.build_ledger` |
+
+- `resources/수집_기록.csv`의 처음 9줄(2026-10-14 01:28)은 원문 폴더가 남아 있지 않습니다. 같은 날 12:53에 다시 받았고(9줄 추가), 다시 받은 원문으로 만든 `추가자원_원장.csv`가 지금 파일과 **행·값 모두 같았습니다**(320건, 추가·빠짐·바뀐 칸 0).
+- ASOS도 2026-10-14에 다시 받았고 지금 CSV와 값이 같습니다(368행).
+- 새로 받은 값이 지금 파일과 다르면 파일을 바꾸지 않습니다(`--write`를 줄 때만). 시연 결과가 모르게 바뀌지 않게 하려는 것입니다.

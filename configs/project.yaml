@@ -16,7 +16,8 @@ sgg:
   "11230": 강남
   "32010": 춘천
 
-# 2025년 하반기 공휴일 (검증된 목록)
+# 2025년 하반기 공휴일. 출처: 한국천문연구원 천문우주지식정보 2025년 월력요항 (우주항공청 관보 게재)
+# https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025 , 대조표 external/holidays/공휴일_2025-07_12.csv (bigcontest.holidays)
 holidays:
   "2025-08-15": 광복절
   "2025-10-03": 개천절

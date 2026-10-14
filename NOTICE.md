@@ -15,7 +15,8 @@
 |---|---|---|---|
 | 행정동 경계·코드 (vuski/admdongkor) | `ref/adm_cd_names.csv`, 지도 | https://github.com/vuski/admdongkor (원천: 통계청 SGIS) | CC BY 4.0. 출처 표시 필요 |
 | Open-Meteo 과거 날씨 | `external/weather/openmeteo_*.json` (비교용) | https://open-meteo.com/ | CC BY 4.0. 출처 표시 필요 |
-| 기상청 ASOS 일자료 | `external/weather/kma_asos_daily_2025-07_12.csv` | 공공데이터포털 15059093 (기상청) | 공공누리 1유형 (출처 표시) |
+| 기상청 ASOS 일자료 (기상특보는 받지 않고 이 일자료로 근사) | `external/weather/kma_asos_daily_2025-07_12.csv` (원문은 `raw/`, 올리지 않음) | 공공데이터포털 15059093 (기상청) | 공공누리 1유형 (출처 표시) |
+| 공휴일 (2025년 월력요항) | `configs/project.yaml` `holidays`, `external/holidays/공휴일_2025-07_12.csv` | 한국천문연구원 천문우주지식정보 https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025 (우주항공청 관보 게재 자료) | 공공 정보. 출처 표시 |
 | 주민등록 인구·세대 | `external/resident/` | 공공데이터포털 15097972, 15097974 (행정안전부) | 이용허락범위 제한 없음 |
 | 춘천 독거노인 현황 | `external/chuncheon/` | 공공데이터포털 15081202 (춘천시) | 이용허락범위 제한 없음 |
 | 서울 시민생활 데이터 | `external/seoul_living/` | 서울 열린데이터광장 OA-22266, OA-22267 | 공공누리 1유형 (출처 표시) |
@@ -32,6 +33,10 @@
 - API 원문 응답(`external/**/raw/`)은 올리지 않습니다. 키가 URL에 들어가므로 수집 기록·오류 문장은 키를 가린 뒤 남깁니다.
 - E-Gen 공휴일 진료시간은 평소 공휴일 기준입니다. 명절 당일 운영은 응급의료포털에서 다시 확인해야 합니다.
 - 아직 받지 못한 것: 행정안전부 무더위쉼터·한파쉼터(재난안전데이터공유플랫폼 safetydata.go.kr 별도 인증키 필요), 도로명주소 좌표 API(승인 대기). 자세한 것은 `reports/w1_자원원장/README.md` 6절.
+- **원장 좌표 (교체 대기)**: 원래 원장 745건의 좌표는 Esri ArcGIS World Geocoder를 키 없이 불러 얻은 값입니다(2026-10-13). Esri 약관은 지오코딩 결과를 저장해 쓰는 것을 따로(저장용 호출) 다루므로, 이 좌표는 탐색용으로만 두고 **도로명주소 좌표 API(juso.go.kr) 좌표로 바꿀 예정**입니다. 좌표 키가 아직 승인되지 않아 바꾸지 못했습니다. 지오코더 응답 원문은 레포와 제출 묶음에 넣지 않습니다.
+
+### 기상특보 근사
+- 기상청 기상특보 자료는 받지 않았습니다. R4·R6 트리거는 ASOS 일자료에 다음 기준을 대어 근사합니다: 폭염 최고기온 ≥33℃, 호우 일강수량 ≥80mm, 대설 일 신적설 ≥5cm, 한파 최저기온 ≤−12℃ (`src/bigcontest/agent/tools/signal.py`). 기상청 특보 기준(예상 기준, 3·12시간 강수, 2일 이상 지속 등)과 같지 않으므로 "특보 발효"로 말하지 않습니다. 비교표는 `docs/데이터_설명.md`.
 
 ### 지도 타일 주의
 - 공용 OSM 타일 서버(`tile.openstreetmap.org`)는 시연·개발용으로만 씁니다. [타일 이용 정책](https://operations.osmfoundation.org/policies/tiles/)상 실제 서비스 운영에 쓰면 안 됩니다.
