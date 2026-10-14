@@ -118,7 +118,7 @@ describe('후보 맥락 칸', () => {
 })
 
 describe('후보 상세: v1.1 칸과 추가로 확인한 것', () => {
-  it('폭염 단계·명절 묶음·맥락을 보이고, 추가로 확인한 것의 근거 ID 를 누르면 근거 표 그 행으로', async () => {
+  it('폭염 단계·명절 묶음·맥락을 보이고, 추가로 확인한 것의 근거(번호)를 누르면 근거 표 그 행으로', async () => {
     mount()
     const extra = await screen.findByTestId('extra-checks')
     expect(extra).toHaveTextContent('지난 연휴 뒤 결제가 평소로 돌아왔나?')
@@ -126,7 +126,10 @@ describe('후보 상세: v1.1 칸과 추가로 확인한 것', () => {
     expect(within(screen.getByTestId('summary')).getByTestId('heat-stage')).toHaveTextContent('폭염경보')
     expect(screen.getByTestId('event-timeline')).toBeInTheDocument()
     expect(screen.getByTestId('candidate-context')).toHaveTextContent('연휴 외지 손님 비중')
-    await userEvent.click(within(extra).getByRole('button', { name: EID }))
+    // 근거 ID 대신 근거 표 번호로 보이고, ID 는 title 로 남김
+    const btn = within(extra).getByRole('button', { name: '근거 1' })
+    expect(btn).toHaveAttribute('title', EID)
+    await userEvent.click(btn)
     expect(document.getElementById(EID)).toHaveClass('bg-brand-50')
   })
 })

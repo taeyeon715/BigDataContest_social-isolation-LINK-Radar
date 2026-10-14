@@ -191,6 +191,7 @@ describe('질의응답', () => {
     expect(screen.queryByTestId('qa-answer')).toBeNull()
     const ans = await screen.findByTestId('qa-answer')
     expect(ans).toHaveTextContent('0.68')
-    expect(within(ans).getByRole('button', { name: 'EV-20251020-0001' })).toBeInTheDocument()
+    // 근거 ID 대신 근거 표 번호·이름 (ID 는 title)
+    expect(within(ans).getByRole('button', { name: '근거 1' })).toHaveAttribute('title', 'EV-20251020-0001')
   })
 })

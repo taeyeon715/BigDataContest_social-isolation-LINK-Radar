@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, ApiError, MAX_QUESTION, type FollowupIntent, type FollowupResponse } from '../api'
-import { ERROR_TEXT, errorText, splitReason } from '../lib/labels'
+import { ERROR_TEXT, errorText, reportText, splitReason } from '../lib/labels'
 import { withRefs } from './EvidenceTable'
 import { RoleNote, useRole } from './ui'
 
@@ -31,7 +31,7 @@ export function IntentChip({ intent }: { intent?: FollowupIntent | null }) {
 }
 
 /** 이어 묻기 답 하나. 답은 근거 ID 버튼과 함께, 보류는 쉬운 문장 + 작은 회색 코드 */
-export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: string) => void }) {
+export function FollowupAnswer({ item, onCite, refName }: { item: Item; onCite: (id: string) => void; refName?: (id: string) => string | undefined }) {
   const { q, res } = item
   if (res.status === 'abstained') {
     const { code, text } = splitReason(res.abstain_reason)
@@ -69,15 +69,15 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
       </div>
       <div className="mt-1 flex flex-col gap-1 text-ink-900" data-testid="followup-answer">
         {lines.map((l, i) => (
-          <p key={i}>{withRefs(l, onCite)}</p>
+          <p key={i}>{withRefs(refName ? reportText(l) : l, onCite, refName)}</p>
         ))}
       </div>
       {res.cited_evidence_ids.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1 text-xs" data-testid="followup-cited">
           <span className="text-ink-600">인용한 근거</span>
           {res.cited_evidence_ids.map((id) => (
-            <button key={id} className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-brand-700 hover:bg-brand-100" onClick={() => onCite(id)}>
-              {id}
+            <button key={id} title={id} className={`rounded bg-brand-50 px-1.5 py-0.5 text-brand-700 hover:bg-brand-100 ${refName?.(id) ? '' : 'font-mono'}`} onClick={() => onCite(id)}>
+              {refName?.(id) ?? id}
             </button>
           ))}
         </div>
@@ -91,7 +91,7 @@ export function FollowupAnswer({ item, onCite }: { item: Item; onCite: (id: stri
 }
 
 /** 이어 묻기: 이 실행의 근거 카드 안에서만 답함 */
-export function FollowupPanel({ runId, disabled: off, onCite }: { runId: string; disabled?: boolean; onCite: (id: string) => void }) {
+export function FollowupPanel({ runId, disabled: off, onCite, refName }: { runId: string; disabled?: boolean; onCite: (id: string) => void; refName?: (id: string) => string | undefined }) {
   const { can } = useRole()
   const noRole = !can('검토') // 이어 묻기는 LLM 비용을 써서 검토 권한 이상
   const disabled = off || noRole
@@ -159,7 +159,7 @@ export function FollowupPanel({ runId, disabled: off, onCite }: { runId: string;
       {items.length > 0 && (
         <ul className="flex flex-col gap-2">
           {items.map((it) => (
-            <FollowupAnswer key={it.res.followup_id} item={it} onCite={onCite} />
+            <FollowupAnswer key={it.res.followup_id} item={it} onCite={onCite} refName={refName} />
           ))}
         </ul>
       )}

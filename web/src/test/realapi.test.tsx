@@ -257,7 +257,7 @@ describe('후보 상세: 실제 API 계약', () => {
     expect(box).toHaveTextContent('오류 코드 AGENT_ERROR')
   })
 
-  it('이어 묻기 답의 근거 ID 를 누르면 근거 표 그 행을 표시한다', async () => {
+  it('이어 묻기 답의 근거(번호·이름)를 누르면 근거 표 그 행을 표시한다', async () => {
     vi.spyOn(api, 'run').mockResolvedValue(runOf({}))
     vi.spyOn(api, 'report').mockResolvedValue(reportOf(1) as never)
     const eid = REPORT_501.evidence_card.evidence[0].evidence_id
@@ -267,7 +267,9 @@ describe('후보 상세: 실제 API 계약', () => {
     await userEvent.type(screen.getByRole('textbox', { name: '이어 묻기 질문' }), '왜 Level 2야?')
     await userEvent.click(screen.getByRole('button', { name: '묻기' }))
     const cited = await screen.findByTestId('followup-cited')
-    await userEvent.click(within(cited).getByRole('button', { name: eid }))
+    const btn = within(cited).getByRole('button', { name: /^근거 1 · / }) // 근거 ID 대신 근거 표 번호·이름, ID 는 title
+    expect(btn).toHaveAttribute('title', eid)
+    await userEvent.click(btn)
     expect(document.getElementById(eid)).toHaveClass('bg-brand-50')
   })
 })

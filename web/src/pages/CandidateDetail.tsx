@@ -580,6 +580,8 @@ export default function CandidateDetail() {
   const printJudgements: PrintJudgement[] = (lastReview?.resource_judgements ?? []).map((j) => ({ name: names[j.resource_id] ?? j.resource_id, judgement: j.judgement, memo: j.memo ?? null }))
   const adm = candidate?.adm_cd ?? candidate?.check_first_adm[0] ?? null
   const evIdx = useMemo(() => evidenceIndex(card?.evidence ?? []), [card])
+  const refName = (id: string) => { const e = evIdx.get(id); return e ? `근거 ${e.n}` : undefined }
+  const refFull = (id: string) => { const e = evIdx.get(id); return e ? `근거 ${e.n} · ${e.name}` : undefined }
   // 승인자: 서버 이력의 기록이 먼저, 이력을 못 받았으면 승인 응답의 이름 (FE-16)
   const doneApproval =
     lastApproval ?? (approverShown && run?.status === 'approved' ? { report_revision: run.report_revision ?? 0, approver: approverShown, created_at: new Date().toISOString() } : null)
@@ -664,9 +666,9 @@ export default function CandidateDetail() {
                   </span>
                 )}
               </div>
-              <h2 className="mt-3 text-xl font-bold">{card?.title ?? `${candidatePlace(candidate)} · ${groupOf(candidate) ?? ''}`}</h2>
+              <h2 className="mt-3 text-xl font-bold">{`${candidatePlace(candidate)} · ${groupOf(candidate) ?? ''}`}</h2>
               <div className="mt-2 text-base text-ink-900">
-                <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason) : '—'}
+                <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason).replace(/\s*\[rules-[^\]]*\]/g, '') : '—'}
                 {candidate.trigger && ` · 트리거 ${candidate.trigger}`}
                 {candidate.heat_stage && (
                   <>
@@ -712,7 +714,7 @@ export default function CandidateDetail() {
               )}
               {(exp || (candidate.rule_checks?.length ?? 0) > 0) && (
                 <div className="mt-4">
-                  <LevelExplain exp={exp} checks={candidate.rule_checks} />
+                  <LevelExplain exp={exp} checks={candidate.rule_checks} nameOf={admName} />
                 </div>
               )}
               {(candidate.event_timeline?.length ?? 0) > 0 && !shownActions.some((a) => (a.action_plan?.holiday_timeline?.length ?? 0) > 0) && (
@@ -722,7 +724,7 @@ export default function CandidateDetail() {
               )}
               {(candidate.context?.length ?? 0) > 0 && (
                 <div className="mt-4">
-                  <CandidateContext items={candidate.context} onCite={runId ? cite : undefined} />
+                  <CandidateContext items={candidate.context} onCite={runId ? cite : undefined} refName={refName} />
                 </div>
               )}
               {cv && candidate.candidate_type === 'unexpected_activity_deviation' && (
@@ -935,7 +937,7 @@ export default function CandidateDetail() {
                           <div className="text-xs font-semibold text-brand-700">{rounds.title}</div>
                           <ul className="mt-1 list-disc pl-5 text-ink-900">
                             {rounds.items.map((s) => (
-                              <li key={s}>{s}</li>
+                              <li key={s}>{reportText(s, names)}</li>
                             ))}
                           </ul>
                         </div>
@@ -960,7 +962,7 @@ export default function CandidateDetail() {
                       )}
                       {(rep.investigation?.items.length ?? 0) > 0 && (
                         <div className="mt-4">
-                          <ExtraChecks data={rep.investigation} onCite={cite} />
+                          <ExtraChecks data={rep.investigation} onCite={cite} refName={refName} />
                         </div>
                       )}
                       {rep.external_notice && (
@@ -973,7 +975,7 @@ export default function CandidateDetail() {
                   )}
                   {report && rep && runId && (
                     <Card title="이어 묻기">
-                      <FollowupPanel key={runId} runId={runId} onCite={cite} />
+                      <FollowupPanel key={runId} runId={runId} onCite={cite} refName={refFull} />
                     </Card>
                   )}
                   <Card title="보고서 판 이력">

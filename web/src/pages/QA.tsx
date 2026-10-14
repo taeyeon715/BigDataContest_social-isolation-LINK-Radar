@@ -4,7 +4,7 @@ import { ClaimsBox, EvidenceTable, withRefs } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
 import { Badge, Card, ErrorBox, HoldNotice, TimeLabelBar , RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
-import { ERROR_TEXT } from '../lib/labels'
+import { ERROR_TEXT, evidenceIndex, reportText } from '../lib/labels'
 
 export const EXAMPLES = ['강남 60대의 밤 활동은 어때?', '강남 1인세대 비율 상위 동은?', '이번 추석 전에 춘천에서 어디부터 확인해야 해?']
 
@@ -38,6 +38,8 @@ export function QAResult({ res }: { res: QAResponse }) {
     )
   }
   const card = res.evidence_card!
+  const idx = evidenceIndex(card.evidence)
+  const refName = (id: string) => { const e = idx.get(id); return e ? `근거 ${e.n}` : undefined }
   return (
     <>
       <TimeLabelBar label={card.time_label} />
@@ -57,7 +59,7 @@ export function QAResult({ res }: { res: QAResponse }) {
         </div>
         {showAnswer ? (
           <p className="text-base leading-relaxed text-ink-900" data-testid="qa-answer">
-            {withRefs(res.answer ?? '', setHl)}
+            {withRefs(reportText(res.answer ?? ''), setHl, refName)}
           </p>
         ) : (
           <div className="h-6 w-2/3 animate-pulse rounded bg-line" />

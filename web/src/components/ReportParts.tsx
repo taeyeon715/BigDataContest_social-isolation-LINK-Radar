@@ -76,7 +76,7 @@ export function ActionPlanView({ a }: { a: CandidateAction }) {
       {p.tasks.length > 0 && (
         <div className="mt-2 text-sm">
           <span className="text-xs font-semibold text-ink-600">할 일 </span>
-          {p.tasks.join(' · ')}
+          {p.tasks.map(plainText).join(' · ')}
         </div>
       )}
       <ActionPlanExtras a={a} />
@@ -197,7 +197,7 @@ export function CheckAreasView({ a }: { a: CandidateAction }) {
           <li key={c.area} className="rounded-xl bg-canvas px-3 py-2">
             <div className="font-semibold text-ink-900">{c.area}</div>
             {c.ask && <div className="text-sm text-ink-800">물어볼 것: {c.ask}</div>}
-            {c.reasons.length > 0 && <div className="mt-0.5 text-xs text-ink-600">이유: {c.reasons.join(', ')}</div>}
+            {c.reasons.length > 0 && <div className="mt-0.5 text-xs text-ink-600">이유: {c.reasons.map(plainText).join(', ')}</div>}
           </li>
         ))}
       </ul>
@@ -213,7 +213,7 @@ function fmt(v: unknown, unit?: string | null): string {
 }
 
 /** 등급 설명: 조건마다 충족 / 미충족 / 자료 없음 + 값과 기준. 보고서의 level_explanations, 없으면 후보의 rule_checks */
-export function LevelExplain({ exp, checks }: { exp?: LevelExplanation | null; checks?: RuleCheck[] }) {
+export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation | null; checks?: RuleCheck[]; nameOf?: (code: string) => string }) {
   const units = Object.fromEntries((checks ?? []).map((c) => [c.condition, c.unit ?? null]))
   const rows: CheckRow[] = exp ? exp.checks.map((c) => ({ ...c, unit: units[c.condition] })) : (checks ?? [])
   if (rows.length === 0) return null
@@ -230,7 +230,7 @@ export function LevelExplain({ exp, checks }: { exp?: LevelExplanation | null; c
               <span className={`chip ${tone}`}>{mark}</span>
               <span className="font-semibold text-ink-900">{plainText(c.condition)}</span>
               <span className="text-ink-600">
-                값 {fmt(c.value, c.unit)}
+                값 {nameOf && typeof c.value === 'string' && /^\d{8}$/.test(c.value) ? nameOf(c.value) : fmt(c.value, c.unit)}
                 {hasThreshold && <> · 기준 {fmt(c.threshold, c.unit)}</>}
                 {typeof c.distance === 'number' && hasThreshold && (
                   <> · {c.met ? '여유' : '기준까지'} {Math.round(c.distance * 100) / 100}{c.unit ?? ''}</>
@@ -304,7 +304,7 @@ export function extraChecksFromTrace(steps: TraceStep[]): ExtraChecksData | null
 }
 
 /** 추가로 확인한 것: 에이전트가 근거를 본 뒤 고른 질문 · 고른 이유 · 풀림 여부 · 근거. 등급에는 쓰지 않음 */
-export function ExtraChecks({ data, onCite }: { data?: ExtraChecksData | null; onCite?: (id: string) => void }) {
+export function ExtraChecks({ data, onCite, refName }: { data?: ExtraChecksData | null; onCite?: (id: string) => void; refName?: (id: string) => string | undefined }) {
   if (!data || data.items.length === 0) return null
   return (
     <div className="rounded-2xl border border-line p-4" data-testid="extra-checks">
@@ -332,8 +332,8 @@ export function ExtraChecks({ data, onCite }: { data?: ExtraChecksData | null; o
                   <span className="text-ink-600">근거</span>
                   {it.evidence_ids.map((id) =>
                     onCite ? (
-                      <button key={id} className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-brand-700 hover:bg-brand-100" onClick={() => onCite(id)}>
-                        {id}
+                      <button key={id} title={id} className={`rounded bg-brand-50 px-1.5 py-0.5 text-brand-700 hover:bg-brand-100 ${refName?.(id) ? '' : 'font-mono'}`} onClick={() => onCite(id)}>
+                        {refName?.(id) ?? id}
                       </button>
                     ) : (
                       <span key={id} className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-brand-700">
@@ -414,7 +414,7 @@ const CONTEXT_ROLE_LABEL: Record<ContextSignal['role'], string> = {
 }
 
 /** 후보 맥락 칸 (rules-v1.1): 카드 맥락·수급자 비율·1인세대 순증 등. 등급·순서에는 쓰지 않음 */
-export function CandidateContext({ items, onCite }: { items?: ContextSignal[] | null; onCite?: (id: string) => void }) {
+export function CandidateContext({ items, onCite, refName }: { items?: ContextSignal[] | null; onCite?: (id: string) => void; refName?: (id: string) => string | undefined }) {
   if (!items || items.length === 0) return null
   return (
     <div className="rounded-2xl border border-line p-4" data-testid="candidate-context">
@@ -428,13 +428,13 @@ export function CandidateContext({ items, onCite }: { items?: ContextSignal[] | 
             <div className="flex flex-wrap items-center gap-2">
               <span className="chip bg-surface text-ink-600">{CONTEXT_ROLE_LABEL[x.role] ?? '참고'}</span>
               <span className="font-semibold text-ink-900">{x.name}</span>
-              {x.scope && <span className="text-xs text-ink-600">{x.scope}</span>}
+              {x.scope && <span className="text-xs text-ink-600">{x.scope.replace(/\s*\(\d{8,10}\)/g, '')}</span>}
             </div>
             <div className="mt-1 text-sm text-ink-800">{plainText(x.text)}</div>
             {x.evidence_id &&
               (onCite ? (
-                <button className="mt-1 rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs text-brand-700 hover:bg-brand-100" onClick={() => onCite(x.evidence_id!)}>
-                  {x.evidence_id}
+                <button title={x.evidence_id} className={`mt-1 rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700 hover:bg-brand-100 ${refName?.(x.evidence_id) ? '' : 'font-mono'}`} onClick={() => onCite(x.evidence_id!)}>
+                  {refName?.(x.evidence_id) ?? x.evidence_id}
                 </button>
               ) : (
                 <span className="mt-1 inline-block rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs text-brand-700">{x.evidence_id}</span>

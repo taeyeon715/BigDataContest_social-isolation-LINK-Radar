@@ -323,6 +323,10 @@ export function refsToText(text: string, idx: Map<string, { n: number; name: str
 /** 보고서 문장 가공 (화면·인쇄 같이 씀): 자원 코드 → 이름, 입력 코드 → 한국어, 거점 이름 */
 export function reportText(s: string, resourceNames: Record<string, string> = {}): string {
   return plainText(replaceInputCodes(s.replace(/\bR\d{4}\b/g, (m) => resourceNames[m] ?? m)))
+    .replace(/ \((?:11|32)\d{6}\)/g, '') // 동 이름 옆 행정동 코드 (이름이 이미 있음)
+    .replace(/\s*\[rules-[^\]]*\]/g, '') // 규칙 ID (등급 조건 "자세히"에서 봄)
+    .replace(/후보 C-\d{8}-\d{3} · /g, '') // 후보 ID (화면 제목에 동·집단 이름이 있음)
+    .replace(/(대응안|집중 확인) C-\d{8}-\d{3}:/g, '$1:')
 }
 
 /** 공용 토큰으로 기록된 이름 ("공용:<이름>") 인가. 화면은 이름을 그대로 보이고 "공용 계정" 표시만 붙인다 */
