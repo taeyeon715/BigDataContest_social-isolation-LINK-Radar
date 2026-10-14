@@ -1,0 +1,2 @@
+run_id,started_at,stations,start,end,status,rows,same_as_csv,raw_dir,message
+asos-20261014T125241,2026-10-14T12:52:41,강남=108 춘천=101,20250701,20251231,성공,368,예,external/weather/raw/asos-20261014T125241,
