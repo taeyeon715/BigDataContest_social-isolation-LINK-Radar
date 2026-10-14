@@ -5,7 +5,8 @@
 - real: 실행·검토·승인·질의응답·이어 묻기를 LangGraph 에이전트(agent/graph.py)로 처리
   (api/services/agent_runs.py). 현황·지도·후보 목록·자원 조회(`/overview`·`/map`·`/candidates`·`/resources`)는
   활성 스냅샷의 발행된 정기 감시 실행과 원장 v2 에서 읽음 (api/services/dashboard_real.py). 후속 확인 모아 보기
-  `/followups`·현장 결과 모아 보기 `/outcomes/summary` 는 저장소에서. 이 경로들과 `/runs`·`/qa`·`/health`·`/snapshots`
+  `/followups`·현장 결과 모아 보기 `/outcomes/summary`·이의·정정 기록 `/objections` 는
+  저장소에서. 이 경로들과 `/runs`·`/qa`·`/health`·`/snapshots`
   응답은 `X-Data-Source: real` (tests/test_source_header.py 가 모든 경로를 확인).
 `/data/capabilities`는 설정 파일에서 만들어 `config`.
 
@@ -45,7 +46,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from api import errors, logs
 from api.auth import Auth
 from api.limits import DEFAULT_RATE, RateLimiter, parse_rate
-from api.routes import dashboard, runs, system
+from api.routes import dashboard, objections, runs, system
 from api.services.fake_data import KST
 from api.services.runs import RunService
 from api.services.snapshots import SnapshotService
@@ -55,7 +56,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "data" / "state" / "linkradar_fake.sqlite"
 DEFAULT_REAL_DB = ROOT / "data" / "state" / "linkradar.sqlite"
 REAL_PREFIXES = ("/runs", "/qa", "/health", "/snapshots", "/overview", "/map", "/candidates", "/resources", "/followups",
-                 "/outcomes", "/me")
+                 "/outcomes", "/me", "/objections")
 DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 
 
@@ -203,4 +204,5 @@ def create_app(
     app.include_router(system.router)
     app.include_router(dashboard.router)
     app.include_router(runs.router)
+    app.include_router(objections.router)
     return app

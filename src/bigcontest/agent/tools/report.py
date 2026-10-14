@@ -7,6 +7,9 @@
 - 대응 템플릿 5칸: 주체 / 방법 / 기한 / 확인할 영역 / 연계 자원 (+ 보고서용 한 줄)
 - 내일 아침 체크리스트: 꺼낼 명단 / 연락할 사람·기관 / 방법 / 기한 / 확인할 영역. 시스템은 명단을 만들지 않음
 - 청년 남성은 방문이 아니라 안내 강화
+- action-v2 선택 칸: 폭염 특보 단계별 안부 횟수(R4, 후보 heat_stage 칸 → 없으면 트리거 글 → 없으면 '확인 필요'),
+  명절 전·중·후 한 묶음(R1·R2·R3), 연락할 곳의 사전 안부 협력자(임대인·관리사무소·고시원 운영자, 주거 맥락일 때),
+  중장년 남성 연결 묶음(고용복지+센터·중독관리통합지원센터·1인가구 지원)과 사회적 처방형 3단계(안내 → 연결 → 확인)
 등급 설명 `explain_level`: 후보의 rule_checks(등급 엔진이 채움)로 조건별 충족·기준까지 거리·바뀔 등급을 쓴다.
 """
 
@@ -20,12 +23,15 @@ from pathlib import Path
 
 from bigcontest.agent.schemas import (
     ActionPlan,
+    BundleItem,
     Candidate,
     CandidateAction,
     CheckArea,
     EvidenceCard,
     Fact,
+    HolidayPhase,
     LevelExplanation,
+    LinkStep,
     MorningChecklist,
     RuleCheck,
     RuleCheckView,
@@ -235,6 +241,100 @@ def where_of(c: Candidate) -> str:
     return f"{c.city} 먼저 확인할 동 {', '.join(first)}" if first else f"{c.city} 전체"
 
 
+# ---------------------------------------------------------------- action-v2: 폭염 단계·명절 전중후·협력자·연결 묶음
+
+HEAT_RULE = "R4"
+HOLIDAY_RULES = ("R1", "R2", "R3")
+
+
+def heat_stage_key(c: Candidate) -> str | None:
+    """R4 후보의 폭염 특보 단계 키 (중대경보 / 경보 / 주의보 / unknown). R4 가 아니면 None.
+    후보의 heat_stage 칸(규칙 엔진이 채울 때)을 먼저 보고, 없으면 트리거 글에서 단계 말을 찾는다. 단계를 지어내지 않음."""
+    if HEAT_RULE not in rule_keys(c.trigger):
+        return None
+    for raw in (getattr(c, "heat_stage", None), c.trigger):
+        text = str(raw or "")
+        if "중대" in text:
+            return "중대경보"
+        if "경보" in text:
+            return "경보"
+        if "주의" in text:
+            return "주의보"
+    return "unknown"
+
+
+def heat_contact(c: Candidate) -> tuple[str | None, str | None]:
+    """(단계 이름, 안부 횟수 + 순서). R4 가 아니면 (None, None)."""
+    key = heat_stage_key(c)
+    if key is None:
+        return None, None
+    h = action_templates()["heat_stages"]
+    st = h["stages"].get(key) or h["unknown"]
+    return st["label"], f"{st['frequency']} ({h['order']})"
+
+
+def _holiday_current(c: Candidate) -> set[str]:
+    """이 후보가 서 있는 명절 단계의 규칙 (R1·R2·R3). 후보의 holiday_phase 칸(전·중·후)이 있으면 그것도."""
+    keys = {k for k in rule_keys(c.trigger) if k in HOLIDAY_RULES}
+    phase = getattr(c, "holiday_phase", None)
+    by_phase = {p["phase"]: p["rule"] for p in action_templates()["holiday_phases"]["phases"]}
+    if phase in by_phase:
+        keys.add(by_phase[phase])
+    return keys
+
+
+def holiday_timeline(c: Candidate, gk: str) -> list[HolidayPhase]:
+    """명절 트리거(R1·R2·R3)면 전·중·후 3칸을 한 묶음으로. 지금 단계는 current. 명절이 아니면 빈 목록."""
+    cur = _holiday_current(c)
+    if not cur:
+        return []
+    out = []
+    for p in action_templates()["holiday_phases"]["phases"]:
+        contact = p.get("contact") or {}
+        out.append(HolidayPhase(phase=p["phase"], rule=p["rule"], label=p["label"], window=p["window"],
+                                tasks=list(p.get("tasks") or []), contact=contact.get(gk) or contact.get("기본"),
+                                current=p["rule"] in cur))
+    return out
+
+
+def housing_partners(c: Candidate, gk: str) -> list[str]:
+    """주거 맥락이면 사전 안부 협력자 (임대인·관리사무소·경비원·고시원 운영자). 1인세대 비율 상위, 중장년·청년 남성,
+    명절 당일·폭염·한파·대설, 1인가구 밀집형·경제 취약형 원인 중 하나라도 맞으면."""
+    hp = action_templates()["housing_partners"]
+    w = hp.get("when") or {}
+    causes = set((getattr(c, "cause_type", None) or "").split("+"))
+    hit = (w.get("structure_top") and _structure_top(c)) or gk in (w.get("groups") or [])         or any(k in (w.get("rules") or []) for k in rule_keys(c.trigger)) or bool(causes & set(w.get("causes") or []))
+    return list(hp["contacts"]) if hit else []
+
+
+@lru_cache
+def _ledger_names() -> dict[str, dict]:
+    """resource_id → 원장 v2 행 (이름·전화). 연결 묶음 이름을 원장에서 읽음 (설정에 이름을 따로 적지 않음)."""
+    from bigcontest.resources.ledger import V2
+
+    try:
+        with open(V2, encoding="utf-8") as f:
+            return {r["resource_id"]: r for r in csv.DictReader(f)}
+    except OSError:
+        return {}
+
+
+def link_bundle(c: Candidate, gk: str) -> tuple[list[LinkStep], list[BundleItem]]:
+    """집단 설정에 link_steps 가 켜져 있으면 3단계 + 그 도시의 연결 묶음 (원장에 없는 자원은 건너뜀)."""
+    g = action_templates()["groups"][gk]
+    if not g.get("link_steps"):
+        return [], []
+    steps = [LinkStep(step=x["step"], text=x["text"]) for x in action_templates()["link_steps"]]
+    names = _ledger_names()
+    items = []
+    for x in (g.get("bundle") or {}).get(c.city, []):
+        r = names.get(x["resource_id"])
+        if r is None:
+            continue
+        items.append(BundleItem(need=x["need"], resource_id=x["resource_id"], name=r["name"], phone=r.get("phone") or None))
+    return steps, items
+
+
 def build_action_plan(c: Candidate, resources: list[dict], far_km: float | None = None,
                       access_km: float | None = None, as_of: date | None = None) -> ActionPlan | None:
     """대응 템플릿 5칸. Level 2·3 후보만. 청년 남성은 방문이 아니라 안내 강화."""
@@ -257,11 +357,20 @@ def build_action_plan(c: Candidate, resources: list[dict], far_km: float | None 
     linked_labels = [_resource_label(r) for r in linked[:3]]
     note = None if linked else "자원 후보 없음 (원장에서 조건에 맞는 자원을 찾지 못함)"
     res_text = f"연계 자원: {', '.join(linked_labels)}" if linked_labels else note
+    stage, freq = heat_contact(c)
+    timeline = holiday_timeline(c, gk)
+    steps, bundle = link_bundle(c, gk)
+    partners = housing_partners(c, gk)
     text = (f"대응안 {c.candidate_id}: 주체 {'·'.join(g['owner'])} / 방법 {method} / 기한 {due} / "
             f"확인할 영역 {', '.join(areas)} / 할 일 {'; '.join(tasks)} / {res_text}")
+    if freq:
+        text += f" / 안부 횟수({stage}) {freq}"
     return ActionPlan(owner=list(g["owner"]), method=method, due=due, due_date=due_date, check_areas=areas,
                       linked_resources=linked_labels, tasks=tasks, resource_note=note,
-                      emergency_contacts=[r["name"] for r in crisis], text=text)
+                      emergency_contacts=[r["name"] for r in crisis], text=text, heat_stage=stage,
+                      contact_frequency=freq, holiday_timeline=timeline, partners=partners,
+                      partner_note=action_templates()["housing_partners"]["ask"] if partners else None,
+                      link_steps=steps, bundle=bundle)
 
 
 def build_checklist(c: Candidate, plan: ActionPlan) -> MorningChecklist:
@@ -271,6 +380,8 @@ def build_checklist(c: Candidate, plan: ActionPlan) -> MorningChecklist:
     where = where_of(c)
     lists = [f"{name}: {where} · {who} 대상만 걸러 보기" for name in g["lists"]]
     contacts = list(g["contacts"]) + [f"연계 자원 {x}" for x in plan.linked_resources]
+    contacts += [f"{p} (사전 안부 협력: 이상 신호만 알려 달라고 요청)" for p in plan.partners]
+    contacts += [f"연결 묶음 {b.need}: {b.name}" for b in plan.bundle]
     return MorningChecklist(lists=lists, contacts=contacts, method=plan.method, due=plan.due,
                             check_areas=plan.check_areas, note=action_templates()["list_note"])
 

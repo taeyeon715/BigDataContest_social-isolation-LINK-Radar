@@ -1,4 +1,4 @@
-"""GET /overview, GET /map, GET /candidates, GET /resources
+"""GET /overview, GET /map, GET /candidates, GET /resources, GET /resources/protective
 
 - 가짜 백엔드: api/services/fake_data.py
 - 실제 백엔드: api/services/dashboard_real.py. 활성 스냅샷의 발행된 정기 감시 실행(없으면 요청 안에서 한 번 돌림)과
@@ -15,6 +15,7 @@ from bigcontest.agent.schemas import (
     CandidateListResponse,
     MapResponse,
     OverviewResponse,
+    ProtectiveResponse,
     ResourceListResponse,
 )
 
@@ -74,6 +75,22 @@ def candidates(as_of: date, city: str, type: str | None = None, level: str | Non
     items = [c for c in out.items if (type is None or c.candidate_type == type)
              and (level is None or c.candidate_level == level)]
     return out.model_copy(update={"items": items})
+
+
+@router.get("/resources/protective", response_model=ProtectiveResponse)
+def protective(city: str, adm_cd: str | None = None) -> ProtectiveResponse:
+    """보호 자원 칸: 그 동(없으면 도시)의 경로당·무더위·한파 쉼터·돌봄단·통장. 위험 표시가 아님 (등급·순위에 안 씀).
+    두 백엔드 모두 지금 원장 v2 와 춘천 경로당 시군 집계에서 읽음 (configs/need_types.yaml protective)."""
+    check_city(city)
+    if adm_cd is not None:
+        area = fd.areas().get(adm_cd)
+        if area is None:
+            raise ApiError(400, "INVALID_REQUEST", "행정동 코드가 강남·춘천 목록에 없습니다.")
+        if area.city != city:
+            raise ApiError(400, "INVALID_REQUEST", "행정동이 그 도시에 없습니다.")
+    from bigcontest.resources.protective import protective_view
+
+    return ProtectiveResponse(**protective_view(city, adm_cd))
 
 
 @router.get("/resources", response_model=ResourceListResponse)

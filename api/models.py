@@ -92,3 +92,4 @@ class ReportResponse(_Model):
     snapshot_id: str
     report_stale: bool
     report: Report
+

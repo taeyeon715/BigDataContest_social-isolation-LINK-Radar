@@ -14,7 +14,8 @@
 
 ID: `COUNT+1` 대신 시각 + 무작위 값(`new_id`). 행을 지워도 겹치지 않는다.
 
-개인정보: 질문(runs.question, run_metadata 의 inputs.question)·검토 메모·자원 판정 메모·승인 메모·승인 의도 메모는
+개인정보: 질문(runs.question, run_metadata 의 inputs.question)·검토 메모·자원 판정 메모·승인 메모·승인 의도 메모·
+이의·정정 글(objections.text·resolution)은
 저장하기 전에 `mask_text`(guard.mask_pii: 전화번호·주민번호·이메일·상세 주소·이름+호칭)로 가린다. 원문은 저장하지
 않는다. 보존 기한이 지난 글은 api/retention.py 가 지운다.
 """
@@ -149,6 +150,24 @@ CREATE TABLE IF NOT EXISTS approval_intents (
 CREATE INDEX IF NOT EXISTS idx_intents_run ON approval_intents(run_id, state);
 CREATE INDEX IF NOT EXISTS idx_reviews_follow_up ON reviews(follow_up_on);
 CREATE INDEX IF NOT EXISTS idx_audit_run ON audit_log(run_id);
+
+-- 이의·정정 기록 (공공부문 AI 윤리기준의 사후관리·피해구제). 후보·실행 결과에 담당자가 남김.
+-- 자유 글(text·resolution)은 가린 글만. 상태: 접수 → 검토 중 → 반영 / 기각 (반영·기각 뒤에는 바꾸지 않음)
+CREATE TABLE IF NOT EXISTS objections (
+  objection_id TEXT PRIMARY KEY,
+  target_type TEXT NOT NULL CHECK (target_type IN ('candidate','run')),
+  run_id TEXT, candidate_id TEXT,
+  city TEXT NOT NULL, adm_cd TEXT,
+  reason_category TEXT NOT NULL,
+  text TEXT,
+  status TEXT NOT NULL CHECK (status IN ('접수','검토 중','반영','기각')),
+  resolution TEXT,
+  submitted_by TEXT NOT NULL, resolved_by TEXT,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_objections_city ON objections(city, created_at);
+CREATE INDEX IF NOT EXISTS idx_objections_candidate ON objections(candidate_id, created_at);
 
 -- 가짜 백엔드 전용
 CREATE TABLE IF NOT EXISTS run_results (
@@ -507,6 +526,41 @@ class Store:
         if city is not None:
             sql, args = sql + " AND city = ?", args + [city]
         return self._all(sql + " ORDER BY seq", *args)
+
+    # ---------------------------------------------------------------- 이의·정정 기록
+
+    def insert_objection(self, **row: Any) -> None:
+        row["text"] = mask_text(row.get("text"))
+        cols = ", ".join(row)
+        self._exec(f"INSERT INTO objections ({cols}) VALUES ({', '.join('?' * len(row))})", *row.values())
+
+    def get_objection(self, objection_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM objections WHERE objection_id = ?", objection_id)
+
+    def get_objection_by_key(self, key: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM objections WHERE idempotency_key = ?", key)
+
+    def update_objection(self, objection_id: str, status: str, resolution: str | None, resolved_by: str,
+                         now: datetime) -> None:
+        self._exec("UPDATE objections SET status = ?, resolution = COALESCE(?, resolution), resolved_by = ?,"
+                   " updated_at = ? WHERE objection_id = ?", status, mask_text(resolution), resolved_by,
+                   now.isoformat(), objection_id)
+
+    def list_objections(self, city: str | None = None, status: str | None = None, candidate_id: str | None = None,
+                        run_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        sql, args = "SELECT * FROM objections WHERE 1=1", []
+        for col, v in (("city", city), ("status", status), ("candidate_id", candidate_id), ("run_id", run_id)):
+            if v is not None:
+                sql, args = sql + f" AND {col} = ?", args + [v]
+        return self._all(sql + " ORDER BY created_at DESC, rowid DESC LIMIT ?", *args, limit)
+
+    def count_objections(self, city: str | None = None, status: str | None = None, candidate_id: str | None = None,
+                         run_id: str | None = None) -> int:
+        sql, args = "SELECT COUNT(*) AS n FROM objections WHERE 1=1", []
+        for col, v in (("city", city), ("status", status), ("candidate_id", candidate_id), ("run_id", run_id)):
+            if v is not None:
+                sql, args = sql + f" AND {col} = ?", args + [v]
+        return self._one(sql, *args)["n"]
 
     # ---------------------------------------------------------------- 감사 로그
 

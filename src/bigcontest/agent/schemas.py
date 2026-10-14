@@ -408,8 +408,37 @@ class CheckArea(_Model):
     ask: str | None = None  # 먼저 물어볼 것
 
 
+class HolidayPhase(_Model):
+    """명절 전·중·후 한 칸 (configs/action_templates.yaml holiday_phases). current 는 이 후보의 트리거 단계."""
+
+    phase: Literal["전", "중", "후"]
+    rule: str  # R1 / R2 / R3
+    label: str  # 연휴 전 / 연휴 중 / 연휴 뒤
+    window: str  # 예: 연휴 D-7 ~ 전날
+    tasks: list[str] = Field(default_factory=list)
+    contact: str | None = None  # 이 집단의 안부 횟수·방법 (예: 전화·방문 2회)
+    current: bool = False
+
+
+class LinkStep(_Model):
+    """사회적 처방형 연결 한 단계 (안내 → 연결 → 확인)."""
+
+    step: Literal["안내", "연결", "확인"]
+    text: str
+
+
+class BundleItem(_Model):
+    """연결 묶음 자원 하나 (중장년 남성: 일자리·생계 / 술·마음건강 / 사람 만남). 원장 resource_id."""
+
+    need: str
+    resource_id: str
+    name: str
+    phone: str | None = None
+
+
 class ActionPlan(_Model):
-    """대응 템플릿 5칸: 주체 / 방법 / 기한 / 확인할 영역 / 연계 자원. text 는 보고서용 한 줄."""
+    """대응 템플릿 5칸: 주체 / 방법 / 기한 / 확인할 영역 / 연계 자원. text 는 보고서용 한 줄.
+    선택 칸 (action-v2): 폭염 특보 단계별 안부 횟수, 명절 전·중·후, 사전 안부 협력자, 연결 3단계·묶음."""
 
     owner: list[str]  # 주체
     method: str  # 방법 (전화 → 방문 대상 추리기 / 청년은 안내 강화)
@@ -421,6 +450,13 @@ class ActionPlan(_Model):
     resource_note: str | None = None  # 자원이 없을 때 이유
     emergency_contacts: list[str] = Field(default_factory=list)  # 위급 시 안내 (순위 밖, 따로 한 줄)
     text: str  # 보고서용 한 줄
+    heat_stage: str | None = None  # 폭염 특보 단계 이름 (폭염주의보·경보·중대경보 / 특보 단계 확인 필요). R4 일 때만
+    contact_frequency: str | None = None  # 그 단계의 안부 횟수 + 순서 (전화 → 받지 않으면 당일 방문)
+    holiday_timeline: list[HolidayPhase] = Field(default_factory=list)  # 명절 트리거(R1·R2·R3)일 때 전·중·후 3칸
+    partners: list[str] = Field(default_factory=list)  # 사전 안부 협력자 (임대인·관리사무소·고시원 운영자)
+    partner_note: str | None = None  # 협력자에게 부탁할 것 (개인정보는 넘겨받지 않음)
+    link_steps: list[LinkStep] = Field(default_factory=list)  # 사회적 처방형 3단계 (중장년 남성)
+    bundle: list[BundleItem] = Field(default_factory=list)  # 연결 묶음 자원 (중장년 남성)
 
 
 class MorningChecklist(_Model):
@@ -1035,3 +1071,92 @@ class CapabilitiesResponse(_Model):
     sources: list[SourceCapability]
     forbidden_combos: list[dict[str, Any]]
 
+
+# ---------------------------------------------------------------- 보호 자원 칸 (GET /resources/protective)
+
+
+class ProtectiveItem(_Model):
+    resource_id: str
+    name: str
+    subtype: str
+    address: str | None = None
+    phone: str | None = None
+    schedule: str | None = None
+    holiday_open: str = "미상"
+    source_url: str | None = None
+    last_verified: str | None = None
+    scope: Literal["동", "도시"]  # 그 동 안 시설 / 도시 단위 안내·사람 자원
+
+
+class ProtectiveGroup(_Model):
+    group: str  # 경로당 / 더위·한파 쉼터 / 돌봄 이웃 (configs/need_types.yaml protective.groups)
+    label: str
+    in_dong: int | None = None  # 그 동 안 수 (행정동이 붙은 자원이 없는 묶음은 null = 모름)
+    city_total: int | None = None  # 도시 전체 수 (원장 또는 시군 집계)
+    items: list[ProtectiveItem] = Field(default_factory=list)
+    status: Literal["수집", "도시 집계만", "미수집"]
+    note: str | None = None
+
+
+class ProtectiveResponse(_Model):
+    """보호 자원 칸. 위험 표시가 아니라 그 동에 이미 있는 연결 자원 (등급·순위에 쓰지 않음)."""
+
+    city: City
+    adm_cd: str | None = None
+    adm_nm: str | None = None
+    groups: list[ProtectiveGroup]
+    note: str
+
+
+# ---------------------------------------------------------------- 이의·정정 기록 (POST/GET /objections)
+
+ObjectionTarget = Literal["candidate", "run"]
+# 사유 분류 (자유 글은 마스킹해서 따로)
+ObjectionReason = Literal["후보가 아님(현장 사정)", "근거 자료 오류", "등급이 맞지 않음", "자원 정보 오류", "낙인·표현 우려", "기타"]
+ObjectionStatus = Literal["접수", "검토 중", "반영", "기각"]
+MAX_OBJECTION_TEXT = 1000
+
+
+class ObjectionRequest(_Model):
+    """담당자가 후보·실행 결과에 대해 남기는 이의·정정 요청. 개인 정보는 받지 않음 (자유 글은 저장 전에 가림)."""
+
+    target_type: ObjectionTarget
+    run_id: str | None = Field(default=None, max_length=100)
+    candidate_id: str | None = Field(default=None, max_length=100)
+    city: City
+    adm_cd: str | None = Field(default=None, pattern=r"^\d{8}$")
+    reason_category: ObjectionReason
+    text: str | None = Field(default=None, max_length=MAX_OBJECTION_TEXT)
+    idempotency_key: str = Field(pattern=r"^[A-Za-z0-9:._-]{1,100}$")
+
+
+class ObjectionStatusRequest(_Model):
+    status: Literal["검토 중", "반영", "기각"]
+    resolution: str | None = Field(default=None, max_length=MAX_OBJECTION_TEXT)
+
+
+class ObjectionRecord(_Model):
+    objection_id: str
+    target_type: ObjectionTarget
+    run_id: str | None = None
+    candidate_id: str | None = None
+    city: str
+    adm_cd: str | None = None
+    reason_category: str
+    text: str | None = None  # 가린 글
+    status: ObjectionStatus
+    resolution: str | None = None  # 가린 글
+    submitted_by: str
+    resolved_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ObjectionResponse(_Model):
+    objection: ObjectionRecord
+    duplicate: bool = False
+
+
+class ObjectionListResponse(_Model):
+    items: list[ObjectionRecord]
+    total: int

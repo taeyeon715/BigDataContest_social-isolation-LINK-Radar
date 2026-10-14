@@ -30,6 +30,7 @@ EXPECTED = {
     ("GET", "/map"): "real",
     ("GET", "/candidates"): "real",
     ("GET", "/resources"): "real",
+    ("GET", "/resources/protective"): "real",
     ("POST", "/runs"): "real",
     ("GET", "/runs"): "real",
     ("GET", "/followups"): "real",
@@ -45,6 +46,9 @@ EXPECTED = {
     ("GET", "/runs/{run_id}/outcomes"): "real",
     ("GET", "/outcomes/summary"): "real",
     ("POST", "/qa"): "real",
+    ("POST", "/objections"): "real",
+    ("GET", "/objections"): "real",
+    ("POST", "/objections/{objection_id}/status"): "real",
 }
 
 
