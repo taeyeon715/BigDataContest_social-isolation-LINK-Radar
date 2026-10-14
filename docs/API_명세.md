@@ -158,7 +158,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
   ],
   "compared_as_of": "2025-09-19",
   "monitoring_run_id": "run-20261013-100000-7d1e2f3a",
-  "rule_version": "rules-v1.0"
+  "rule_version": "rules-v1.1"
 }
 ```
 
@@ -186,7 +186,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
   ],
   "note": "구조 취약성 × 행동 신호 2차원 표시. 위험지도 아님",
   "monitoring_run_id": "run-20261013-100000-7d1e2f3a",
-  "rule_version": "rules-v1.0"
+  "rule_version": "rules-v1.1"
 }
 ```
 
