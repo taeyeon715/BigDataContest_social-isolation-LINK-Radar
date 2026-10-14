@@ -185,7 +185,7 @@ def weather_triggers(ctx, ds) -> list[ToolResult]:
     return out
 
 
-HEAT_RULE_NOTE = ("R4 폭염 특보 단계 근사 (rules.yaml thresholds.heat): 일 최고 체감온도 = 기상청 여름철 체감온도 식"
+HEAT_RULE_NOTE = ("R4 폭염 특보 단계 근사: 일 최고 체감온도 = 기상청 여름철 체감온도 식"
                   "(일 최고기온 × 일 최소 상대습도). 주의보 33℃·경보 35℃ 2일 이상, 중대경보 체감 38℃ 또는 기온 39℃. "
                   "특보 발표 기록이 아님")
 
@@ -443,7 +443,7 @@ def check_confounders(ctx) -> list[ToolResult]:
             if path is not None:
                 verdict, why_path = path
                 if verdict == "기대 경로 안":
-                    v2, n2 = "기대 경로 안", f"연휴 뒤 기대 경로 안 (rules.yaml holiday_path): {why_path}"
+                    v2, n2 = "기대 경로 안", f"연휴 뒤 기대 경로 안: {why_path}"
                 else:
                     n2 = f"{CITY_COMMON_NOTE}; 연휴 뒤 기대 경로: {why_path}"
         elif review == "보류":
@@ -483,7 +483,7 @@ def check_confounders(ctx) -> list[ToolResult]:
 
 
 VISITOR_METRIC = "반증 맥락: 연휴 외지 손님 비중"
-VISITOR_NOTE = ("도시 단위 맥락 (rules.yaml card_context): 외지 손님이 늘었다는 것은 연휴 이동이 있었다는 뜻일 뿐, "
+VISITOR_NOTE = ("도시 단위 맥락: 외지 손님이 늘었다는 것은 연휴 이동이 있었다는 뜻일 뿐, "
                 "이 코호트 주민이 떠났거나 가족을 만났다는 증거가 아님. 자동 기각하지 않음")
 HOLIDAY_TRAVEL_NOTE = "도시 공통 하락 + 연휴 외지 손님 급증 (연휴 이동과 일관)"
 
@@ -1234,7 +1234,7 @@ def candidate_context(c: Candidate, evidence: list[ToolResult], used: list[ToolR
     if sf is not None and sf.target_ok is not None and c.adm_cd:
         applied = bool((rules["thresholds"]["structure"].get("target_population") or {}).get("apply_to_structure"))
         tail = (f"구조 상위 조건 {'충족' if sf.target_ok else '미충족'}" if applied
-                else "표시만 (등급 조건 아님: 강남에서 근거와 반대로 움직여 채택 안 함, rules.yaml)")
+                else "표시만 (등급 조건 아님: 강남에서 근거와 반대로 움직여 채택 안 함)")
         out.append(_ctx(f"{sf.target_label} 인구 비중",
                         f"{sf.target_label} 인구 비중 {sf.target_share:.3f} (도시 중앙값 {sf.target_median:.3f} "
                         f"{'이상' if sf.target_ok else '미만'}) → {tail}",

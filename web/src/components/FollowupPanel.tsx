@@ -61,7 +61,7 @@ export function FollowupAnswer({ item, onCite, refName }: { item: Item; onCite: 
     )
   }
   const { facts, explanation, disclaimer } = splitAnswer(res.answer)
-  const show = (l: string) => withRefs(refName ? reportText(l) : l, onCite, refName)
+  const show = (l: string) => withRefs(reportText(l), onCite, refName)
   return (
     <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="answered">
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-600">

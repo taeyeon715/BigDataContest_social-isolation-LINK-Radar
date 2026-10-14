@@ -939,7 +939,7 @@ def guard_signal(state: dict) -> dict:
     allow = state.get("route") != "lookup"
     upd: dict[str, Any] = {"guard": list(state.get("guard") or []) + [gr.model_dump(mode="json")], "remedy": None}
     remedy = G.pick_remedy(gr.rule_ids, "guard_signal") if gr.verdict == "REVISE" and allow else None
-    why_no = "처치 abstain (guard_rules.yaml)"
+    why_no = "검사에서 바로 판단 보류"
     if remedy == "drop_evidence":
         targets = G.drop_targets(evidence + extra)
         used_by = {i for c in cands for i in c.get("evidence_ids") or []}
@@ -948,12 +948,12 @@ def guard_signal(state: dict) -> dict:
                                                  "targets": targets})
             return upd
         remedy = "abstain"
-        why_no = "처치 drop_evidence 불가: 후보가 등급 근거로 쓴 근거라 뺄 수 없음"
+        why_no = "문제 근거 빼기 불가: 후보가 등급 근거로 쓴 근거라 뺄 수 없음"
     elif remedy == "retry_failed_tool":
         _, tool_over = B.state_check(state)
         targets = G.retry_targets(evidence)
         why_no = (f"{B.BUDGET_EXCEEDED}: {tool_over}" if tool_over
-                  else "처치 retry_failed_tool 불가: 다시 시도할 수 있는 오류로 실패한 도구가 없음")
+                  else "실패한 도구 다시 실행 불가: 다시 시도할 수 있는 오류로 실패한 도구가 없음")
         if targets and not tool_over:
             verdict, why = G.decide(gr, used, allow_revise=True)
             upd["verdict"] = verdict

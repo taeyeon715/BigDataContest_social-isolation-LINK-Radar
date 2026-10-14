@@ -201,7 +201,7 @@ def structure_context(ctx, ds, city: str, item, h: pd.DataFrame, adms: list[str]
                 value_state="observed",
                 warnings=[f"{TARGET_WARN} {city} {len(city_all)}개 동 {who} 비중 중앙값 {med:.4f} "
                           f"({'이상' if v >= med else '미만'}) · 집단 {spec['group']}",
-                          "구조 상위 조건 (rules-v1.1 target_population): 1인세대 비율 상위 + 대상 인구 비중이 도시 중앙값 이상"],
+                          "구조 상위 조건: 1인세대 비율 상위 + 대상 인구 비중이 도시 중앙값 이상"],
                 **common))
 
     if city == "강남":
@@ -257,7 +257,7 @@ def structure_context(ctx, ds, city: str, item, h: pd.DataFrame, adms: list[str]
                 valid_claims=["1인세대 수의 월 변화 (등록 기준)"],
                 forbidden_claims=["전입자 수 (순증은 전입·전출·분가·사망이 섞임)", "고립 위험 증가"],
                 warnings=[f"도시 안 순증률 {ranks[adm]}/{len(full)}위",
-                          "전입 맥락 표시만 (rules.yaml context_only). 이사 뒤 관계망 약화는 근거 방향이 섞여 위험 요인으로 쓰지 않음"],
+                          "전입 맥락 표시만 (참고용 맥락, 등급에 쓰지 않음). 이사 뒤 관계망 약화는 근거 방향이 섞여 위험 요인으로 쓰지 않음"],
                 **common))
     return out
 
@@ -416,7 +416,7 @@ def _diversity(ctx, ds, p, city, age, sex, win7, key, sim, common):
         warnings=[f"최근 7일 결제 {draws}건당 기대 업종 수 {recent.mean():.1f}개 vs 평소 {base.mean():.1f}개 "
                   f"(같은 요일 과거 8주, 공휴일 제외)",
                   "결제량 보정: 하루 결제를 같은 건수로 맞춘 기대 업종 수 (복원 추출 근사). 업종은 카드 가맹점 업종 78종",
-                  "맥락만 (rules-v1.1, 등급 입력 아님): '생활 폭' 대리. 결제 총량과 따로 움직일 때만 정보가 됨"],
+                  "맥락만 (참고용 맥락, 등급에 쓰지 않음): '생활 폭' 대리. 결제 총량과 따로 움직일 때만 정보가 됨"],
         **{**common, "denominator": "같은 코호트 같은 요일 과거 8주 평균 (카드 데이터2)"})
 
 

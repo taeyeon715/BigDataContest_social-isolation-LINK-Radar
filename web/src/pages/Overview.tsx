@@ -7,7 +7,7 @@ import { OutcomeSummaryCard } from '../components/OutcomeSummary'
 import { AsyncBlock, Badge, Card, Empty, ErrorBox, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { followState, useFollowUps } from '../lib/followups'
-import { TYPE_LABEL, candidatePlace, daysBetween, groupOf } from '../lib/labels'
+import { TYPE_LABEL, candidatePlace, daysBetween, groupOf, plainText } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
 
 const TYPE_COLOR: Record<CandidateType, string> = { scheduled_access_review: '#008F8A', unexpected_activity_deviation: '#7A5BC7' }
@@ -205,7 +205,7 @@ export default function Overview() {
                   </div>
                   <div className="text-xs text-white">
                     시작 {t.starts_on}
-                    {t.note ? ` · ${t.note}` : ''}
+                    {t.note ? ` · ${plainText(t.note)}` : ''}
                   </div>
                 </li>
               ))}
@@ -295,7 +295,7 @@ export default function Overview() {
                           )}
                           {r.reason && (
                             <span className="text-xs text-ink-600" data-testid="release-reason">
-                              {r.reason}
+                              {plainText(r.reason)}
                             </span>
                           )}
                         </li>

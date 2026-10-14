@@ -47,6 +47,9 @@ export const NODE_LABEL: Record<string, string> = {
   finalize: '확정',
 }
 
+/** Guard 검사 결과 (화면용) */
+export const VERDICT_LABEL: Record<string, string> = { PASS: '통과', REVISE: '다시 확인', ABSTAIN: '판단 보류' }
+
 export const MODE_LABEL: Record<string, string> = {
   retrospective: '사후 분석',
   simulated_replay: '과거 재생',
@@ -57,7 +60,7 @@ export const MODE_LABEL: Record<string, string> = {
 export type CounterView = { label: string; tone: 'pass' | 'reject' | 'hold' | 'check' | 'review' | 'none'; reason: string | null }
 
 export function counterView(c: Pick<Candidate, 'counter_result' | 'counter_reason'>): CounterView {
-  const reason = c.counter_reason
+  const reason = c.counter_reason ? plainText(c.counter_reason) : c.counter_reason
   switch (c.counter_result) {
     case '통과':
       return { label: '다른 원인 없음', tone: 'pass', reason }
@@ -292,10 +295,44 @@ export function isAdminOffice(r: { name: string; resource_type: string }): boole
 
 /** 서버 문장 속 낯선 이름을 화면 이름으로 (거점 거리 이름 등). 데이터 값은 그대로 둠 */
 export function plainText(s: string): string {
-  return s
+  return hideInternal(s)
     .replace(/관측(된)? 거점(까지)?\s*(직선)?\s*거리/g, HUB_LABEL)
     .replace(/관측(된)? 거점/g, '안부·관계 거점(노인복지관·사회복지관)')
     .replace(/거리은\(는\)/g, '거리는')
+}
+
+// ---- 화면 문장에서 내부 표시 빼기: 규칙 판(rules-v1.1)·설정 파일(rules.yaml)·설정 열쇠(context_only)·규칙 ID(L2-…)·영어 값
+// 판·규칙 ID 는 등급 조건 "자세히"와 판단 기록·인쇄 꼬리말에 남는다
+const ENUM_LABEL: Record<string, string> = { ...TYPE_LABEL, ...MODE_LABEL, strict_as_of: '기준일 엄격 모드' }
+const CONFIG_KEY_LABEL: Record<string, string> = {
+  context_only: '참고용 맥락, 등급에 쓰지 않음',
+}
+// 등급 설명 첫 줄·이어 묻기 답 "적용 규칙 L2-… (rules-v1.1) → Level 2" → "적용 규칙 → Level 2"
+const APPLIED_RULE_RE = /적용 규칙 (?!기록 없음)\S+(?: \([^→]*\))? → /g
+const RULE_TAG_RE = /\s*\[rules-[^\]]*\]/g
+const RULE_ID_SRC = String.raw`(?:L[0-3]|HOLD|CAP)-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*`
+const RULE_IDS_RE = new RegExp(String.raw`\s*\b${RULE_ID_SRC}(?:\+${RULE_ID_SRC})*\b`, 'g')
+const CONFIG_RE = /(?:\brules-v\d+(?:\.\d+)*|\b[a-z][a-z0-9_]*\.yaml\b)(?:\s+([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*))?/g
+// 뒤에 띄어 쓴 조사(" 에서")는 붙여 씀
+const ENUM_RE = /\b(scheduled_access_review|unexpected_activity_deviation|strict_as_of|simulated_replay|context_only)\b(?:\s(?=[에은는이가을를로]))?/g
+
+/** 화면 문장에서 내부 표시를 뺌 (plainText 가 먼저 부름). 설정 열쇠 중 뜻이 있는 것은 한국어로 바꿈 */
+export function hideInternal(s: string): string {
+  const out = s
+    .replace(APPLIED_RULE_RE, '적용 규칙 → ')
+    .replace(RULE_TAG_RE, '')
+    .replace(CONFIG_RE, (_m, key: string | undefined) => (key && CONFIG_KEY_LABEL[key.split('.')[0]]) || '')
+    .replace(RULE_IDS_RE, '')
+    .replace(ENUM_RE, (m, k: string) => ENUM_LABEL[k] ?? CONFIG_KEY_LABEL[k] ?? m)
+  if (out === s) return s
+  // 뺀 자리에 남은 빈 괄호·쉼표 정리 (바뀐 문장만)
+  return out
+    .replace(/\(\s*[,:]?\s*\)/g, '')
+    .replace(/\(\s*[,:]\s*/g, '(')
+    .replace(/\s*[,:]\s*\)/g, ')')
+    .replace(/\s+([.,:)])/g, '$1')
+    .replace(/ {2,}/g, ' ')
+    .trim()
 }
 
 /** 이 문장이 거점 거리 이야기인가 (행정복지센터 안내를 붙일지) */
@@ -352,7 +389,6 @@ export function resourceIdsToNames(s: string, resourceNames: Record<string, stri
 export function reportText(s: string, resourceNames: Record<string, string> = {}): string {
   return plainText(replaceInputCodes(resourceIdsToNames(s, resourceNames)))
     .replace(/ \((?:11|32)\d{6}\)/g, '') // 동 이름 옆 행정동 코드 (이름이 이미 있음)
-    .replace(/\s*\[rules-[^\]]*\]/g, '') // 규칙 ID (등급 조건 "자세히"에서 봄)
     .replace(/후보 C-\d{8}-\d{3} · /g, '') // 후보 ID (화면 제목에 동·집단 이름이 있음)
     .replace(/(대응안|집중 확인) C-\d{8}-\d{3}:/g, '$1:')
 }
@@ -410,7 +446,11 @@ export const DATA_SOURCE_LABEL: Record<string, string> = {
 
 /** 한계 문장: 앞머리 자료 코드를 쉬운 이름으로 ("card1: 공개일…" → "카드 데이터1: 공개일…") */
 export function limitText(s: string): string {
-  return plainText(s.replace(/^([a-z][a-z0-9_]*):\s*/, (m, code: string) => (DATA_SOURCE_LABEL[code] ? `${DATA_SOURCE_LABEL[code]}: ` : m)))
+  return plainText(
+    s
+      .replace(/^([a-z][a-z0-9_]*):\s*/, (m, code: string) => (DATA_SOURCE_LABEL[code] ? `${DATA_SOURCE_LABEL[code]}: ` : m))
+      .replace(/^[A-Z][A-Z0-9_]+:\s*(?=[가-힣])/, ''), // 앞머리 오류 코드 (TIME_AVAILABILITY_UNKNOWN: …)
+  )
 }
 
 // ---- 답 문장 나누기: 핵심 사실(템플릿) / 설명(LLM). 서버는 사실 줄 → "개인 판정 아님 · 최종 판단은 담당자" → 설명 줄 순서로 보냄

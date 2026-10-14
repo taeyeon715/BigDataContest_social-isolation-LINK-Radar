@@ -40,6 +40,7 @@ import {
   evidenceIndex,
   mentionsHub,
   plainText,
+  VERDICT_LABEL,
   reportText,
   splitRefs,
   limitText,
@@ -141,16 +142,15 @@ function RunProgress({ run }: { run: RunStatusResponse }) {
       {run.guard.length > 0 && (
         <div className="flex flex-wrap gap-1 text-xs">
           {run.guard.map((g, i) => (
-            <span key={i} className={`chip ${g.verdict === 'PASS' ? 'bg-okay-soft text-okay' : 'bg-caution-soft text-caution'}`} title={g.reasons.join(', ')}>
-              {g.check} 검사 {g.attempt}차: {g.verdict}
-              {g.rule_ids.length > 0 && ` (${g.rule_ids.join(',')})`}
+            <span key={i} className={`chip ${g.verdict === 'PASS' ? 'bg-okay-soft text-okay' : 'bg-caution-soft text-caution'}`} title={[g.rule_ids.length > 0 ? `규칙 ${g.rule_ids.join(',')}` : '', ...g.reasons].filter(Boolean).join(', ')}>
+              {g.check} 검사 {g.attempt}차: {VERDICT_LABEL[g.verdict] ?? g.verdict}
             </span>
           ))}
         </div>
       )}
       {run.contract_check?.warnings.map((w) => (
         <div key={w} className="text-xs text-caution">
-          계약 경고: {w}
+          계약 경고: {limitText(w)}
         </div>
       ))}
     </div>
@@ -669,7 +669,7 @@ export default function CandidateDetail() {
               </div>
               <h2 className="mt-3 text-xl font-bold">{`${candidatePlace(candidate)} · ${groupOf(candidate) ?? ''}`}</h2>
               <div className="mt-2 text-base text-ink-900">
-                <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason).replace(/\s*\[rules-[^\]]*\]/g, '') : '—'}
+                <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason) : '—'}
                 {candidate.trigger && ` · 트리거 ${candidate.trigger}`}
                 {candidate.heat_stage && (
                   <>
@@ -715,7 +715,7 @@ export default function CandidateDetail() {
               )}
               {(exp || (candidate.rule_checks?.length ?? 0) > 0) && (
                 <div className="mt-4">
-                  <LevelExplain exp={exp} checks={candidate.rule_checks} nameOf={admName} />
+                  <LevelExplain exp={exp} checks={candidate.rule_checks} nameOf={admName} ruleId={candidate.rule_id} ruleVersion={candidate.rule_version} />
                 </div>
               )}
               {(candidate.event_timeline?.length ?? 0) > 0 && !shownActions.some((a) => (a.action_plan?.holiday_timeline?.length ?? 0) > 0) && (

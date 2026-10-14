@@ -180,7 +180,7 @@ class RealDashboard:
             n = sum(c.candidate_type == kind and c.counter_result != "기각" for c in cands)
             vals = self._ranges[run_id].get(kind, []) + [n]
             out[kind] = CandidateCountRange(count=n, low=min(vals), high=max(vals),
-                                            note="임계값에 따라 달라지는 수 (rules.yaml 임계값 ± 로 다시 계산)")
+                                            note="임계값에 따라 달라지는 수 (등급 기준값을 조금 올리고 내려 다시 계산)")
         return out
 
     def _release_reason(self, old: Candidate, now_codes: set[str], now_dev: set[str]) -> str:

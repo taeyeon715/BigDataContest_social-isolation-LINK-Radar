@@ -74,7 +74,7 @@ def _struct_text(s: StructFact) -> str:
 
 def _target_miss_text(s: StructFact) -> str:
     return (f"1인세대 비율은 상위({s.rank}/{s.n}위)지만 {s.target_label or '대상'} 인구 비중 {s.target_share:.3f}이 "
-            f"도시 중앙값 {s.target_median:.3f} 미만이라 이 집단의 구조 상위로 보지 않음 (rules-v1.1 target_population)")
+            f"도시 중앙값 {s.target_median:.3f} 미만이라 이 집단의 구조 상위로 보지 않음")
 
 
 def _access_text(a: Axes) -> str:
@@ -113,7 +113,7 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
         what = f"예정된 트리거({a.trigger})" if a.candidate_type == "scheduled_access_review" else "반증 통과 이탈"
         d = Decision("Level 2", "L2-CITY-GUIDANCE",
                      f"도시 단위 안내 집단 + {what}. 동을 고르지 않음 (1인세대 밀집이 이 집단의 고립과 반대 방향, "
-                     "rules.yaml city_guidance)")
+                     "이 집단은 도시 단위로 안내)")
         d.caps.append("CAP-SHARED-CONTEXT")
     elif a.candidate_type == "scheduled_access_review":
         parts = []
@@ -139,7 +139,7 @@ def decide(a: Axes, rules: dict | None = None) -> Decision:
                          f"근거 하나만: 예정된 트리거({a.trigger}). 구조·접근성 기준 미달 또는 결측")
         if a.access_ref_only:
             d.reason += (f" / 접근성 참고({ACCESS_CURRENT}, 관측 거점까지 직선 {a.access_km:.1f}km): 과거 당시 확인 안 된 "
-                         "원장이라 strict_as_of 등급에 쓰지 않음")
+                         "원장이라 기준일 엄격 모드 등급에 쓰지 않음")
         if s_top and a.access_km is not None and a.access_km < far:
             d.reason += f" / 거리 공백 근거 약함(관측 거점까지 {a.access_km:.1f}km)"
         if a.structure is not None and a.structure.rate_top and not a.structure.top and a.structure.target_ok is False:

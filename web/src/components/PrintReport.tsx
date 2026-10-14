@@ -215,6 +215,12 @@ export function PrintReport({
         <div className="mt-2 text-[10px] leading-tight text-ink-600" data-testid="evidence-id-key">
           근거 번호와 기록 ID: {card.evidence.map((e, i) => `근거 ${i + 1} = ${e.evidence_id}`).join(' · ')}
         </div>
+        {(exp?.rule_id || candidate?.rule_id) && (
+          <div className="text-[10px] leading-tight text-ink-600" data-testid="rule-key">
+            등급 규칙 기록: {exp?.rule_id ?? candidate?.rule_id}
+            {(exp?.rule_version ?? candidate?.rule_version) ? ` · ${exp?.rule_version ?? candidate?.rule_version}` : ''}
+          </div>
+        )}
       </footer>
     </article>
   )

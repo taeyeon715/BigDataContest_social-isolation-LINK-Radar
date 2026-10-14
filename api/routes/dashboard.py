@@ -123,7 +123,7 @@ def resources(
     try:
         cause_needs = needs_of(cause_type) if cause_type else []
     except KeyError:
-        raise ApiError(400, "INVALID_REQUEST", "모르는 원인 유형입니다 (configs/need_types.yaml cause_types).") from None
+        raise ApiError(400, "INVALID_REQUEST", "모르는 원인 유형입니다.") from None
     if dash is not None:
         return dash.resources(city, adm_cd, need_type, group, limit, cause_type)
     items = fd.resources_for(city, adm_cd, need_type, group, needs=cause_needs or None)

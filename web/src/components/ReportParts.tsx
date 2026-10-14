@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import type { CandidateAction, ContextSignal, LevelExplanation, RuleCheck, TimelineStep, TraceStep } from '../api'
 import { LIST_NOTE } from '../api'
-import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, fmtCheck, fmtCheckGap, mentionsHub, plainText } from '../lib/labels'
+import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, fmtCheck, fmtCheckGap, mentionsHub, plainText, replaceInputCodes } from '../lib/labels'
 import { Term } from './Term'
 
 /** 내일 아침 체크리스트: 꺼낼 명단 / 연락할 곳 / 방법 / 기한 / 확인할 영역 */
@@ -208,7 +208,10 @@ export function CheckAreasView({ a }: { a: CandidateAction }) {
 type CheckRow = { condition: string; met: boolean | null; value?: unknown; threshold?: unknown; distance?: number | null; unit?: string | null; comparator?: string | null }
 
 /** 등급 설명: 조건마다 충족 / 미충족 / 자료 없음 + 값과 기준. 보고서의 level_explanations, 없으면 후보의 rule_checks */
-export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation | null; checks?: RuleCheck[]; nameOf?: (code: string) => string }) {
+export function LevelExplain({ exp, checks, nameOf, ruleId, ruleVersion }: { exp?: LevelExplanation | null; checks?: RuleCheck[]; nameOf?: (code: string) => string; ruleId?: string | null; ruleVersion?: string | null }) {
+  // 규칙 이름·판은 '자세히'에만 (보고서 설명이 없으면 후보에 적힌 것)
+  const rid = exp?.rule_id ?? ruleId
+  const rver = exp?.rule_version ?? ruleVersion
   const byCond = Object.fromEntries((checks ?? []).map((c) => [c.condition, c]))
   const rows: CheckRow[] = exp
     ? exp.checks.map((c) => ({ ...c, unit: byCond[c.condition]?.unit ?? null, comparator: byCond[c.condition]?.comparator ?? null }))
@@ -239,7 +242,7 @@ export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation |
       </ul>
       {exp && exp.what_if.length > 0 && (
         <div className="mt-2 rounded-xl bg-canvas px-3 py-2 text-xs text-ink-800">
-          <b>무엇이 바뀌면 등급이 바뀌나</b> · {exp.what_if.map(plainText).join(' · ')}
+          <b>무엇이 바뀌면 등급이 바뀌나</b> · {exp.what_if.map((w) => plainText(replaceInputCodes(w))).join(' · ')}
         </div>
       )}
       {rows.some((c) => mentionsHub(c.condition)) && (
@@ -247,11 +250,11 @@ export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation |
           {HUB_NOTE}
         </div>
       )}
-      {exp?.rule_id && (
+      {rid && (
         <details className="mt-1 text-xs text-ink-600" data-testid="rule-id-details">
           <summary className="cursor-pointer select-none">자세히 (규칙 이름)</summary>
-          규칙 {exp.rule_id}
-          {exp.rule_version ? ` · ${exp.rule_version}` : ''}
+          규칙 {rid}
+          {rver ? ` · ${rver}` : ''}
         </details>
       )}
     </div>
