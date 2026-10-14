@@ -22,7 +22,7 @@ import { FollowupPanel } from '../components/FollowupPanel'
 import { ClaimsBox, EvidenceTable } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
 import { PrintReport, type PrintJudgement } from '../components/PrintReport'
-import { ActionPlanView, CheckAreasView, DecisionTrace, LevelExplain, MorningChecklistView } from '../components/ReportParts'
+import { ActionPlanView, CandidateContext, CheckAreasView, DecisionTrace, EventTimeline, ExtraChecks, HeatStageLabel, LevelExplain, MorningChecklistView } from '../components/ReportParts'
 import { ResourcePanel, type JudgementDraft } from '../components/ResourcePanel'
 import { OutcomeForm } from '../components/OutcomeForm'
 import { ObjectionForm } from '../components/ObjectionForm'
@@ -668,6 +668,12 @@ export default function CandidateDetail() {
               <div className="mt-2 text-base text-ink-900">
                 <b>왜 이 후보인가</b> · {candidate.level_reason ? plainText(candidate.level_reason) : '—'}
                 {candidate.trigger && ` · 트리거 ${candidate.trigger}`}
+                {candidate.heat_stage && (
+                  <>
+                    {' · '}
+                    <HeatStageLabel stage={candidate.heat_stage} />
+                  </>
+                )}
               </div>
               {/* 등급 조건 표가 있으면 그 아래 한 번만 보임 */}
               {!exp && !(candidate.rule_checks?.length ?? 0) && mentionsHub(candidate.level_reason ?? '') && (
@@ -707,6 +713,16 @@ export default function CandidateDetail() {
               {(exp || (candidate.rule_checks?.length ?? 0) > 0) && (
                 <div className="mt-4">
                   <LevelExplain exp={exp} checks={candidate.rule_checks} />
+                </div>
+              )}
+              {(candidate.event_timeline?.length ?? 0) > 0 && !shownActions.some((a) => (a.action_plan?.holiday_timeline?.length ?? 0) > 0) && (
+                <div className="mt-4">
+                  <EventTimeline steps={candidate.event_timeline} bundleId={candidate.event_bundle_id} />
+                </div>
+              )}
+              {(candidate.context?.length ?? 0) > 0 && (
+                <div className="mt-4">
+                  <CandidateContext items={candidate.context} onCite={runId ? cite : undefined} />
                 </div>
               )}
               {cv && candidate.candidate_type === 'unexpected_activity_deviation' && (
@@ -942,6 +958,11 @@ export default function CandidateDetail() {
                           </p>
                         </>
                       )}
+                      {(rep.investigation?.items.length ?? 0) > 0 && (
+                        <div className="mt-4">
+                          <ExtraChecks data={rep.investigation} onCite={cite} />
+                        </div>
+                      )}
                       {rep.external_notice && (
                         <div className="mt-4 rounded-xl bg-canvas px-3 py-2" data-testid="external-notice">
                           <div className="text-xs font-semibold text-ink-600">밖으로 안내할 때는 이 문구만 (동 이름·집단은 내보내지 않음)</div>
@@ -1028,7 +1049,7 @@ export default function CandidateDetail() {
                   <RunProgress run={run} />
                   <div>
                     <div className="mb-1 text-xs font-semibold text-ink-600">판단 기록 (단계마다 무엇을 골랐고 누가 정했나)</div>
-                    <DecisionTrace steps={trace} />
+                    <DecisionTrace steps={trace} onCite={cite} hideExtra={(rep?.investigation?.items.length ?? 0) > 0} />
                   </div>
                 </div>
               )}

@@ -187,6 +187,34 @@ export interface Candidate {
   response_type?: string | null
   cause_type?: string | null // 원인 유형 (후보 목록 응답). 자원 미리 보기를 이 필요 유형으로 좁힘
   need_types?: string[] // G
+  // rules-v1.1 선택 칸 (옛 응답에는 없음)
+  context?: ContextSignal[] // 카드 맥락·수급자 비율·1인세대 순증 등. 등급·순서에 쓰지 않음
+  event_bundle_id?: string | null // 명절 묶음 (예: 춘천:명절:20251003). R1·R2·R3 후보가 같은 값
+  event_timeline?: TimelineStep[] // 명절 전·중·후
+  heat_stage?: string | null // R4: 폭염주의보 / 폭염경보 / 폭염중대경보 (상황 시연에서만)
+}
+
+/** 후보에 붙는 맥락 칸 (rules-v1.1). affects_level 은 늘 false: 등급·순서에 쓰지 않음 */
+export interface ContextSignal {
+  name: string
+  value?: number | string | null
+  unit?: string | null
+  text: string
+  role: '맥락' | '반증 맥락' | '구조 별도 칸'
+  scope?: string | null
+  evidence_id?: string | null
+  affects_level?: boolean
+}
+
+/** 명절 전·중·후 묶음의 한 칸 (후보 event_timeline) */
+export interface TimelineStep {
+  phase: '전' | '중' | '후'
+  code: 'R1' | 'R2' | 'R3'
+  label: string
+  start: string
+  end: string
+  status: '지남' | '지금' | '예정'
+  applies?: boolean // 이 집단·도시에 적용되는 단계인지 (R3 는 춘천 고령층만)
 }
 
 export type Comparator = '>=' | '<=' | '>' | '<'
@@ -557,6 +585,34 @@ export interface Report {
   // 추가 조사 뒤 "N회차 대비 달라진 점" (fact_sentences 에도 들어 있음), 이 판에 반영한 검토 ID
   round_changes?: string[]
   review_ids?: string[]
+  investigation?: Investigation | null // 조사 루프에서 추가로 확인한 것 (등급·반증 입력 아님)
+}
+
+/** 조사 루프에서 확인한 질문 하나 */
+export interface InvestigationItem {
+  key: string
+  qid: string
+  label: string
+  question: string
+  city?: string | null
+  adm_cd?: string | null
+  candidate_ids?: string[]
+  tool: string
+  round: number
+  source: 'llm' | 'rule'
+  why?: string | null
+  status: 'answered' | 'unanswered' | 'no_data' | 'error' | 'dropped'
+  finding: string
+  evidence_ids: string[]
+}
+
+/** 보고서 "추가로 확인한 것" 칸 */
+export interface Investigation {
+  rounds: number
+  items: InvestigationItem[]
+  not_picked?: string[]
+  stopped?: string | null
+  note?: string
 }
 
 export interface ResourceJudgement {
@@ -667,7 +723,12 @@ export interface FollowupResponse {
   guard: GuardResult[]
   abstain_reason: string | null
   needed_data: string[]
+  // 질문 종류와 답한 대상 (후보 ID·동 코드만, 질문 원문 없음). 옛 응답에는 없음
+  intent?: FollowupIntent | null
+  target?: Record<string, string[]> | null
 }
+
+export type FollowupIntent = 'why_level' | 'resources' | 'compare' | 'data_limits' | 'other'
 
 /** 실행에 묶인 추천 자원 (실행 시작 때 고정한 스냅샷·원장) + 가장 최근 검토의 판정.
  * 자원 하나에 한 줄. candidate_ids 는 이 자원을 추천받은 후보 모두, candidate_id 는 그 첫 후보 (옛 칸) */

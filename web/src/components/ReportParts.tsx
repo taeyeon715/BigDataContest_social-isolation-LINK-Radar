@@ -1,6 +1,6 @@
 // 보고서의 담당자용 출력 (대응안 5칸·내일 아침 체크리스트·확인할 영역), 등급 설명, 판단 기록.
 import type { ReactNode } from 'react'
-import type { CandidateAction, LevelExplanation, RuleCheck, TraceStep } from '../api'
+import type { CandidateAction, ContextSignal, LevelExplanation, RuleCheck, TimelineStep, TraceStep } from '../api'
 import { LIST_NOTE } from '../api'
 import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, mentionsHub, plainText } from '../lib/labels'
 import { Term } from './Term'
@@ -366,10 +366,11 @@ const EXTRA_NODE_LABEL: Record<string, string> = {
 }
 const nodeLabel = (n: string) => NODE_LABEL[n] ?? EXTRA_NODE_LABEL[n] ?? n
 
-/** 판단 기록: 노드마다 무엇을 골랐고 누가 정했나 (규칙·LLM·검사·템플릿). 조사 루프가 있으면 "추가로 확인한 것"을 위에 */
-export function DecisionTrace({ steps, onCite }: { steps: TraceStep[]; onCite?: (id: string) => void }) {
+/** 판단 기록: 노드마다 무엇을 골랐고 누가 정했나 (규칙·LLM·검사·템플릿). 조사 루프가 있으면 "추가로 확인한 것"을 위에.
+ * hideExtra: 보고서에서 이미 "추가로 확인한 것"을 보여 줄 때 겹치지 않게 뺌 */
+export function DecisionTrace({ steps, onCite, hideExtra }: { steps: TraceStep[]; onCite?: (id: string) => void; hideExtra?: boolean }) {
   if (steps.length === 0) return <div className="text-xs text-ink-600">판단 기록이 없습니다.</div>
-  const extra = extraChecksFromTrace(steps)
+  const extra = hideExtra ? null : extraChecksFromTrace(steps)
   return (
     <div className="flex flex-col gap-3">
       {extra && <ExtraChecks data={extra} onCite={onCite} />}
@@ -398,6 +399,76 @@ export function DecisionTrace({ steps, onCite }: { steps: TraceStep[]; onCite?: 
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// 맥락 칸 역할 → 쉬운 이름
+const CONTEXT_ROLE_LABEL: Record<ContextSignal['role'], string> = {
+  맥락: '참고',
+  '반증 맥락': '다른 원인 참고',
+  '구조 별도 칸': '동 특성 참고',
+}
+
+/** 후보 맥락 칸 (rules-v1.1): 카드 맥락·수급자 비율·1인세대 순증 등. 등급·순서에는 쓰지 않음 */
+export function CandidateContext({ items, onCite }: { items?: ContextSignal[] | null; onCite?: (id: string) => void }) {
+  if (!items || items.length === 0) return null
+  return (
+    <div className="rounded-2xl border border-line p-4" data-testid="candidate-context">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="font-semibold text-ink-900">함께 본 참고 자료</h4>
+        <span className="chip bg-canvas text-ink-600">참고(등급에 안 씀)</span>
+      </div>
+      <ul className="mt-2 flex flex-col gap-2">
+        {items.map((x, i) => (
+          <li key={`${x.name}-${i}`} className="rounded-xl bg-canvas px-3 py-2" data-testid="context-signal" data-role={x.role}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="chip bg-surface text-ink-600">{CONTEXT_ROLE_LABEL[x.role] ?? '참고'}</span>
+              <span className="font-semibold text-ink-900">{x.name}</span>
+              {x.scope && <span className="text-xs text-ink-600">{x.scope}</span>}
+            </div>
+            <div className="mt-1 text-sm text-ink-800">{plainText(x.text)}</div>
+            {x.evidence_id &&
+              (onCite ? (
+                <button className="mt-1 rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs text-brand-700 hover:bg-brand-100" onClick={() => onCite(x.evidence_id!)}>
+                  {x.evidence_id}
+                </button>
+              ) : (
+                <span className="mt-1 inline-block rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs text-brand-700">{x.evidence_id}</span>
+              ))}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const STEP_STATUS_CLS: Record<TimelineStep['status'], string> = {
+  지금: 'border-brand-500 bg-brand-50',
+  예정: 'border-line bg-surface',
+  지남: 'border-line bg-canvas text-ink-600',
+}
+
+/** 후보의 명절 묶음 (전 R1 · 중 R2 · 후 R3). 대응안의 HolidayTimeline 이 없을 때 후보 칸으로 보여 줌 */
+export function EventTimeline({ steps, bundleId }: { steps?: TimelineStep[] | null; bundleId?: string | null }) {
+  if (!steps || steps.length === 0) return null
+  return (
+    <div data-testid="event-timeline" data-bundle={bundleId ?? undefined}>
+      <div className="mb-1 text-xs font-semibold text-ink-600">명절 전·중·후 (한 사건으로 봄)</div>
+      <ol className="grid gap-2 sm:grid-cols-3">
+        {steps.map((x) => (
+          <li key={x.code} aria-current={x.status === '지금' ? 'step' : undefined} className={`rounded-xl border px-3 py-2 text-sm ${STEP_STATUS_CLS[x.status]}`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <b className="text-ink-900">
+                {x.phase} <span className="text-xs font-normal text-ink-600">({x.code})</span>
+              </b>
+              <span className={`chip ${x.status === '지금' ? 'bg-brand-600 text-white' : 'bg-canvas text-ink-600'}`}>{x.status}</span>
+            </div>
+            <div className="text-xs text-ink-800">{x.label}</div>
+            {x.applies === false && <div className="mt-1 text-xs text-ink-600">이 집단은 이 단계 후보가 아님 (표시만)</div>}
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }

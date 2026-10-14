@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, ApiError, MAX_QUESTION, type FollowupResponse } from '../api'
+import { api, ApiError, MAX_QUESTION, type FollowupIntent, type FollowupResponse } from '../api'
 import { ERROR_TEXT, errorText, splitReason } from '../lib/labels'
 import { withRefs } from './EvidenceTable'
 import { RoleNote, useRole } from './ui'
@@ -8,7 +8,7 @@ export const FOLLOWUP_NOTE = '새 조사를 하지 않고 이 보고서의 근�
 const EXAMPLES = ['이 후보는 왜 이 등급이야?', '어떤 근거가 가장 중요해?', '연결할 자원은?', '자료 한계는?']
 
 /** 질문 종류 (서버 intent). 등급 이유 / 자원·대응 / 비교 / 자료 한계 / 기타 */
-export type FollowupIntent = 'why_level' | 'resources' | 'compare' | 'data_limits' | 'other'
+export type { FollowupIntent }
 export const INTENT_LABEL: Record<FollowupIntent, string> = {
   why_level: '등급 이유',
   resources: '자원·대응',
@@ -16,11 +16,7 @@ export const INTENT_LABEL: Record<FollowupIntent, string> = {
   data_limits: '자료 한계',
   other: '기타',
 }
-/** 서버 응답 + 질문 종류·답한 대상 (types.ts 에 없을 수 있어 여기서 넓힘) */
-type FollowupRes = FollowupResponse & {
-  intent?: FollowupIntent | null
-  target?: { candidate_ids?: string[]; adm_cds?: string[] } | null
-}
+type FollowupRes = FollowupResponse
 
 type Item = { q: string; res: FollowupRes }
 
