@@ -337,7 +337,9 @@ r.p("- '도시 단위 후보'는 청년 남성 안내 강화처럼 동을 고르
 ppl.to_csv(r.dir / "후보동_인구.csv", index=False, encoding="utf-8-sig")
 
 r.h("2. 결과표 A: 동 × 집단 × 기준일 (Level 2 이상, 추석 D-7 · 고령층)")
-r.p(f"전체({len(tab)}줄 = 두 도시 47개 동 × 집단 {len(GROUPS)} × 기준일 {len(DATES)})는 [`동별_등급표.csv`](동별_등급표.csv)에 있습니다. "
+n_city_rows = int((tab["동"] == "(도시 전체)").sum())
+r.p(f"전체 {len(tab)}행 = **{len(tab) - n_city_rows}개 동·집단·기준일 행**(두 도시 47개 동 × 집단 {len(GROUPS)} × 기준일 {len(DATES)}) "
+    f"+ **도시 단위 {n_city_rows}행**(청년 남성 안내 강화, 동을 고르지 않음)이고 [`동별_등급표.csv`](동별_등급표.csv)에 있습니다. "
     "본문에는 추석 D-7 고령층의 Level 2 이상만 싣습니다.")
 COLS = ["동", "유형", "등급", "규칙 id", "S1 1인세대 비율", "S1 도시 안 순위", "S1 동 수", "A1 안부·관계 거점 거리(km)",
         "1인세대 수(전 연령)", "대상 집단 인구(성·연령)", "동 안 안부·관계 자원 수(원장)"]
@@ -452,7 +454,7 @@ gr = rng_csv[(rng_csv["도시"] == "강남") & (rng_csv["기준일"] == "추석 
 n_gn, one_gn, gp_gn = people("강남", f"추석 D-7 ({DATES['추석 D-7']:%m/%d})", "고령층")
 r.p(f"**① 강남은 '어디'가 1인세대로 정해지고 Level 3가 없습니다.** 추석 D-7 고령층 후보 {len(gn_l2)}곳({'·'.join(gn_l2)})은 모두 "
     f"1인세대 비율 상위 동이고, 22개 동 모두 안부·관계 거점이 {gn_maxkm:.1f}km 안이라 접근성 근거가 없습니다. 그래서 대응은 '담당자 추가 분석'입니다. "
-    f"이 {n_gn}개 동의 1인세대는 {one_gn:,}세대, 65세 이상 인구는 {gp_gn:,}명입니다(주민등록, 1인 여부와 별개). "
+    f"이 {n_gn}개 동의 전 연령 1인세대는 {one_gn:,}세대, 65세 이상 주민등록 인구 전체는 {gp_gn:,}명입니다(1인 여부와 별개). "
     "청년 남성은 동을 고르지 않고 도시 단위 '안내 강화' 1건입니다. "
     f"임계값을 바꾸면 후보 수(이탈 후보 포함)는 {int(gr['후보수_최소'])}~{int(gr['후보수_최대'])}건입니다(기본 {int(gr['후보수_기본'])}건).")
 r.p()
@@ -463,7 +465,8 @@ kms = cc_rows["A1 안부·관계 거점 거리(km)"]
 n_cc, one_cc, gp_cc = people("춘천", f"추석 D-7 ({DATES['추석 D-7']:%m/%d})", "고령층", ("Level 3",))
 r.p(f"**② 춘천은 면 지역 {len(cc3['추석 D-7'])}곳이 '우선 현장 확인'(Level 3)입니다.** {'·'.join(cc3['추석 D-7'])}은 1인세대 비율 상위이면서 "
     f"안부·관계 거점까지 {kms.min():.0f}~{kms.max():.0f}km입니다. 세 기준일 모두 Level 3인 곳: {'·'.join(same3) or '없음'}. "
-    f"이 {n_cc}곳의 65세 이상 인구는 {gp_cc:,}명, 1인세대는 {one_cc:,}세대입니다(주민등록). 거리는 2026년 원장 기준입니다.")
+    f"이 {n_cc}곳의 65세 이상 주민등록 인구 전체는 {gp_cc:,}명, 전 연령 1인세대는 {one_cc:,}세대입니다(고령 1인세대 수가 아님). "
+    "거리는 2026년 원장 기준이라, 이 Level 3는 2025 생활 신호 + 현재 원장으로 계산한 대응 우선순위 시연입니다.")
 r.p()
 gn_w = summary[(summary["도시"] == "강남") & summary["기준일"].str.startswith("동절기")]["후보 수"].sum()
 r.p(f"**③ 강남 동절기 후보는 {int(gn_w)}곳입니다.** 강남에는 동절기·한파 규칙이 아직 없기 때문이지 '강남은 겨울에 안전하다'는 뜻이 아닙니다. "
@@ -495,11 +498,14 @@ if len(changes):
     n_dev_all = int((changes["후보"] == "이탈").sum())
     n_dev_hold = int(((changes["후보"] == "이탈") & (changes["카드 반증 자료 뺌"] == "판단 보류")).sum())
     n_dev_now_hold = int(((changes["후보"] == "이탈") & (changes["전체 근거 등급"] == "판단 보류")).sum())
-    n_tel = int(((changes["후보"] == "예정된 점검") & (changes["통신 뺌"] != changes["전체 근거 등급"])).sum())
-    r.p(f"- **카드 반증**: 이탈 후보 {n_dev_all}건(집단 합)은 반증 자료(연휴 기대값·도시 공통요인, 카드)가 없으면 모두 '판단 보류'입니다. "
-        f"반증 자료가 있으면 {n_dev_all - n_dev_now_hold}건이 결론(통과 → Level 1·2)을 얻고, {n_dev_now_hold}건은 연휴 뒤 회복을 아직 못 봐 보류로 남습니다. "
+    tel_mask = (changes["후보"] == "예정된 점검") & (changes["통신 뺌"] != changes["전체 근거 등급"])
+    n_tel = int(tel_mask.sum())
+    n_tel_dong, n_tel_grp = changes[tel_mask]["동"].nunique(), changes[tel_mask]["집단"].nunique()
+    r.p(f"- **카드 반증**: 기준일·집단을 합친 이탈 후보 행 {n_dev_all}개는 반증 자료(연휴 기대값·도시 공통요인, 카드)가 없으면 모두 '판단 보류'입니다. "
+        f"반증 자료가 있으면 {n_dev_all - n_dev_now_hold}행이 결론(통과 → Level 1·2)을 얻고, {n_dev_now_hold}행은 연휴 뒤 회복을 아직 못 봐 보류로 남습니다 "
+        "(행 수이지 고립 사례 수가 아님). "
         "카드를 모두 빼면 이탈 후보 자체가 없습니다(예정된 점검은 그대로).")
-    r.p(f"- **통신**: 춘천 동절기 Level 3 {n_tel}건(집단 합)은 읍·면 겨울 체류 변화(W1, 통신)가 없으면 필수 근거가 빠져 "
+    r.p(f"- **통신**: 춘천 동절기 Level 3 {n_tel}행(후보 동 {n_tel_dong}곳 × 집단 {n_tel_grp}개)은 읍·면 겨울 체류 변화(W1, 통신)가 없으면 필수 근거가 빠져 "
         "부분 판정(CAP-PARTIAL) → Level 2입니다. 통신은 동 순위를 바꾸지 않지만 Level 3의 필수 근거를 채웁니다.")
 changes.to_csv(r.dir / "판단변화.csv", index=False, encoding="utf-8-sig")
 r.p(f"- EDA-6 실제 경보 {len(alarms)}건의 반증 결과: " + " · ".join(f"{k} {v}" for k, v in alarm_rev.items())

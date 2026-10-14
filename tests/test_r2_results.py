@@ -100,7 +100,10 @@ def test_w2_recall_recomputes():
         assert len(got) <= k
         assert r["맞은 수"] == len([x for x in got if x in gold])
         if gold:
-            assert r[f"Recall@{k}"] == pytest.approx(r["맞은 수"] / min(k, len(gold)))
+            # 상위 k개 충족도 (k-정규화 Recall@k, 분모 min(k, 정답 수))와 정답 전체 기준 재현율을 따로 적음 (외부 점검 K-03)
+            assert r[f"k-정규화 Recall@{k}"] == pytest.approx(r["맞은 수"] / min(k, len(gold)))
+            assert r["정답 전체 재현율"] == pytest.approx(r["맞은 수"] / len(gold))
+    assert f"Recall@{k}" not in res.columns  # 분모 정의 없는 짧은 이름은 쓰지 않음
 
 
 def test_m3_adoption_criteria_fixed():
@@ -147,3 +150,36 @@ def test_reproduce_hash_roundtrip(tmp_path):
     (rep / "x.csv").write_bytes(b"a,b\n1,3\n")
     c = rp.compare_hashes(rp.result_hashes(tmp_path), h)
     assert c["다름"] == ["a/x.csv"]
+
+
+def test_reproduce_check_fails_on_new_or_missing(tmp_path):
+    """검증 목록의 파일이 없거나, 목록에 없는 CSV 가 생기면 실패. 로컬 전용은 없으면 건너뜀 (외부 점검 K-04)."""
+    rp = _reproduce()
+    rep = tmp_path / "reports" / "a"
+    rep.mkdir(parents=True)
+    (rep / "x.csv").write_bytes(b"a,b\n1,2\n")
+    hf, lf = tmp_path / "h.txt", tmp_path / "h_local.txt"
+    rp.write_hashes(rp.result_hashes(tmp_path), hf)
+    rp.write_hashes({next(iter(rp.LOCAL_ONLY)): "0" * 64}, lf, "local")
+    ok, res = rp.check_hashes(tmp_path, hf, lf)
+    assert ok and res["로컬"]["건너뜀"] == sorted(rp.LOCAL_ONLY)
+    (rep / "new.csv").write_bytes(b"a\n1\n")  # 새 파일
+    ok, res = rp.check_hashes(tmp_path, hf, lf)
+    assert not ok and res["검증"]["새 파일"] == ["a/new.csv"]
+    (rep / "new.csv").unlink()
+    (rep / "x.csv").unlink()  # 없어짐
+    ok, res = rp.check_hashes(tmp_path, hf, lf)
+    assert not ok and res["검증"]["없어짐"] == ["a/x.csv"]
+
+
+def test_reproduce_hash_list_is_tracked_csvs():
+    """reports/결과_해시.txt = git 이 추적하는 리포트 CSV 전부 (S-1 포함), 로컬 전용은 따로."""
+    rp = _reproduce()
+    tracked = rp.tracked_csvs(ROOT)
+    if tracked is None:
+        pytest.skip("git 없음")
+    listed = set(rp.read_hashes(rp.HASH_FILE))
+    assert listed == tracked
+    assert any(k.startswith("s1_LINK-Sim/") for k in listed)
+    assert not (rp.LOCAL_ONLY & listed)
+    assert set(rp.read_hashes(rp.LOCAL_HASH_FILE)) == rp.LOCAL_ONLY

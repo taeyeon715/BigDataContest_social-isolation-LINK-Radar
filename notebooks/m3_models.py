@@ -341,7 +341,8 @@ nums = [
      "임계값을 바꿨을 때 탐지와 오경보가 어떻게 바뀌나", "현장 정확도 (정답이 합성)", "이 리포트 ①"],
     ["M1 기대 활동 (채택 0b)", f"h=1 상대 MAE 강남 {mm['강남 h=1']['0b']:.1%} · 춘천 {mm['춘천 h=1']['0b']:.1%} (STL·LightGBM 미채택)",
      "평소 결제를 얼마나 맞히나", "고립 예측", "M1 1·2절"],
-    [f"M3 이탈 분류 ({CAND}, 합성 정답)", f"PR-AUC {S_all[f'{CAND} PR-AUC']:.2f} (CI {pr_lo:.2f}~{pr_hi:.2f}), 같은 FPR 탐지율 차 {diff * 100:+.1f}%p → {'채택' if adopted else '미채택'}",
+    [f"M3 이탈 분류 ({CAND}, 합성 정답)", (f"PR-AUC {S_all[f'{CAND} PR-AUC']:.2f} (CI {pr_lo:.2f}~{pr_hi:.2f}). 학습 블록에서 규칙과 FPR을 맞춘 임계값으로 탐지율 차 {diff * 100:+.1f}%p, "
+      f"그러나 평가 블록 오경보율 {S_all[f'{CAND} 오경보율']:.1%} vs 규칙 {S_all['규칙 오경보율(FPR)']:.1%} ({fpr_diff * 100:+.1f}%p, 허용 +{ad['fpr_tolerance_pp']}%p) → {'채택' if adopted else '미채택'}"),
      "규칙보다 나은 분류가 가능한가 (미리 정한 기준)", "실제 고립 분류 성능", "이 리포트 ②"],
     ["M2 대리 과제 B (릿지)", f"순위상관 ρ 강남 {m2r.loc['강남', '순위상관 ρ']:.2f} · 춘천 {m2r.loc['춘천', '순위상관 ρ']:.2f} (GroupKFold)",
      "격자 고령 비중을 다른 칸으로 맞히나", "고립", "M2"],
@@ -354,8 +355,9 @@ gr = rng_csv[(rng_csv["도시"] == "강남") & (rng_csv["기준일"] == "추석 
 nums.append(["등급 규칙 (R-1)", f"강남 추석 D-7 고령층 후보 {int(gr['후보수_기본'])}건 (예정된 점검·이탈 합, 임계값 범위 {int(gr['후보수_최소'])}~{int(gr['후보수_최대'])}건), 페르소나 {int((pers['기대와 맞음'] == '예').sum())}/{len(pers)}",
              "규칙이 일관되게 돌고 임계값에 얼마나 민감한가", "등급의 정확도 (정답 없음)", "R-1 1·3·5절"])
 if w2 is not None:
-    nums.append(["자원 추천 (W-2, 30쌍)", f"Recall@5 {w2['Recall@5'].mean():.2f}, 부적격 추천 {int(w2['부적격 추천'].sum())}건, 자격 확인 필요 {int(w2['자격 확인 필요 추천'].sum())}건",
-                 "미리 적은 기준대로 고르나 (공개 원장 정답)", "자원이 실제로 도움이 되나", "W-2"])
+    nums.append(["자원 추천 (W-2, 30쌍)", (f"상위 5개 충족도 (k-정규화 Recall@5, 분모 min(5, 정답 수)) {w2['k-정규화 Recall@5'].mean():.4f}; 정답 전체 재현율 {w2['정답 전체 재현율'].mean():.4f}, "
+                  f"정밀도@5 {w2['정밀도@5'].mean():.2f}, Hit@5 {w2['Hit@5'].mean():.2f}; 명시적 부적격 추천 {int(w2['부적격 추천'].sum())}건, 자격 확인 필요 {int(w2['자격 확인 필요 추천'].sum())}건"),
+                 "미리 적은 기준대로 고르나 (공개 원장 정답)", "정답 전체의 75% 회수, 자원이 실제로 도움이 되나·이용 가능한가", "W-2"])
 nums = pd.DataFrame(nums, columns=["평가", "숫자", "입증하는 것", "입증하지 못하는 것", "출처"])
 
 cards = pd.DataFrame([
@@ -364,7 +366,7 @@ cards = pd.DataFrame([
     ["M1 기대 활동", "시계열 회귀 (기준선·STL·LightGBM)", "같음", "rolling-origin, 채택 기준 선커밋 (models.yaml)",
      "상대 MAE·구간 포함률·같은 쌍 탐지율", "경보 기대값 = EDA-6 규칙 유지, 예측 0b", "184일, 공휴일 학습 1일"],
     [f"M3 이탈 분류 ({CAND})", "이진 분류 (로지스틱 기준 + LightGBM)", "합성 주입 표본 (위 패널)", "시간 블록 4주 전진 검증, 채택 기준 선커밋 (models_m3.yaml)",
-     "PR-AUC·ROC-AUC·같은 FPR 탐지율·Brier·ECE·permutation importance", "채택되면 다음 판 D1 입력 후보 (이번 판 등급 불변)" if adopted else "미채택 (규칙 유지)",
+     "PR-AUC·ROC-AUC·학습 블록 FPR을 맞춘 임계값의 탐지율·평가 블록 FPR·Brier·ECE·permutation importance", "채택되면 다음 판 D1 입력 후보 (이번 판 등급 불변)" if adopted else "미채택 (규칙 유지)",
      "정답이 합성, 실제 고립 아님"],
     ["M2 대리 과제 B", "회귀 (릿지·LightGBM)", "통신 격자", "행정동 GroupKFold", "R²·MAE·ρ", "보조 (등급 입력 아님)", "대리 과제"],
     ["M4 위험 요인", "로지스틱 (탐색적)", "강남 시민생활 60+ × 22개 동", "동 GroupKFold 5겹 × 50번, 동 군집 부트스트랩",
@@ -454,6 +456,8 @@ r.p(f"- {CAND} PR-AUC 95% CI {pr_lo:.3f}~{pr_hi:.3f}. 규칙의 PR 한 점: 재�
 tbl.reset_index().to_csv(OUT / "m3_성능.csv", index=False, encoding="utf-8-sig")
 r.h3("채택 판정 (미리 정한 기준)")
 r.table(decision.set_index("조건"))
+r.p(f"- 읽을 때 주의: 임계값은 **학습 블록**에서 규칙과 오경보율을 맞춘 값입니다. 평가 블록에서는 {CAND} {S_all[f'{CAND} 오경보율']:.1%} 대 "
+    f"규칙 {S_all['규칙 오경보율(FPR)']:.1%}로 같지 않았습니다(조건 3). 그래서 (1)의 {diff * 100:+.1f}%p를 '평가에서도 같은 오경보율로 더 많이 잡았다'로 읽지 않습니다.")
 r.p(f"**판정: {CAND} {'채택 — 다음 판에서 D1 이탈 신호의 입력 후보로 검토. 이번 판 등급·반증·순서는 그대로' if adopted else '미채택 — 경보 규칙을 그대로 씁니다'}.** "
     "채택돼도 등급을 모델이 정하지 않습니다.")
 decision.to_csv(OUT / "m3_채택판정.csv", index=False, encoding="utf-8-sig")

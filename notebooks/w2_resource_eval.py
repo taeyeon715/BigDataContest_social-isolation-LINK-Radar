@@ -1,4 +1,4 @@
-"""W-2 자원 추천 평가: 작은 정답 세트로 Recall@5 와 부적격 추천 수
+"""W-2 자원 추천 평가: 작은 정답 세트로 상위 5개 충족도(k-정규화 Recall@5)·정답 전체 재현율·정밀도·Hit@5 와 부적격 추천 수
 
 실행: uv run python notebooks/w2_labels.py   (정답 세트, 이미 커밋돼 있으면 건너뛰어도 됨)
       uv run python notebooks/w2_resource_eval.py   (원본 데이터 없이 됨: 원장 v2 + 행정동 중심점)
@@ -33,6 +33,12 @@ led = load_ledger()
 cen = pd.read_csv(ROOT / "ref" / "adm_cd_names.csv", dtype={"adm_cd": str})
 rows_by_id = led.set_index("resource_id")
 pairs = pd.DataFrame(CFG["pairs"], columns=["도시", "동", "집단", "필요 유형", "원인 유형"])
+# 지표 이름 (2026-10-14 외부 점검 K-03): 분모가 min(5, 정답 수)라 "정답의 몇 %를 찾았나"가 아니다.
+# 계산은 처음부터 같고 이름만 정의를 붙였다. 정답 전체를 분모로 하는 재현율은 혼동을 막으려고 함께 적는다(사후 추가 지표).
+R5 = f"k-정규화 Recall@{KK}"          # 상위 5개 충족도: 맞은 수 ÷ min(5, 정답 수)
+RF = "정답 전체 재현율"                # 맞은 수 ÷ 정답 수
+H5, P5 = f"Hit@{KK}", f"정밀도@{KK}"
+R5_LABEL = f"상위 {KK}개 충족도 (k-정규화 Recall@{KK}, 분모 min({KK}, 정답 수))"
 
 
 def ineligible_why(r, city: str, adm: str, group: str, holiday: bool) -> list[str]:
@@ -74,13 +80,13 @@ for p in pairs.itertuples(index=False):
                          "전달 방식": m.delivery_channel})
     denom = min(KK, len(gold))
     per.append({"도시": city, "동": dong, "집단": group, "필요 유형": need, "원인 유형": cause, "정답 수": len(gold),
-                "추천 수": len(got), "맞은 수": len(hit), f"Recall@{KK}": len(hit) / denom if denom else np.nan,
+                "추천 수": len(got), "맞은 수": len(hit), R5: len(hit) / denom if denom else np.nan,
+                RF: len(hit) / len(gold) if gold else np.nan,
                 f"Hit@{KK}": float(len(hit) > 0) if gold else np.nan,
                 f"정밀도@{KK}": len(hit) / len(got) if got else np.nan,
                 "부적격 추천": inel, "자격 확인 필요 추천": unsure, "위급 시 안내(순위 밖)": len(sel.crisis)})
 res = pd.DataFrame(per)
 tops = pd.DataFrame(top_rows)
-R5, H5, P5 = f"Recall@{KK}", f"Hit@{KK}", f"정밀도@{KK}"
 
 r = Report("w2_자원추천평가", "W-2 자원 추천 평가 (작은 정답 세트)")
 r.p(f"복지자원 추천이 미리 적은 기준대로 자원을 고르는지 **(동 × 집단 × 필요 유형) {len(pairs)}쌍**으로 봅니다. "
@@ -92,24 +98,31 @@ r.p("- 정답은 팀이 공개 정보(복지자원 원장 v2 의 공개 출처 �
     "담당자가 자원마다 전화·현장으로 확인한 정답이 아닙니다.")
 r.p("- 정답 규칙은 추천 코드(`resources/match.py`, `configs/need_types.yaml`)를 옮겨 쓰지 않고 따로 적었습니다. 그래도 같은 원장 칸을 쓰므로 "
     "이 평가는 \"원장이 맞다면 추천이 기준에 맞게 고르나\"를 보고, 자원이 실제로 도움이 되는지는 보지 않습니다.")
-r.p(f"- Recall@{KK} = 상위 {KK}개 중 정답 수 ÷ min({KK}, 정답 수). 부적격 추천 = 상위 {KK}개 중 다른 시·구, 대상 연령 밖, 다른 관할 동, 운영 중단, "
-    "연휴인데 휴일 미운영 자원 수.")
+r.p(f"- **{R5_LABEL}** = 상위 {KK}개 중 정답 수 ÷ min({KK}, 정답 수). 추천 칸이 {KK}개뿐이라 그 안에서 채울 수 있는 만큼 채웠나를 봅니다. "
+    f"정답이 {KK}개보다 많으면 정답의 일부만 맞혀도 1이 될 수 있어 **\"정답의 몇 %를 찾았다\"는 뜻이 아닙니다.**")
+r.p(f"- {RF} = 상위 {KK}개 중 정답 수 ÷ 정답 수 (정답 전체 기준). {P5} = 상위 {KK}개 중 정답 수 ÷ 추천 수. {H5} = 정답이 하나라도 든 쌍 비율.")
+r.p(f"- 부적격 추천 = 상위 {KK}개 중 다른 시·구, 대상 연령 밖, 다른 관할 동, 운영 중단, 연휴인데 휴일 미운영 자원 수.")
+r.p("- 이름 변경 기록: 처음 판(w2-1)은 첫 지표를 'Recall@5'라는 짧은 이름으로 적었습니다. 계산은 같고, 정답 전체 기준 재현율과 혼동되지 않도록 "
+    "2026-10-14 외부 점검(K-03) 뒤 이름에 분모를 붙였습니다. 정답 전체 재현율은 이때 함께 적기 시작한 값입니다.")
 
 r.h("1. 전체")
 tot = pd.DataFrame([{
-    "쌍": len(res), f"평균 {R5}": res[R5].mean(), f"{H5}": res[H5].mean(), f"평균 {P5}": res[P5].mean(),
+    "쌍": len(res), f"평균 {R5}": res[R5].mean(), f"평균 {RF}": res[RF].mean(), f"{H5}": res[H5].mean(), f"평균 {P5}": res[P5].mean(),
     "추천 수 합": int(res["추천 수"].sum()), "부적격 추천 합": int(res["부적격 추천"].sum()),
     "자격 확인 필요 추천 합": int(res["자격 확인 필요 추천"].sum()),
     f"{KK}개를 못 채운 쌍": int((res["추천 수"] < KK).sum())}]).set_index("쌍")
-r.table(tot, fmt={f"평균 {R5}": "{:.2f}", H5: "{:.0%}", f"평균 {P5}": "{:.2f}", "추천 수 합": "{:.0f}", "부적격 추천 합": "{:.0f}",
+r.table(tot, fmt={f"평균 {R5}": "{:.2f}", f"평균 {RF}": "{:.2f}", H5: "{:.0%}", f"평균 {P5}": "{:.2f}", "추천 수 합": "{:.0f}", "부적격 추천 합": "{:.0f}",
                  "자격 확인 필요 추천 합": "{:.0f}", f"{KK}개를 못 채운 쌍": "{:.0f}"})
-by = res.groupby(["도시", "필요 유형"]).agg(쌍=("동", "size"), recall=(R5, "mean"), hit=(H5, "mean"),
+by = res.groupby(["도시", "필요 유형"]).agg(쌍=("동", "size"), recall=(R5, "mean"), full=(RF, "mean"), hit=(H5, "mean"),
                                          부적격=("부적격 추천", "sum"), 확인필요=("자격 확인 필요 추천", "sum")).reset_index()
-by = by.rename(columns={"recall": f"평균 {R5}", "hit": H5, "부적격": "부적격 추천", "확인필요": "자격 확인 필요 추천"})
-r.table(by.set_index("도시"), fmt={f"평균 {R5}": "{:.2f}", H5: "{:.0%}"})
+by = by.rename(columns={"recall": f"평균 {R5}", "full": f"평균 {RF}", "hit": H5, "부적격": "부적격 추천", "확인필요": "자격 확인 필요 추천"})
+r.table(by.set_index("도시"), fmt={f"평균 {R5}": "{:.2f}", f"평균 {RF}": "{:.2f}", H5: "{:.0%}"})
+r.p(f"- 읽는 법: 평균 {R5}({res[R5].mean():.4f})는 \"추천 {KK}칸을 정답으로 채울 수 있는 만큼 채운 정도\"입니다. 정답 전체 기준으로는 평균 "
+    f"{res[RF].mean():.4f}, 추천 중 정답 비율(정밀도)은 {res[P5].mean():.2f}, 정답이 하나라도 든 쌍은 {res[H5].mean():.0%}입니다. "
+    "어느 값도 실제 연계 성공률이나 자원 이용 가능성을 뜻하지 않습니다.")
 
 r.h("2. 쌍별 결과")
-r.table(res.set_index("도시"), fmt={R5: "{:.2f}", H5: "{:.0f}", P5: "{:.2f}"})
+r.table(res.set_index("도시"), fmt={R5: "{:.2f}", RF: "{:.2f}", H5: "{:.0f}", P5: "{:.2f}"})
 res.to_csv(OUT / "쌍별_결과.csv", index=False, encoding="utf-8-sig")
 tops.to_csv(OUT / "추천_상위5.csv", index=False, encoding="utf-8-sig")
 
@@ -122,7 +135,7 @@ r.p("- 위 표는 추천 코드와 정답 규칙이 다르게 본 자원 분류�
     "어느 쪽을 고칠지는 담당자 검토로 정합니다(자동으로 고치지 않음).")
 low = res[res[R5] < 0.6].sort_values(R5)
 if len(low):
-    r.p(f"- Recall@{KK} 0.6 미만 쌍: " + "; ".join(f"{a} {b} {c} {d} ({e:.2f})" for a, b, c, d, e in
+    r.p(f"- {R5} 0.6 미만 쌍: " + "; ".join(f"{a} {b} {c} {d} ({e:.2f})" for a, b, c, d, e in
                                              low[["도시", "동", "집단", "필요 유형", R5]].itertuples(index=False)))
 
 r.h("4. 사후 민감도: 거리 기준을 10km로 넓히면 (사전 규칙 아님)")
