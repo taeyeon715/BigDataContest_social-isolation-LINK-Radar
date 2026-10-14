@@ -10,7 +10,7 @@
 ![Claude](https://img.shields.io/badge/Claude-Sonnet%205.5-D97757?logo=anthropic&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/pytest-1115%20passed-2EA44F?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest-1117%20passed-2EA44F?logo=pytest&logoColor=white)
 
 2026 빅콘테스트 · AI데이터 활용 분야 · 서울 강남구 · 강원 춘천시
 
@@ -64,7 +64,7 @@ LINK-Radar는 통신·카드 집계 데이터와 공공데이터를 함께 보�
 <td colspan="2" align="center"><img src="docs/images/demo_09_추석뒤_신호.png" alt="추석 뒤 생활 변화 신호" width="760"><br><sub><b>추석 뒤 (기준일 2025-10-15)</b> — 춘천 고령층 예상 밖 이탈 2건(60대 여성·80대+ 여성, 다른 원인 없음 → 담당자 확인 Level 2), 기각·보류 4건. 아래는 보류 1건(70대 남성): 도시 전체가 함께 낮고 연휴 외지 손님 비중이 28.6%로 직전 주말 20.8%보다 +7.7%p라 연휴 이동과 맞음 → 기각하지 않고 연휴 뒤 회복을 다시 확인</sub></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><img src="docs/images/demo_07_인쇄.png" alt="인쇄용 보기" width="760"><br><sub><b>인쇄용 보기 (PDF 9쪽 중 1·7·8쪽)</b> — 자원 판정(강촌동아약국·남면행정복지센터 적합, 노인맞춤돌봄서비스 보류) 뒤 3판을 "남면 복지팀(시연)"이 승인. 모든 쪽 위아래에 "내부용(대외비)"과 쪽 번호</sub></td>
+<td colspan="2" align="center"><img src="docs/images/demo_07_인쇄.png" alt="인쇄용 보기" width="760"><br><sub><b>인쇄용 보기 (PDF 9쪽 중 1·6·8쪽)</b> — 자원 판정(강촌동아약국·남면행정복지센터 적합, 노인맞춤돌봄서비스 보류)이 핵심 사실에 자원 이름으로 들어간 3판을 "남면 복지팀(시연)"이 승인. 모든 쪽 위아래에 "내부용(대외비)"과 쪽 번호</sub></td>
 </tr>
 </table>
 
@@ -347,8 +347,8 @@ cd web && npm test        # 화면 상태 (Vitest)
 
 | 항목 | 결과 |
 |---|---|
-| pytest | **1,115 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
-| 화면 (vitest) | **114 통과** |
+| pytest | **1,117 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
+| 화면 (vitest) | **128 통과** |
 | 하락 폭별 감지 | 2·3·5·10·15·20% 하락의 감지율과 코호트 단위 신뢰구간을 함께 공개 ([EDA-6](reports/eda6_사전경보재평가/)) |
 | 시연 사례 D1~D4 | 실제 데이터 도구로 끝까지 동작. 정상 자료에서 가짜 LLM 6종·LLM 없음·실제 Claude의 등급이 같음 |
 | 자원 추천 (W-2, 30쌍) | 상위 5개 충족도 (k-정규화 Recall@5, 분모 min(5, 정답 수)) **0.7533**, 정답 전체 기준 재현율 0.3876, 정밀도@5 0.64, Hit@5 90%. 명시적 부적격 추천 0건, 자격 확인 필요 83건 ([W-2](reports/w2_자원추천평가/README.md)) |

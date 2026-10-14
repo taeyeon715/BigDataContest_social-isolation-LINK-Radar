@@ -37,7 +37,7 @@ describe('추가 조사 범위 (focus)', () => {
     const form = screen.getByTestId('more-form')
     expect(within(form).getByTestId('more-remaining')).toHaveTextContent('남은 추가 조사 1회 (최대 2회)')
     expect(within(form).getByTestId('more-memo-warning')).toHaveTextContent('개인 정보·이름은 쓰지 마세요')
-    expect(within(form).getByRole('checkbox', { name: /C-1/ })).toBeChecked() // 지금 후보는 미리 골라 둠
+    expect(within(form).getByRole('checkbox', { name: /강남 논현1동/ })).toBeChecked() // 지금 후보는 미리 골라 둠
     await userEvent.click(within(form).getByRole('checkbox', { name: /연휴 전후 차이 계산/ }))
     await userEvent.click(within(form).getByRole('checkbox', { name: '강수' }))
     await userEvent.type(within(form).getByRole('textbox'), '연휴 뒤 회복이 늦은지')

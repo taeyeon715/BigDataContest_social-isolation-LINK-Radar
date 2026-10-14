@@ -1,4 +1,4 @@
-import type { Candidate, CandidateLevel, CandidateType, RunPhase } from '../api'
+import { DISCLAIMER, type Candidate, type CandidateLevel, type CandidateType, type RunPhase } from '../api'
 import { CENTROIDS } from '../map/centroids'
 
 export const TYPE_LABEL: Record<CandidateType, string> = {
@@ -233,6 +233,15 @@ export const TOOL_LABEL: Record<string, string> = {
   calc_heat_response: '폭염 때 반응 계산',
 }
 
+/** 추가 도구 한 줄 설명 (추가 조사 범위 고르기) */
+export const TOOL_NOTE: Record<string, string> = {
+  get_mobility_layer: '통신 체류 인구 구성 (참고)',
+  get_validation_reference: '서울 시민생활 지표 (참고)',
+  calc_holiday_gap: '연휴 중·뒤 결제가 평소와 얼마나 다른지',
+  calc_winter_contraction: '춘천 읍·면 겨울 활동 변화',
+  calc_heat_response: '폭염일 생필품 결제 차이',
+}
+
 /** 판단 기록의 "누가 정했나" */
 export const TRACE_SOURCE_LABEL: Record<string, string> = {
   rule: '규칙',
@@ -306,23 +315,42 @@ export function splitRefs(text: string): ({ text: string } | { ref: string })[] 
   const out: ({ text: string } | { ref: string })[] = []
   let last = 0
   for (const m of text.matchAll(EV_RE)) {
-    if (m.index! > last) out.push({ text: text.slice(last, m.index) })
+    // "근거 [EV-…]" 는 버튼 글자가 이미 "근거 n"이라 앞의 "근거"를 뺀다 ("근거 근거 4" 방지)
+    if (m.index! > last) out.push({ text: text.slice(last, m.index).replace(/근거\s*$/, '') })
     out.push({ ref: m[1] })
     last = m.index! + m[0].length
   }
   if (last < text.length) out.push({ text: text.slice(last) })
-  return out
+  return out.filter((p) => !('text' in p) || p.text !== '')
 }
-/** 인쇄·글자용: [EV-…] → "(근거 n)". 모르는 ID 는 "(근거)" */
+/** 인쇄·글자용: [EV-…] → "(근거 n)", "근거 [EV-…]" → "근거 n". 모르는 ID 는 "(근거)" */
 export function refsToText(text: string, idx: Map<string, { n: number; name: string }>): string {
-  return text.replace(EV_RE, (_m, id: string) => {
+  return text.replace(/(근거\s*)?\[(EV-[0-9A-Za-z-]+)\]/g, (_m, word: string | undefined, id: string) => {
     const r = idx.get(id)
+    if (word) return r ? `근거 ${r.n}` : '근거'
     return r ? `(근거 ${r.n})` : '(근거)'
   })
 }
+
+/** 자원 원장 ID 모양: R0000, EP-C…, EH-A…, EE-A…, WN-WLF…-GN/CC, WL-WLF…, MC·CP·PP·JB·AD-CC/GN…, 가짜 STUB-R… */
+export const RESOURCE_ID_SRC = String.raw`(?:R\d{4}|E[PHE]-[AC]\d+|WN-WLF\d+-(?:GN|CC)|WL-WLF\d+|(?:MC|CP|PP|JB|AD)-(?:CC|GN)\d+|STUB-R\d+)`
+const RES_WITH_NAME_RE = new RegExp(String.raw`\b(${RESOURCE_ID_SRC})\b(?: \(([^()]+)\))?`, 'g')
+const RES_BEFORE_NAME_RE = new RegExp(String.raw`\b${RESOURCE_ID_SRC}\b\s+(?=[가-힣])`, 'g')
+
+/** 문장 속 자원 ID → 이름. "ID (이름)"은 이름 한 번만. 이름을 모르는 ID 뒤에 이름이 바로 오면 ID 를 뺌 */
+export function resourceIdsToNames(s: string, resourceNames: Record<string, string> = {}): string {
+  return s
+    .replace(RES_WITH_NAME_RE, (m, id: string, paren: string | undefined) => {
+      const n = resourceNames[id]
+      if (!n) return m
+      return paren === undefined || paren === n ? n : `${n} (${paren})`
+    })
+    .replace(RES_BEFORE_NAME_RE, '')
+}
+
 /** 보고서 문장 가공 (화면·인쇄 같이 씀): 자원 코드 → 이름, 입력 코드 → 한국어, 거점 이름 */
 export function reportText(s: string, resourceNames: Record<string, string> = {}): string {
-  return plainText(replaceInputCodes(s.replace(/\bR\d{4}\b/g, (m) => resourceNames[m] ?? m)))
+  return plainText(replaceInputCodes(resourceIdsToNames(s, resourceNames)))
     .replace(/ \((?:11|32)\d{6}\)/g, '') // 동 이름 옆 행정동 코드 (이름이 이미 있음)
     .replace(/\s*\[rules-[^\]]*\]/g, '') // 규칙 ID (등급 조건 "자세히"에서 봄)
     .replace(/후보 C-\d{8}-\d{3} · /g, '') // 후보 ID (화면 제목에 동·집단 이름이 있음)
@@ -336,4 +364,60 @@ export function isSharedName(name: string | null | undefined): boolean {
 /** 글자용 (인쇄): "공용:demo (공용 계정)" */
 export function nameText(name: string): string {
   return isSharedName(name) ? `${name} (공용 계정 · 누가 했는지 따로 적어 두세요)` : name
+}
+
+// ---- 등급 조건 값 표시 (단위: 비율→%, km, 일, 위)
+const CMP_KO: Record<string, string> = { '>=': '이상', '>': '초과', '<=': '이하', '<': '미만' }
+
+function trimNum(x: number, digits: number): string {
+  return String(Number(x.toFixed(digits)))
+}
+
+/** 등급 조건 값 하나: 0.153 (비율) → "15.3%", 18.57 (km) → "18.57km", 5 (위) → "5위" */
+export function fmtCheckValue(v: unknown, unit?: string | null): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v !== 'number') return String(v)
+  if (unit && unit.includes('비율')) return `${trimNum(v * 100, 1)}%`
+  return `${trimNum(v, 4)}${unit ?? ''}`
+}
+
+/** 기준까지 차이: 비율이면 %p */
+export function fmtCheckGap(d: number, unit?: string | null): string {
+  if (unit && unit.includes('비율')) return `${trimNum(d * 100, 1)}%p`
+  return `${trimNum(d, 2)}${unit ?? ''}`
+}
+
+/** "값 15.3% (기준 10% 이상)" */
+export function fmtCheck(c: { value?: unknown; threshold?: unknown; unit?: string | null; comparator?: string | null }): string {
+  const v = `값 ${fmtCheckValue(c.value, c.unit)}`
+  if (c.threshold === null || c.threshold === undefined) return v
+  const cmp = c.comparator ? CMP_KO[c.comparator] : undefined
+  return `${v} (기준 ${fmtCheckValue(c.threshold, c.unit)}${cmp ? ` ${cmp}` : ''})`
+}
+
+// ---- 자료 이름 (한계 문장 앞머리 "card1: …")
+export const DATA_SOURCE_LABEL: Record<string, string> = {
+  card1: '카드 데이터1',
+  card2: '카드 데이터2',
+  tel_age: '통신 성연령 표',
+  tel_time: '통신 시간대 표',
+  tel_wkdy: '통신 요일 표',
+  resident_hh: '주민등록 세대',
+  resident_pop: '주민등록 인구',
+  seoul_living: '서울 시민생활 지표',
+  weather_asos: '기상 관측(ASOS)',
+}
+
+/** 한계 문장: 앞머리 자료 코드를 쉬운 이름으로 ("card1: 공개일…" → "카드 데이터1: 공개일…") */
+export function limitText(s: string): string {
+  return plainText(s.replace(/^([a-z][a-z0-9_]*):\s*/, (m, code: string) => (DATA_SOURCE_LABEL[code] ? `${DATA_SOURCE_LABEL[code]}: ` : m)))
+}
+
+// ---- 답 문장 나누기: 핵심 사실(템플릿) / 설명(LLM). 서버는 사실 줄 → "개인 판정 아님 · 최종 판단은 담당자" → 설명 줄 순서로 보냄
+export const ANSWER_DISCLAIMER = DISCLAIMER
+export function splitAnswer(text: string | null | undefined): { facts: string[]; explanation: string[]; disclaimer: boolean } {
+  const lines = (text ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+  const i = lines.indexOf(ANSWER_DISCLAIMER)
+  if (i < 0) return { facts: lines, explanation: [], disclaimer: false }
+  return { facts: lines.slice(0, i), explanation: lines.slice(i + 1), disclaimer: true }
 }

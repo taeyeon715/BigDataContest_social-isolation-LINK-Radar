@@ -356,7 +356,7 @@ def answer_followup(values: dict, question: str, llm_name: str | None = None,
         e = G.check_expression(rep, card, attempt=attempt)
         guard += [f.model_dump(mode="json"), e.model_dump(mode="json")]
         if f.verdict == "PASS" and e.verdict == "PASS":
-            text = template[:-1] + narr + template[-1:]
+            text = template + narr  # 사실 줄 → 고지 → 설명 줄 (화면이 고지를 경계로 사실과 설명을 나눔, 질의응답 답과 같은 순서)
             cited = list(dict.fromkeys([x.evidence_id for x in facts]
                                        + [i for s in narr for i in G._EV_ID.findall(s)]))
             return {"status": "answered", "answer": "\n".join(text), "cited_evidence_ids": cited,

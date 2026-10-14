@@ -12,6 +12,7 @@ import {
   fmtValue,
   groupOf,
   isActionSentence,
+  limitText,
   nameText,
   refsToText,
   reportText,
@@ -140,7 +141,7 @@ export function PrintReport({
             })}
           </tbody>
         </table>
-        {card.limitations.length > 0 && <div className="mt-1 text-xs text-ink-600">한계: {card.limitations.map(text).join(' · ')}</div>}
+        {card.limitations.length > 0 && <div className="mt-1 text-xs text-ink-600">한계: {card.limitations.map((l) => limitText(text(l))).join(' · ')}</div>}
       </Section>
 
       <Section title="할 수 있는 말 / 하면 안 되는 말">

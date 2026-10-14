@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { COUNTER_CHECKS, EXTRA_TOOLS, MAX_FOCUS_MEMO, type CounterCheck, type ExtraTool, type MoreFocus } from '../api'
-import { TOOL_LABEL } from '../lib/labels'
+import { TOOL_LABEL, TOOL_NOTE } from '../lib/labels'
 
 export type MoreCandidate = { candidate_id: string; label: string }
 
@@ -62,10 +62,9 @@ export function MoreForm({
           <legend className="mb-1 text-xs font-semibold text-ink-600">다시 볼 후보</legend>
           <div className="flex flex-col gap-1">
             {candidates.map((c) => (
-              <label key={c.candidate_id} className="flex items-center gap-2 text-sm">
+              <label key={c.candidate_id} className="flex items-center gap-2 text-sm" title={`후보 ID ${c.candidate_id}`}>
                 <input type="checkbox" className="h-4 w-4" checked={ids.includes(c.candidate_id)} onChange={() => setIds((l) => toggle(l, c.candidate_id))} />
                 <span>{c.label}</span>
-                <span className="font-mono text-xs text-ink-600">{c.candidate_id}</span>
               </label>
             ))}
           </div>
@@ -76,10 +75,12 @@ export function MoreForm({
         <legend className="mb-1 text-xs font-semibold text-ink-600">더 쓸 도구 (선택)</legend>
         <div className="flex flex-col gap-1">
           {EXTRA_TOOLS.map((t) => (
-            <label key={t} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" className="h-4 w-4" checked={tools.includes(t)} onChange={() => setTools((l) => toggle(l, t))} />
-              <span>{TOOL_LABEL[t] ?? t}</span>
-              <span className="font-mono text-xs text-ink-600">{t}</span>
+            <label key={t} className="flex items-start gap-2 text-sm" title={`도구 이름 ${t}`} data-tool={t}>
+              <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={tools.includes(t)} onChange={() => setTools((l) => toggle(l, t))} />
+              <span className="flex flex-col">
+                <span>{TOOL_LABEL[t] ?? t}</span>
+                {TOOL_NOTE[t] && <span className="text-xs text-ink-600">{TOOL_NOTE[t]}</span>}
+              </span>
             </label>
           ))}
         </div>

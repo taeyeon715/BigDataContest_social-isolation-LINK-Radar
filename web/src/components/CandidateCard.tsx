@@ -56,7 +56,9 @@ export function CandidateCard({ c, query, followUp, asOf }: { c: Candidate; quer
           <FollowUpBadge f={followUp} asOf={asOf} />
         </div>
       )}
-      <div className="mt-auto text-xs text-ink-600">{c.candidate_id}</div>
+      <div className="mt-auto text-xs font-semibold text-brand-700" title={`후보 ID ${c.candidate_id}`} data-testid="candidate-card-more">
+        자세히 보기 →
+      </div>
     </Link>
   )
 }

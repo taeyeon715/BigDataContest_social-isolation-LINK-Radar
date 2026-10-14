@@ -28,7 +28,7 @@ import { OutcomeForm } from '../components/OutcomeForm'
 import { ObjectionForm } from '../components/ObjectionForm'
 import { ProtectivePanel } from '../components/ProtectivePanel'
 import { Term } from '../components/Term'
-import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip , PersonName, RoleNote, useRole } from '../components/ui'
+import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, RUN_SLOW_TEXT, SelectedBadge, TimeLabelBar, TypeChip , PersonName, RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { useRunPoll } from '../lib/useRunPoll'
 import {
@@ -42,6 +42,7 @@ import {
   plainText,
   reportText,
   splitRefs,
+  limitText,
   NODE_LABEL,
   PHASE_LABEL,
   roundChangesView,
@@ -809,7 +810,7 @@ export default function CandidateDetail() {
 
           {run && BUSY.has(run.status) && (
             <Card>
-              <Loading label={`근거를 모으고 검사하는 중 (${run.path.length}단계 지남)`} onRetry={refresh} />
+              <Loading label={`근거를 모으고 검사하는 중 (${run.path.length}단계 지남)`} onRetry={refresh} slowText={RUN_SLOW_TEXT} stuckText={RUN_SLOW_TEXT} />
             </Card>
           )}
 
@@ -828,7 +829,7 @@ export default function CandidateDetail() {
                 {card.limitations.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {card.limitations.map((l) => (
-                      <Badge key={l}>{reportText(l, names)}</Badge>
+                      <Badge key={l}>{limitText(reportText(l, names))}</Badge>
                     ))}
                   </div>
                 )}
@@ -975,7 +976,7 @@ export default function CandidateDetail() {
                   )}
                   {report && rep && runId && (
                     <Card title="이어 묻기">
-                      <FollowupPanel key={runId} runId={runId} onCite={cite} refName={refFull} />
+                      <FollowupPanel key={runId} runId={runId} onCite={cite} refName={refFull} candidates={run?.candidates ?? []} />
                     </Card>
                   )}
                   <Card title="보고서 판 이력">

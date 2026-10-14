@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import type { CandidateAction, ContextSignal, LevelExplanation, RuleCheck, TimelineStep, TraceStep } from '../api'
 import { LIST_NOTE } from '../api'
-import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, mentionsHub, plainText } from '../lib/labels'
+import { HUB_NOTE, NODE_LABEL, TRACE_SOURCE_LABEL, fmtCheck, fmtCheckGap, mentionsHub, plainText } from '../lib/labels'
 import { Term } from './Term'
 
 /** 내일 아침 체크리스트: 꺼낼 명단 / 연락할 곳 / 방법 / 기한 / 확인할 영역 */
@@ -205,17 +205,14 @@ export function CheckAreasView({ a }: { a: CandidateAction }) {
   )
 }
 
-type CheckRow = { condition: string; met: boolean | null; value?: unknown; threshold?: unknown; distance?: number | null; unit?: string | null }
-
-function fmt(v: unknown, unit?: string | null): string {
-  if (v === null || v === undefined || v === '') return '—'
-  return `${v}${unit && typeof v === 'number' ? unit : ''}`
-}
+type CheckRow = { condition: string; met: boolean | null; value?: unknown; threshold?: unknown; distance?: number | null; unit?: string | null; comparator?: string | null }
 
 /** 등급 설명: 조건마다 충족 / 미충족 / 자료 없음 + 값과 기준. 보고서의 level_explanations, 없으면 후보의 rule_checks */
 export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation | null; checks?: RuleCheck[]; nameOf?: (code: string) => string }) {
-  const units = Object.fromEntries((checks ?? []).map((c) => [c.condition, c.unit ?? null]))
-  const rows: CheckRow[] = exp ? exp.checks.map((c) => ({ ...c, unit: units[c.condition] })) : (checks ?? [])
+  const byCond = Object.fromEntries((checks ?? []).map((c) => [c.condition, c]))
+  const rows: CheckRow[] = exp
+    ? exp.checks.map((c) => ({ ...c, unit: byCond[c.condition]?.unit ?? null, comparator: byCond[c.condition]?.comparator ?? null }))
+    : (checks ?? [])
   if (rows.length === 0) return null
   return (
     <div data-testid="level-explain">
@@ -229,11 +226,11 @@ export function LevelExplain({ exp, checks, nameOf }: { exp?: LevelExplanation |
             <li key={c.condition} className="flex flex-wrap items-center gap-2 text-sm" data-testid="rule-check">
               <span className={`chip ${tone}`}>{mark}</span>
               <span className="font-semibold text-ink-900">{plainText(c.condition)}</span>
-              <span className="text-ink-600">
-                값 {nameOf && typeof c.value === 'string' && /^\d{8}$/.test(c.value) ? nameOf(c.value) : fmt(c.value, c.unit)}
-                {hasThreshold && <> · 기준 {fmt(c.threshold, c.unit)}</>}
+              <span className="text-ink-600" data-testid="rule-check-value">
+                {'— '}
+                {nameOf && typeof c.value === 'string' && /^\d{8}$/.test(c.value) ? `값 ${nameOf(c.value)}` : fmtCheck(c)}
                 {typeof c.distance === 'number' && hasThreshold && (
-                  <> · {c.met ? '여유' : '기준까지'} {Math.round(c.distance * 100) / 100}{c.unit ?? ''}</>
+                  <> · {c.met ? '여유' : '기준까지'} {fmtCheckGap(c.distance, c.unit)}</>
                 )}
               </span>
             </li>
@@ -432,12 +429,15 @@ export function CandidateContext({ items, onCite, refName }: { items?: ContextSi
             </div>
             <div className="mt-1 text-sm text-ink-800">{plainText(x.text)}</div>
             {x.evidence_id &&
-              (onCite ? (
-                <button title={x.evidence_id} className={`mt-1 rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700 hover:bg-brand-100 ${refName?.(x.evidence_id) ? '' : 'font-mono'}`} onClick={() => onCite(x.evidence_id!)}>
-                  {refName?.(x.evidence_id) ?? x.evidence_id}
+              (onCite && refName?.(x.evidence_id) ? (
+                <button title={`근거 ID ${x.evidence_id}`} className="mt-1 rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700 hover:bg-brand-100" onClick={() => onCite(x.evidence_id!)}>
+                  {refName(x.evidence_id)}
                 </button>
               ) : (
-                <span className="mt-1 inline-block rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs text-brand-700">{x.evidence_id}</span>
+                // 근거 표에 없는 맥락 근거: 이름만 보이고 ID 는 마우스를 올리면
+                <span title={`근거 ID ${x.evidence_id}`} className="mt-1 inline-block rounded bg-surface px-1.5 py-0.5 text-xs text-ink-600 ring-1 ring-line" data-testid="context-ref">
+                  참고 근거 · {x.name}
+                </span>
               ))}
           </li>
         ))}

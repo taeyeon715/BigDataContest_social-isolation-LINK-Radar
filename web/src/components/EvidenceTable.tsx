@@ -1,6 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import type { EvidenceCard, ToolResult } from '../api'
-import { HUB_NOTE, INTERP_LABEL, MODE_LABEL, fmtValue, mentionsHub, plainText, replaceInputCodes } from '../lib/labels'
+import { HUB_NOTE, INTERP_LABEL, MODE_LABEL, fmtValue, mentionsHub, plainText, replaceInputCodes, splitRefs } from '../lib/labels'
 import { Term } from './Term'
 import { Badge } from './ui'
 
@@ -208,12 +208,14 @@ export function ClaimsBox({ card, fold = true }: { card: EvidenceCard; fold?: bo
 
 /** 답 문장 안의 [EV-…] 를 근거 표 행으로 가는 버튼으로 */
 export function withRefs(text: string, onRef: (id: string) => void, refName?: (id: string) => string | undefined): ReactNode[] {
-  return text.split(/(\[EV-[0-9A-Za-z-]+\])/g).map((part, i) => {
-    const m = part.match(/^\[(EV-[0-9A-Za-z-]+)\]$/)
-    if (!m) return <span key={i}>{part}</span>
+  // 이름이 있으면 "근거 [EV-…]" 앞의 "근거"는 splitRefs 가 뺌 (버튼이 이미 "근거 n")
+  const parts = refName ? splitRefs(text) : text.split(/(\[EV-[0-9A-Za-z-]+\])/g).map((p) => (/^\[EV-[0-9A-Za-z-]+\]$/.test(p) ? { ref: p.slice(1, -1) } : { text: p }))
+  return parts.map((p, i) => {
+    if ('text' in p) return <span key={i}>{p.text}</span>
+    const id = p.ref
     return (
-      <button key={i} title={m[1]} className={`mx-0.5 rounded bg-brand-50 px-1 text-xs text-brand-700 hover:bg-brand-100 ${refName?.(m[1]) ? '' : 'font-mono'}`} onClick={() => onRef(m[1])}>
-        {refName?.(m[1]) ?? m[1]}
+      <button key={i} title={id} className={`mx-0.5 rounded bg-brand-50 px-1 text-xs text-brand-700 hover:bg-brand-100 ${refName?.(id) ? '' : 'font-mono'}`} onClick={() => onRef(id)}>
+        {refName?.(id) ?? id}
       </button>
     )
   })
