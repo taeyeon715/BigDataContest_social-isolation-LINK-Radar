@@ -43,6 +43,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 메서드 | 경로 | 내용 | 응답 모델 |
 |---|---|---|---|
 | GET | `/health` | 서버·활성 스냅샷 확인 | `HealthResponse` |
+| GET | `/me` | 지금 토큰의 이름·역할·공용 여부 (화면이 버튼 잠금에 씀) | `MeResponse` |
 | GET | `/snapshots/active` | 활성 스냅샷, 데이터 기간, 규칙·원장 버전 | `SnapshotInfo` |
 | GET | `/overview?as_of=&city=` | 현황: 트리거, 후보 수(범위), 새로 생긴/해제된 후보 | `OverviewResponse` |
 | GET | `/map?as_of=&city=` | 행정동별 구조 취약성 × 행동 신호, 자원 위치 | `MapResponse` |

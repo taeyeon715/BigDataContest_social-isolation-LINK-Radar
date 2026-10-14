@@ -10,6 +10,7 @@ import type {
   FollowupRequest,
   FollowupResponse,
   HealthResponse,
+  MeResponse,
   MapResponse,
   OverviewResponse,
   QARequest,
@@ -66,7 +67,8 @@ export class ApiError extends Error {
   }
 }
 
-// ---- 역할 (조회 < 검토 < 승인). 서버에 "나는 누구" 경로가 없어 화면이 짐작한다:
+// ---- 역할 (조회 < 검토 < 승인). 시작할 때 GET /me 로 서버에 묻는다 (syncRole).
+// 그 전이나 /me 가 실패하면 짐작한다:
 // - VITE_API_ROLE 로 정해 주면 그 값
 // - 토큰이 없으면 개발 모드(서버가 모두 허용) → 승인
 // - 토큰이 있으면 공용 토큰 기본값인 조회로 시작
@@ -221,6 +223,7 @@ async function request<T>(
 
 export const api = {
   health: (o?: ReqOpts) => request<HealthResponse>('GET', '/health', { ...o }),
+  me: (o?: ReqOpts) => request<MeResponse>('GET', '/me', { ...o }),
   activeSnapshot: (o?: ReqOpts) => request<SnapshotInfo>('GET', '/snapshots/active', { ...o }),
   capabilities: (o?: ReqOpts) => request<CapabilitiesResponse>('GET', '/data/capabilities', { ...o }),
   overview: (as_of: string, city: City, o?: ReqOpts) => request<OverviewResponse>('GET', '/overview', { query: { as_of, city }, ...o }),
@@ -260,3 +263,13 @@ export const api = {
 }
 
 export type Api = typeof api
+
+/** 서버가 정한 역할로 맞춘다. 실패하면 지금 짐작을 그대로 둔다 */
+export async function syncRole(): Promise<void> {
+  try {
+    const me = await api.me()
+    setRole(me.role)
+  } catch {
+    // 옛 서버(/me 없음)나 연결 오류: 짐작한 역할 유지
+  }
+}

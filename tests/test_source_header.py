@@ -23,6 +23,7 @@ from api.app import create_app  # noqa: E402
 # 경로 → real 백엔드에서의 표지 (fake 백엔드는 config 말고 모두 fake)
 EXPECTED = {
     ("GET", "/health"): "real",
+    ("GET", "/me"): "real",
     ("GET", "/snapshots/active"): "real",
     ("GET", "/data/capabilities"): "config",
     ("GET", "/overview"): "real",

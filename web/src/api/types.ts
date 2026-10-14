@@ -746,3 +746,10 @@ export interface OutcomeSummaryResponse {
   rows: OutcomeSummaryRow[]
   note: string
 }
+
+export interface MeResponse {
+  name: string
+  role: '조회' | '검토' | '승인'
+  shared?: boolean
+  authenticated?: boolean
+}

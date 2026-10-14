@@ -551,3 +551,16 @@ def test_collect_log_masks_api_keys(tmp_path):
     res = run_collection(led, Leaky(), ["name"], cfg=cfg, corrections=pd.DataFrame())
     assert res.run["status"] == "실패" and "serviceKey=***" in res.run["message"]
     assert "REAL-SECRET-123" not in (tmp_path / "log.csv").read_text(encoding="utf-8")
+
+
+def test_me_and_approver_in_response(tmp_path, monkeypatch):
+    """GET /me 는 토큰의 이름·역할을 주고, 승인 응답에 서버가 기록한 승인자가 들어간다."""
+    from fastapi.testclient import TestClient
+
+    from api.app import create_app
+
+    monkeypatch.delenv("LINKRADAR_API_TOKEN", raising=False)
+    monkeypatch.delenv("LINKRADAR_API_TOKENS_FILE", raising=False)
+    c = TestClient(create_app(db_path=tmp_path / "s.sqlite", delay_s=0))
+    me = c.get("/me").json()
+    assert me["role"] == "승인" and me["authenticated"] is False

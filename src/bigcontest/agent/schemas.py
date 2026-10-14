@@ -526,6 +526,14 @@ class HealthResponse(_Model):
     time: datetime
 
 
+class MeResponse(_Model):
+    """GET /me: 지금 토큰의 이름·역할. 화면이 버튼을 잠글지 정할 때 쓴다."""
+    name: str
+    role: Literal["조회", "검토", "승인"]
+    shared: bool = False  # 공용 토큰이면 true (기록 이름에 `공용:`이 붙음)
+    authenticated: bool = True  # 토큰 설정이 없는 개발 모드면 false
+
+
 class SnapshotInfo(_Model):
     snapshot_id: str
     created_at: datetime
@@ -774,6 +782,7 @@ class ApproveResponse(_Model):
     report_revision: int
     approval_id: str
     duplicate: bool = False  # 같은 키로 다시 보낸 요청이면 true (기록은 1건)
+    approver: str | None = None  # 서버가 기록한 승인자 이름 (공용 토큰이면 `공용:` 붙음)
 
 
 class QARequest(_Model):

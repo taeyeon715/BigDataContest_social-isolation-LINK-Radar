@@ -478,7 +478,8 @@ class AgentRunService(RunService):
                     run_id, req.decision, req.report_revision):
                 return ApproveResponse(run_id=run_id, decision=first["decision"],
                                        report_revision=first["report_revision"],
-                                       approval_id=first["approval_id"], duplicate=True), None, None
+                                       approval_id=first["approval_id"], duplicate=True,
+                                       approver=first.get("approver")), None, None
             return None, ApiError(409, "IDEMPOTENCY_KEY_REUSED", "같은 멱등 키로 다른 결정을 보냈습니다."), None
         it = self.store.get_intent(req.idempotency_key)
         if it is not None and it["state"] == "pending":
@@ -519,7 +520,7 @@ class AgentRunService(RunService):
                 return self._accept_more(run_id, req, name, actor, extra, now)
             approval_id = self._apply_intent(intent)
         return ApproveResponse(run_id=run_id, decision=req.decision, report_revision=req.report_revision,
-                               approval_id=approval_id, duplicate=False)
+                               approval_id=approval_id, duplicate=False, approver=name)
 
     def _apply_intent(self, it: dict) -> str:
         """승인·보류 의도 하나를 끝까지: 그래프 재개 → API 승인·확정 기록 → 상태 맞춤. 승인 ID 를 돌려줌.
@@ -673,7 +674,7 @@ class AgentRunService(RunService):
             raise rejected
         self._submit(self._more, run_id, req.report_revision, name, req.idempotency_key, focus)
         return ApproveResponse(run_id=run_id, decision="more", report_revision=req.report_revision,
-                               approval_id=approval_id, duplicate=False)
+                               approval_id=approval_id, duplicate=False, approver=name)
 
     def _more(self, run_id: str, rev: int, name: str, key: str, focus: dict | None) -> None:
         """추가 조사 회차. focus 는 받을 때 정해 저장한 값 (재시작 복구도 같은 값)."""

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import Layout from './components/Layout'
+import { syncRole } from './api'
 const CandidateDetail = lazy(() => import('./pages/CandidateDetail'))
 const Candidates = lazy(() => import('./pages/Candidates'))
 const MapPage = lazy(() => import('./pages/MapPage'))
@@ -25,6 +26,8 @@ const router = createBrowserRouter([
     ],
   },
 ])
+
+void syncRole()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -539,7 +539,7 @@ class RunService:
                         run_id, req.decision, req.report_revision):
                     return ApproveResponse(run_id=run_id, decision=first["decision"],
                                            report_revision=first["report_revision"], approval_id=first["approval_id"],
-                                           duplicate=True)
+                                           duplicate=True, approver=first.get("approver"))
                 rejected = ApiError(409, "IDEMPOTENCY_KEY_REUSED", "같은 멱등 키로 다른 결정을 보냈습니다.")
             else:
                 rejected = self._check(run, req) or self._check_focus(req, self._candidate_ids(run_id))
@@ -569,7 +569,7 @@ class RunService:
         if self.delay.total_seconds() <= 0:
             self.advance(run_id)
         return ApproveResponse(run_id=run_id, decision=req.decision, report_revision=req.report_revision,
-                               approval_id=approval_id, duplicate=False)
+                               approval_id=approval_id, duplicate=False, approver=name)
 
     def _candidate_ids(self, run_id: str) -> set[str]:
         return {c["candidate_id"] for c in (self.store.get_result(run_id) or {}).get("candidates") or []}
