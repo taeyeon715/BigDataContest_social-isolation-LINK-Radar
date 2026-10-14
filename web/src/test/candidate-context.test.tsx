@@ -88,7 +88,17 @@ describe('후보 맥락 칸', () => {
     expect(box).toHaveTextContent('다른 원인 참고')
     expect(box).not.toHaveTextContent('반증 맥락')
     expect(screen.getAllByTestId('context-signal')).toHaveLength(2)
-    await userEvent.click(within(box).getByRole('button', { name: EID }))
+    // 근거 표에 없는 근거: ID 대신 "참고 근거 · 이름", ID 는 title 로만
+    const ref = within(box).getByTestId('context-ref')
+    expect(ref).toHaveTextContent('참고 근거 · 연휴 외지 손님 비중')
+    expect(ref).toHaveAttribute('title', `근거 ID ${EID}`)
+    expect(box).not.toHaveTextContent(EID)
+  })
+
+  it('근거 표에 있는 근거는 "근거 n" 버튼으로 누르면 onCite', async () => {
+    const onCite = vi.fn()
+    render(<CandidateContext items={CONTEXT} onCite={onCite} refName={(id) => (id === EID ? '근거 3' : undefined)} />)
+    await userEvent.click(within(screen.getByTestId('candidate-context')).getByRole('button', { name: '근거 3' }))
     expect(onCite).toHaveBeenCalledWith(EID)
   })
 

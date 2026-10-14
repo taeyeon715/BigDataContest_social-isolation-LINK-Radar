@@ -120,9 +120,27 @@ describe('등급 설명·판단 기록', () => {
     expect(rows).toHaveLength(4)
     const far = rows.find((r) => r.textContent?.includes('노인복지관·사회복지관(안부·관계 거점)까지 거리'))!
     expect(far).toHaveTextContent('✕ 미충족')
-    expect(far).toHaveTextContent('값 0.3km · 기준 5km · 기준까지 4.7km')
+    expect(far).toHaveTextContent('값 0.3km (기준 5km) · 기준까지 4.7km')
+    expect(rows[0]).not.toHaveTextContent('값 값')
     expect(rows[0]).toHaveTextContent('✓ 충족')
     expect(screen.getByTestId('level-explain')).toHaveTextContent('Level 3 가능')
+  })
+
+  it('조건 값의 단위: 비율은 %, 차이는 %p, km·위는 숫자 뒤 (최소값 값 같은 겹침 없음)', () => {
+    render(
+      <LevelExplain
+        checks={[
+          { condition: '이탈 크기 최소값', met: true, value: 0.153, threshold: 0.1, comparator: '>=', unit: '비율' },
+          { condition: '구조 상위 (도시 안 상위 30%)', met: true, value: 5, threshold: 8, comparator: '<=', unit: '위' },
+          { condition: '관측 거점까지 직선거리', met: true, value: 18.57, threshold: 5, comparator: '>=', unit: 'km' },
+        ]}
+      />,
+    )
+    const vals = screen.getAllByTestId('rule-check-value').map((x) => x.textContent)
+    expect(vals[0]).toBe('— 값 15.3% (기준 10% 이상)')
+    expect(vals[1]).toBe('— 값 5위 (기준 8위 이하)')
+    expect(vals[2]).toBe('— 값 18.57km (기준 5km 이상)')
+    expect(screen.getByTestId('level-explain')).not.toHaveTextContent('비율')
   })
 
   it('판단 기록은 단계·고른 것·누가 정했나를 보인다', () => {

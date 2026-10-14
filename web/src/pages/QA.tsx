@@ -4,9 +4,10 @@ import { ClaimsBox, EvidenceTable, withRefs } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
 import { Badge, Card, ErrorBox, HoldNotice, TimeLabelBar , RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
-import { ERROR_TEXT, evidenceIndex, reportText } from '../lib/labels'
+import { ERROR_TEXT, evidenceIndex, limitText, reportText, splitAnswer } from '../lib/labels'
 
-export const EXAMPLES = ['강남 60대의 밤 활동은 어때?', '강남 1인세대 비율 상위 동은?', '이번 추석 전에 춘천에서 어디부터 확인해야 해?']
+// 지금 동작과 맞는 예: 카드 결제 시간대는 답함, 체류 인구 × 시간대는 자료 조합이 없어 보류, 1인세대 순위, 추석 전 점검
+export const EXAMPLES = ['강남 60대의 밤 카드 결제는 어때?', '강남 60대의 밤 체류 인구는 어때?', '강남 1인세대 비율 상위 동은?', '이번 추석 전에 춘천에서 어디부터 확인해야 해?']
 
 export function QAResult({ res }: { res: QAResponse }) {
   const [hl, setHl] = useState<string | null>(null)
@@ -40,6 +41,7 @@ export function QAResult({ res }: { res: QAResponse }) {
   const card = res.evidence_card!
   const idx = evidenceIndex(card.evidence)
   const refName = (id: string) => { const e = idx.get(id); return e ? `근거 ${e.n}` : undefined }
+  const answer = splitAnswer(res.answer)
   return (
     <>
       <TimeLabelBar label={card.time_label} />
@@ -49,7 +51,7 @@ export function QAResult({ res }: { res: QAResponse }) {
           <ClaimsBox card={card} />
         </div>
       </Card>
-      <Card title="설명">
+      <Card title="답">
         <div className="mb-3 flex flex-wrap gap-1">
           {res.guard.map((g, i) => (
             <span key={i} className={`chip ${g.verdict === 'PASS' ? 'bg-okay-soft text-okay' : 'bg-caution-soft text-caution'}`}>
@@ -58,17 +60,42 @@ export function QAResult({ res }: { res: QAResponse }) {
           ))}
         </div>
         {showAnswer ? (
-          <p className="text-base leading-relaxed text-ink-900" data-testid="qa-answer">
-            {withRefs(reportText(res.answer ?? ''), setHl, refName)}
-          </p>
+          <div className="flex flex-col gap-3 text-ink-900" data-testid="qa-answer">
+            {answer.facts.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold text-ink-600">핵심 사실 (근거 카드에서 만든 문장)</div>
+                <ul className="list-disc pl-5 leading-relaxed" data-testid="qa-facts">
+                  {answer.facts.map((l, i) => (
+                    <li key={i}>{withRefs(reportText(l), setHl, refName)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {answer.explanation.length > 0 && (
+              <div className="rounded-xl bg-canvas px-4 py-3">
+                <div className="mb-1 text-xs font-semibold text-ink-600">설명</div>
+                <div className="flex flex-col gap-1 leading-relaxed" data-testid="qa-explanation">
+                  {answer.explanation.map((l, i) => (
+                    <p key={i}>{withRefs(reportText(l), setHl, refName)}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+            {answer.disclaimer && <div className="text-xs text-ink-600">개인 판정 아님 · 최종 판단은 담당자</div>}
+          </div>
         ) : (
           <div className="h-6 w-2/3 animate-pulse rounded bg-line" />
         )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {card.limitations.map((l) => (
-            <Badge key={l}>{l}</Badge>
-          ))}
-        </div>
+        {card.limitations.length > 0 && (
+          <div className="mt-3">
+            <div className="mb-1 text-xs font-semibold text-ink-600">자료 한계</div>
+            <div className="flex flex-wrap gap-2" data-testid="qa-limits">
+              {card.limitations.map((l) => (
+                <Badge key={l}>{limitText(l)}</Badge>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
     </>
   )

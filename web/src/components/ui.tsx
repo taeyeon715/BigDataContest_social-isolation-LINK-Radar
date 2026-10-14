@@ -89,9 +89,25 @@ export const SLOW_HINT_MS = 3_000
 export const STUCK_HINT_MS = 20_000
 export const SLOW_TEXT = '처음 계산 중이라 10초 정도 걸릴 수 있습니다. 멈춘 것이 아닙니다.'
 export const STUCK_TEXT = '20초 넘게 답이 없습니다. API가 켜져 있는지 확인하거나 다시 시도하세요.'
+/** 조사 실행이 진행 중으로 확인될 때 (상태는 1초마다 받고 있음). 답이 없다는 경고 대신 */
+export const RUN_SLOW_TEXT = '조사 중입니다 (보통 1분 안팎). 진행 상태를 1초마다 확인하고 있으니 멈춘 것이 아닙니다.'
 
 /** 불러오는 중: 회색 뼈대 + 3초 뒤 "처음 계산 중" 안내, 20초 뒤 [다시 시도] */
-export function Loading({ label = '불러오는 중', onRetry, compact = false }: { label?: string; onRetry?: () => void; compact?: boolean }) {
+export function Loading({
+  label = '불러오는 중',
+  onRetry,
+  compact = false,
+  slowText = SLOW_TEXT,
+  stuckText = STUCK_TEXT,
+}: {
+  label?: string
+  onRetry?: () => void
+  compact?: boolean
+  /** 3초 뒤 안내 */
+  slowText?: string
+  /** 20초 뒤 안내 (진행 중으로 확인된 실행이면 경고 대신 진행 안내를 넘김) */
+  stuckText?: string
+}) {
   const [stage, setStage] = useState<0 | 1 | 2>(0)
   useEffect(() => {
     const a = setTimeout(() => setStage(1), SLOW_HINT_MS)
@@ -113,7 +129,7 @@ export function Loading({ label = '불러오는 중', onRetry, compact = false }
       <span className="text-xs text-ink-600">{label}…</span>
       {stage >= 1 && (
         <span className="text-xs text-ink-800" data-testid="slow-hint">
-          {stage === 1 ? SLOW_TEXT : STUCK_TEXT}
+          {stage === 1 ? slowText : stuckText}
         </span>
       )}
       {stage === 2 && onRetry && (

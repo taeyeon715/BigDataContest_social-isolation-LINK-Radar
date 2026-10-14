@@ -201,7 +201,9 @@ export default function MapPage() {
         {cands.error && (
           <ErrorBox error={new ApiError(cands.error.status, cands.error.code, `동별 후보를 불러오지 못했습니다. ${cands.error.message}`)} onRetry={cands.reload} />
         )}
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          {/* 왼쪽: 지도 + 행정동 표 (오른쪽 패널이 길어도 지도 아래가 비지 않게) */}
+          <div className="flex min-w-0 flex-col gap-5">
           <Card title={`${city} 행정동 (${m.data?.areas.length ?? '…'}개)`}>
             {m.loading && !m.data ? (
               <Loading onRetry={m.reload} />
@@ -272,57 +274,8 @@ export default function MapPage() {
               </div>
             )}
           </Card>
-          <div className="flex min-w-0 flex-col gap-5">
-          {selArea && m.data && (
-            <Card title="선택한 동">
-              <DongPanel area={selArea} total={m.data.areas.filter((a) => a.structure_rank !== null).length} candidates={cands.data?.items ?? []} resources={m.data.resources} query={query} onClose={() => setSel(null)} />
-            </Card>
-          )}
-          <Card title="읽는 법">
-            <Legend2D />
-            {city === '춘천' && (
-              <div className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700">
-                춘천 읍·면 거리는 행정동 중심점에서 <b>노인복지관·사회복지관(안부·관계 거점)</b>까지의 <b>직선거리</b>입니다. 행정복지센터(주민센터)는
-                안부·관계 프로그램을 운영하지 않아 넣지 않습니다. 실제 이동 시간이나 서비스 공급 부족이 아닙니다.
-              </div>
-            )}
-          </Card>
-          </div>
-        </div>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-2">
-          <Card title="구조 취약성 × 안부·관계 거점까지 직선거리">
-            <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 노인복지관·사회복지관까지 직선거리(세로) 산점도. 같은 값은 아래 행정동 표에 있습니다.">
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
-                  <CartesianGrid stroke="#E3E7EF" />
-                  <XAxis type="number" dataKey="x" name="1인세대 비율" domain={['auto', 'auto']} tick={{ fontSize: 12, fill: '#4A5163' }}
-                    label={{ value: '1인세대 비율 (구조 취약성)', position: 'insideBottom', offset: -12, fontSize: 12, fill: '#4A5163' }} />
-                  <YAxis type="number" dataKey="y" name="직선거리" unit="km" tick={{ fontSize: 12, fill: '#4A5163' }} width={56} />
-                  <ZAxis range={[90, 90]} />
-                  <Tooltip cursor={{ strokeDasharray: '3 3' }}
-                    formatter={(v, n) => [n === '직선거리' ? `${v}km` : v, n]}
-                    labelFormatter={() => ''}
-                    content={({ payload }) => {
-                      const p = payload?.[0]?.payload as { name: string; x: number; y: number } | undefined
-                      return p ? (
-                        <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-card">
-                          <b>{p.name}</b>
-                          <div>1인세대 비율 {p.x}</div>
-                          <div>{HUB_SHORT} {p.y}km</div>
-                        </div>
-                      ) : null
-                    }} />
-                  <Legend verticalAlign="top" height={28} iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                  <Scatter name="예정된 점검" data={scatter('예정된 점검')} fill="#008F8A" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
-                  <Scatter name="이탈 경보(공유 맥락)" data={scatter('이탈 경보(공유 맥락)')} fill="#7A5BC7" stroke="#fff" strokeWidth={2} shape="diamond" isAnimationActive={false} />
-                  <Scatter name="신호 없음" data={scatter('없음')} fill="#8A91A3" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 노인복지관·사회복지관에서 멉니다. 순위를 매기는 그림이 아닙니다. {HUB_NOTE}</div>
-          </Card>
           <Card title="행정동 표">
-            <div className="scroll-x max-h-[360px] overflow-auto rounded-2xl border border-line">
+            <div className="scroll-x max-h-[640px] overflow-auto rounded-2xl border border-line">
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="sticky top-0 bg-canvas">
                   <tr>
@@ -353,6 +306,56 @@ export default function MapPage() {
               </table>
             </div>
             {m.data && <div className="mt-2 text-xs text-ink-600">{m.data.note} · 구조 지표: {m.data.structure_metric}</div>}
+          </Card>
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+          {selArea && m.data && (
+            <Card title="선택한 동">
+              <DongPanel area={selArea} total={m.data.areas.filter((a) => a.structure_rank !== null).length} candidates={cands.data?.items ?? []} resources={m.data.resources} query={query} onClose={() => setSel(null)} />
+            </Card>
+          )}
+          <Card title="읽는 법">
+            <Legend2D />
+            {city === '춘천' && (
+              <div className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700">
+                춘천 읍·면 거리는 행정동 중심점에서 <b>노인복지관·사회복지관(안부·관계 거점)</b>까지의 <b>직선거리</b>입니다. 행정복지센터(주민센터)는
+                안부·관계 프로그램을 운영하지 않아 넣지 않습니다. 실제 이동 시간이나 서비스 공급 부족이 아닙니다.
+              </div>
+            )}
+          </Card>
+          </div>
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+          <Card title="구조 취약성 × 안부·관계 거점까지 직선거리">
+            <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 노인복지관·사회복지관까지 직선거리(세로) 산점도. 같은 값은 행정동 표에 있습니다.">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
+                  <CartesianGrid stroke="#E3E7EF" />
+                  <XAxis type="number" dataKey="x" name="1인세대 비율" domain={['auto', 'auto']} tick={{ fontSize: 12, fill: '#4A5163' }}
+                    label={{ value: '1인세대 비율 (구조 취약성)', position: 'insideBottom', offset: -12, fontSize: 12, fill: '#4A5163' }} />
+                  <YAxis type="number" dataKey="y" name="직선거리" unit="km" tick={{ fontSize: 12, fill: '#4A5163' }} width={56} />
+                  <ZAxis range={[90, 90]} />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }}
+                    formatter={(v, n) => [n === '직선거리' ? `${v}km` : v, n]}
+                    labelFormatter={() => ''}
+                    content={({ payload }) => {
+                      const p = payload?.[0]?.payload as { name: string; x: number; y: number } | undefined
+                      return p ? (
+                        <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-card">
+                          <b>{p.name}</b>
+                          <div>1인세대 비율 {p.x}</div>
+                          <div>{HUB_SHORT} {p.y}km</div>
+                        </div>
+                      ) : null
+                    }} />
+                  <Legend verticalAlign="top" height={28} iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                  <Scatter name="예정된 점검" data={scatter('예정된 점검')} fill="#008F8A" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
+                  <Scatter name="이탈 경보(공유 맥락)" data={scatter('이탈 경보(공유 맥락)')} fill="#7A5BC7" stroke="#fff" strokeWidth={2} shape="diamond" isAnimationActive={false} />
+                  <Scatter name="신호 없음" data={scatter('없음')} fill="#8A91A3" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 노인복지관·사회복지관에서 멉니다. 순위를 매기는 그림이 아닙니다. {HUB_NOTE}</div>
           </Card>
         </div>
       </PageBody>

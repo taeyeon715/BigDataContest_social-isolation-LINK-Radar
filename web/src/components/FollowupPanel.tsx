@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { api, ApiError, MAX_QUESTION, type FollowupIntent, type FollowupResponse } from '../api'
-import { ERROR_TEXT, errorText, reportText, splitReason } from '../lib/labels'
+import { api, ApiError, MAX_QUESTION, type Candidate, type FollowupIntent, type FollowupResponse } from '../api'
+import { ERROR_TEXT, admName, candidatePlace, errorText, groupOf, reportText, splitAnswer, splitReason } from '../lib/labels'
 import { withRefs } from './EvidenceTable'
 import { RoleNote, useRole } from './ui'
 
@@ -60,17 +60,31 @@ export function FollowupAnswer({ item, onCite, refName }: { item: Item; onCite: 
       </li>
     )
   }
-  const lines = (res.answer ?? '').split('\n').filter(Boolean)
+  const { facts, explanation, disclaimer } = splitAnswer(res.answer)
+  const show = (l: string) => withRefs(refName ? reportText(l) : l, onCite, refName)
   return (
     <li className="rounded-2xl border border-line p-3" data-testid="followup-item" data-status="answered">
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-600">
         <span>질문 · {q}</span>
         <IntentChip intent={res.intent} />
       </div>
-      <div className="mt-1 flex flex-col gap-1 text-ink-900" data-testid="followup-answer">
-        {lines.map((l, i) => (
-          <p key={i}>{withRefs(refName ? reportText(l) : l, onCite, refName)}</p>
-        ))}
+      <div className="mt-1 flex flex-col gap-2 text-ink-900" data-testid="followup-answer">
+        {facts.length > 0 && (
+          <ul className="list-disc pl-5" data-testid="followup-facts">
+            {facts.map((l, i) => (
+              <li key={i}>{show(l)}</li>
+            ))}
+          </ul>
+        )}
+        {explanation.length > 0 && (
+          <div className="rounded-xl bg-canvas px-3 py-2" data-testid="followup-explanation">
+            <div className="mb-0.5 text-xs font-semibold text-ink-600">설명</div>
+            {explanation.map((l, i) => (
+              <p key={i}>{show(l)}</p>
+            ))}
+          </div>
+        )}
+        {disclaimer && <div className="text-xs text-ink-600">개인 판정 아님 · 최종 판단은 담당자</div>}
       </div>
       {res.cited_evidence_ids.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1 text-xs" data-testid="followup-cited">
@@ -90,8 +104,33 @@ export function FollowupAnswer({ item, onCite, refName }: { item: Item; onCite: 
   )
 }
 
+/** 직전 대상 이름: 후보 ID 는 "춘천 남면 · 고령층", 동 코드만 있으면 동 이름 */
+export function targetLabel(target: FollowupResponse['target'], candidates: Candidate[] = []): string | null {
+  if (!target) return null
+  const known = (target.candidate_ids ?? [])
+    .map((id) => candidates.find((x) => x.candidate_id === id))
+    .filter((c): c is Candidate => !!c)
+    .map((c) => [candidatePlace(c), groupOf(c) ?? c.service_eligibility_group].filter(Boolean).join(' · '))
+  if (known.length > 0) return known.join(', ')
+  const dongs = (target.adm_cds ?? []).map(admName).filter(Boolean)
+  return dongs.length > 0 ? dongs.join(', ') : null
+}
+
 /** 이어 묻기: 이 실행의 근거 카드 안에서만 답함 */
-export function FollowupPanel({ runId, disabled: off, onCite, refName }: { runId: string; disabled?: boolean; onCite: (id: string) => void; refName?: (id: string) => string | undefined }) {
+export function FollowupPanel({
+  runId,
+  disabled: off,
+  onCite,
+  refName,
+  candidates = [],
+}: {
+  runId: string
+  disabled?: boolean
+  onCite: (id: string) => void
+  refName?: (id: string) => string | undefined
+  /** 직전 대상 이름을 만들 이 실행의 후보 */
+  candidates?: Candidate[]
+}) {
   const { can } = useRole()
   const noRole = !can('검토') // 이어 묻기는 LLM 비용을 써서 검토 권한 이상
   const disabled = off || noRole
@@ -117,6 +156,9 @@ export function FollowupPanel({ runId, disabled: off, onCite, refName }: { runId
     }
   }
   const err = error ? errorText(error.code, error.message) : null
+  // 서버가 기억하는 직전 대상 = 대상을 읽은 가장 최근 답의 target ("그 동네·거기"를 이것으로 풂)
+  const lastTarget = items.find((it) => (it.res.target?.candidate_ids?.length ?? 0) > 0 || (it.res.target?.adm_cds?.length ?? 0) > 0)?.res.target ?? null
+  const remembered = targetLabel(lastTarget, candidates)
 
   return (
     <div className="flex flex-col gap-3" data-testid="followup-panel">
@@ -142,6 +184,13 @@ export function FollowupPanel({ runId, disabled: off, onCite, refName }: { runId
         </button>
       </form>
       {noRole && <RoleNote need="검토" />}
+      {remembered && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="chip bg-brand-50 text-brand-700" data-testid="followup-target" title="'그 동네', '거기'라고 물으면 이 대상으로 답합니다">
+            직전 대상: {remembered}
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {EXAMPLES.map((x) => (
           <button key={x} className="chip bg-canvas text-ink-600 hover:bg-brand-50" disabled={disabled || busy} onClick={() => ask(x)}>

@@ -867,7 +867,7 @@ def round_changes(state: dict) -> list[str]:
     for cid in plan.get("candidate_ids") or []:
         c = cands.get(cid)
         if c:
-            out.append(f"집중 확인 {cid}: {c.get('candidate_level')} ({(c.get('level_reason') or '-')[:80]})")
+            out.append(f"집중 확인 {cid}: {c.get('candidate_level')} ({clip_reason(c.get('level_reason') or '-')})")
     devs = [c for c in cands.values() if c["candidate_type"] == "unexpected_activity_deviation"
             and (not plan.get("candidate_ids") or c["candidate_id"] in plan["candidate_ids"])]
     for chk in plan.get("counter_checks") or []:
@@ -882,6 +882,23 @@ def round_changes(state: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------- 후보 · 반증 · 등급
+
+
+def clip_reason(text: str, limit: int = 120) -> str:
+    """등급 이유를 짧게: " + " 로 이은 조각 단위로 자름 (낱말 중간에서 자르지 않음). 뺀 조각이 있으면 " 외"."""
+    if len(text) <= limit:
+        return text
+    parts = text.split(" + ")
+    kept: list[str] = []
+    for p in parts:
+        if kept and len(" + ".join(kept + [p])) > limit:
+            break
+        kept.append(p)
+    out = " + ".join(kept)
+    if len(out) > limit:  # 첫 조각부터 길면 마지막 띄어쓰기에서
+        cut = out[:limit].rsplit(" ", 1)[0].rstrip(" ,·(")
+        return cut + " …"
+    return out + (" 외" if len(kept) < len(parts) else "")
 
 
 def classify_candidate(state: dict) -> dict:
@@ -1501,8 +1518,10 @@ def write_report(state: dict) -> dict:
             sentences.append(act.action_plan.text)
     if dropped:
         ids = sorted({re.search(r"추천 제외 (\S+)", d).group(1) for d in dropped if re.search(r"추천 제외 (\S+)", d)})
+        res_names = {r.get("resource_id"): r.get("name") for r in state.get("resources") or []}
+        shown = [res_names.get(i) or i for i in ids]  # 화면에 ID 대신 자원 이름
         sentences.append(f"자원 제외(G-07): 출처·지역·대상·확인일 중 빠진 것이 있는 자원 {len(ids)}건 "
-                         f"({', '.join(ids[:6])}{' 등' if len(ids) > 6 else ''}). 확인일을 날짜로 확인하면 추천 가능")
+                         f"({', '.join(shown[:6])}{' 등' if len(ids) > 6 else ''}). 확인일을 날짜로 확인하면 추천 가능")
     changes = round_changes(state)
     sentences += changes
     sentences += review_sentences(state)

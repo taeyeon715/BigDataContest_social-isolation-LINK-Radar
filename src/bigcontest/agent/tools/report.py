@@ -414,7 +414,10 @@ def _num(x) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
-def _fmt(x, unit: str | None = None) -> str:
+def _fmt(x, unit: str | None = None, gap: bool = False) -> str:
+    """값 + 단위. 비율은 %로 (차이는 %p): 0.153 → 15.3%. km·일·위는 숫자 뒤에 붙임."""
+    if unit and "비율" in unit and isinstance(x, (int, float)) and not isinstance(x, bool):
+        return f"{round(float(x) * 100, 1):g}{'%p' if gap else '%'}"
     s = f"{x:g}" if isinstance(x, float) else str(x)
     return s + (unit or "")
 
@@ -435,7 +438,7 @@ def _view(chk: RuleCheck) -> RuleCheckView:
     if thr:
         inside.append(f"기준 {thr}")
     if dist is not None and chk.met is not None:
-        inside.append(f"{'여유' if chk.met else '부족'} {_fmt(dist, chk.unit)}")
+        inside.append(f"{'여유' if chk.met else '부족'} {_fmt(dist, chk.unit, gap=True)}")
     text = f"{chk.condition} 조건: {state}" + (f"({', '.join(inside)})" if inside else "")
     return RuleCheckView(condition=chk.condition, met=chk.met, value=chk.value, threshold=chk.threshold,
                          distance=dist, text=text)
@@ -468,7 +471,7 @@ def explain_level(candidate: Candidate, rule_trace: list | None = None) -> Level
             need = f"{x.condition} 자료" + (f"({x.input})" if x.input else "")
             what_if.append(f"{need}가 들어와 충족되면 " + (f"{x.level_if_met} 가능" if x.level_if_met else "다시 판정"))
         elif x.met is False and x.level_if_met and x.level_if_met != level:
-            gap = f" (기준까지 {_fmt(v.distance, x.unit)} 부족)" if v.distance is not None else ""
+            gap = f" (기준까지 {_fmt(v.distance, x.unit, gap=True)} 부족)" if v.distance is not None else ""
             what_if.append(f"{x.condition} 조건을 충족하면 {x.level_if_met} 가능{gap}")
     for m in candidate.missing_inputs:
         if not any(k in m for k in covered):

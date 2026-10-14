@@ -23,6 +23,7 @@ from bigcontest.agent.graph import Agent  # noqa: E402
 from bigcontest.agent.state import report_dict  # noqa: E402
 from bigcontest.agent.followup import pick_candidates  # noqa: E402
 from bigcontest.agent.schemas import (  # noqa: E402
+    DISCLAIMER,
     Candidate,
     EvidenceCard,
     ExtraTool,
@@ -144,6 +145,9 @@ def test_followup_answer_cites_card_only(agent):
     assert out["status"] == "answered" and out["source"] == "llm"
     card = {e["evidence_id"] for e in report_dict(agent.status("fu")["values"])["evidence_card"]["evidence"]}
     assert set(out["cited_evidence_ids"]) <= card and "C-20250926-001" in out["answer"]
+    # 사실 줄 → 고지 → 설명 줄 순서 (화면이 고지를 경계로 사실과 설명을 나눔)
+    lines = out["answer"].splitlines()
+    assert DISCLAIMER in lines and lines.index(DISCLAIMER) < len(lines) - 1
     bad = agent.followup("fu", "이 근거 값 알려줘", llm="fake_wrong_fact_once")
     assert bad["status"] == "answered" and bad["source"] in ("llm", "template")
     assert "크게 늘었습니다" not in bad["answer"]  # 방향 바꾼 문장은 빠짐
