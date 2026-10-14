@@ -10,7 +10,7 @@
 ![Claude](https://img.shields.io/badge/Claude-Sonnet%205.5-D97757?logo=anthropic&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/pytest-1117%20passed-2EA44F?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest-1120%20passed-2EA44F?logo=pytest&logoColor=white)
 
 2026 빅콘테스트 · AI데이터 활용 분야 · 서울 강남구 · 강원 춘천시
 
@@ -347,8 +347,8 @@ cd web && npm test        # 화면 상태 (Vitest)
 
 | 항목 | 결과 |
 |---|---|
-| pytest | **1,117 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
-| 화면 (vitest) | **128 통과** |
+| pytest | **1,120 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
+| 화면 (vitest) | **136 통과** |
 | 하락 폭별 감지 | 2·3·5·10·15·20% 하락의 감지율과 코호트 단위 신뢰구간을 함께 공개 ([EDA-6](reports/eda6_사전경보재평가/)) |
 | 시연 사례 D1~D4 | 실제 데이터 도구로 끝까지 동작. 정상 자료에서 가짜 LLM 5종·LLM 없음·실제 Claude의 등급이 같음 (`test_demo_cases.py`. 가짜 도구 시나리오 7개에서는 가짜 LLM 7종, `test_determinism.py`) |
 | 자원 추천 (W-2, 30쌍) | 상위 5개 충족도 (k-정규화 Recall@5, 분모 min(5, 정답 수)) **0.7533**, 정답 전체 기준 재현율 0.3876, 정밀도@5 0.64, Hit@5 90%. 명시적 부적격 추천 0건, 자격 확인 필요 83건 ([W-2](reports/w2_자원추천평가/README.md)) |
