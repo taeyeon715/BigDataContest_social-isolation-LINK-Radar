@@ -435,7 +435,9 @@ hs = [plt.Line2D([], [], marker="o", ls="", markerfacecolor=LV_COLOR[k], markere
       for k in ["Level 3", "Level 2", "Level 1", NOT_CAND]]
 fig.legend(handles=hs, loc="lower center", ncol=4, fontsize=8, frameon=False, bbox_to_anchor=(0.5, -0.04))
 r.fig(fig, "f03_structure_access.png", "구조(S1) × 접근성(A1) 산점도, 색 = 등급")
-r.p("- 오른쪽 위(1인세대 상위 + 거점 5km 이상)에 있으면 Level 3, 한쪽만 넘으면 Level 2입니다. 강남은 모든 동이 거점 0.4km 안이라 Level 3가 없습니다.")
+gn_sub = tab[(tab["도시"] == "강남") & (tab["기준일"].str.startswith("추석 D-7")) & (tab["집단"] == "고령층") & (tab["adm_cd"] != "")]
+r.p("- 오른쪽 위(1인세대 상위 + 거점 5km 이상)에 있으면 Level 3, 한쪽만 넘으면 Level 2입니다. "
+    f"강남은 모든 동이 거점 {gn_sub['A1 안부·관계 거점 거리(km)'].max():.2f}km 이내라 Level 3가 없습니다.")
 
 # ---- 해석 문단 4개 (숫자는 위 표에서 계산)
 r.h("4. 읽는 법 (해석 문단)")
@@ -453,7 +455,7 @@ rng_csv = pd.read_csv(ROOT / "reports" / "r1_등급규칙" / "후보수_범위.c
 gr = rng_csv[(rng_csv["도시"] == "강남") & (rng_csv["기준일"] == "추석 D-7") & (rng_csv["집단"] == "고령층")].iloc[0]
 n_gn, one_gn, gp_gn = people("강남", f"추석 D-7 ({DATES['추석 D-7']:%m/%d})", "고령층")
 r.p(f"**① 강남은 '어디'가 1인세대로 정해지고 Level 3가 없습니다.** 추석 D-7 고령층 후보 {len(gn_l2)}곳({'·'.join(gn_l2)})은 모두 "
-    f"1인세대 비율 상위 동이고, 22개 동 모두 안부·관계 거점이 {gn_maxkm:.1f}km 안이라 접근성 근거가 없습니다. 그래서 대응은 '담당자 추가 분석'입니다. "
+    f"1인세대 비율 상위 동이고, 22개 동 모두 안부·관계 거점이 {gn_maxkm:.2f}km 이내라 접근성 근거가 없습니다. 그래서 대응은 '담당자 추가 분석'입니다. "
     f"이 {n_gn}개 동의 전 연령 1인세대는 {one_gn:,}세대, 65세 이상 주민등록 인구 전체는 {gp_gn:,}명입니다(1인 여부와 별개). "
     "청년 남성은 동을 고르지 않고 도시 단위 '안내 강화' 1건입니다. "
     f"임계값을 바꾸면 후보 수(이탈 후보 포함)는 {int(gr['후보수_최소'])}~{int(gr['후보수_최대'])}건입니다(기본 {int(gr['후보수_기본'])}건).")
