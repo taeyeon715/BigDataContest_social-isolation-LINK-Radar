@@ -10,7 +10,7 @@
 ![Claude](https://img.shields.io/badge/Claude-Sonnet%205.5-D97757?logo=anthropic&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/pytest-1074%20passed-2EA44F?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest-1115%20passed-2EA44F?logo=pytest&logoColor=white)
 
 2026 빅콘테스트 · AI데이터 활용 분야 · 서울 강남구 · 강원 춘천시
 
@@ -235,7 +235,7 @@ flowchart TD
 
 ### 설계 원칙
 
-- **판단은 코드, 설명은 LLM** — 신호·후보·등급은 Python과 규칙 파일이 정합니다. LLM은 질문 해석, 추가 조사 선택, 설명 문장만 맡습니다. 정상 자료에서는 같은 요청이면 LLM이 무엇을 고르든, LLM이 없든 등급이 같습니다(추가 조사 근거가 Guard에 걸리면 등급을 내지 않고 보류).
+- **판단은 코드, 설명은 LLM** — 신호·후보·등급은 Python과 규칙 파일이 정합니다. LLM은 질문 해석, 추가 조사 선택, 설명 문장만 맡습니다. 정상 자료에서는 같은 요청이면 LLM이 무엇을 고르든, LLM이 없든 등급이 같습니다(추가 조사 근거가 Guard에 걸리면 그 근거만 빼고 "확인 못 함"으로 표시하며, 등급은 그대로).
 - **판정하지 않는다** — 개인을 찾거나 고립·고독사 확률을 계산하지 않습니다. 동·집단 단위로 "먼저 확인할 곳과 영역"만 제안하고, 최종 판단은 담당자와 현장 판단도구에 맡깁니다.
 - **모르면 보류** — 데이터가 지원하지 않는 조합, 기준일 뒤의 자료, 필수 근거 결측은 억지로 답하지 않고 판단 보류와 필요한 자료를 돌려줍니다.
 - **숫자는 근거 카드에서만** — 보고서의 사실 문장은 근거 카드에서 템플릿으로 만들고, Guard가 지표·지역·기간·값·단위·방향을 하나씩 대조합니다.
@@ -343,7 +343,7 @@ cd web && npm test        # 화면 상태 (Vitest)
 
 | 항목 | 결과 |
 |---|---|
-| pytest | **1,074 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
+| pytest | **1,115 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
 | 화면 (vitest) | **114 통과** |
 | 하락 폭별 감지 | 2·3·5·10·15·20% 하락의 감지율과 코호트 단위 신뢰구간을 함께 공개 ([EDA-6](reports/eda6_사전경보재평가/)) |
 | 시연 사례 D1~D4 | 실제 데이터 도구로 끝까지 동작. 정상 자료에서 가짜 LLM 6종·LLM 없음·실제 Claude의 등급이 같음 |
