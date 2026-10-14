@@ -57,8 +57,10 @@ API 원문은 `external/**/raw/`에 그대로 두고 git으로 올리지 않습�
 | ASOS 일자료 | `weather/수집_기록.csv` | `weather/raw/asos-<시각>/` (JSON 2개 + `fetch_log.json`, 키 가림) | `uv run python -m bigcontest.weather --offline` |
 | E-Gen·복지로 (9개 출처) | `resources/수집_기록.csv` | `resources/raw/<출처>/<실행 ID>/page*.xml` | `uv run python -m bigcontest.resources.sources --offline` |
 | 공휴일 | `holidays/공휴일_2025-07_12.csv` (`checked_at`) | `holidays/raw/kasi_calendarData_2025.html` | `uv run python -m bigcontest.holidays --offline` |
+| 주민등록·시민생활 추출본 | - | 레포 밖 (제출 묶음 `02_외부데이터/E01_E02_주민등록/원본`, `E03_E04_E05_서울시민생활/원본`) | `uv run python -m bigcontest.extract_external --resident <폴더> --seoul <폴더>` |
 | 원장 745건 | `resources/원본_출처목록.csv` (SHA256) | `resources/raw/원장_원본/` (원본 12개) | `uv run python -m bigcontest.resources.build_ledger` |
 
 - `resources/수집_기록.csv`의 처음 9줄(2026-10-14 01:28)은 원문 폴더가 남아 있지 않습니다. 같은 날 12:53에 다시 받았고(9줄 추가), 다시 받은 원문으로 만든 `추가자원_원장.csv`가 지금 파일과 **행·값 모두 같았습니다**(320건, 추가·빠짐·바뀐 칸 0).
 - ASOS도 2026-10-14에 다시 받았고 지금 CSV와 값이 같습니다(368행).
 - 새로 받은 값이 지금 파일과 다르면 파일을 바꾸지 않습니다(`--write`를 줄 때만). 시연 결과가 모르게 바뀌지 않게 하려는 것입니다.
+- 주민등록 전국 월말 원본 12개와 시민생활 월별 원본 12개에서 다시 만든 추출본도 지금 파일과 같습니다(2026-10-14). 테스트는 `BC_EXTERNAL_ORIG=<묶음 경로>`가 있을 때만 돕니다.
