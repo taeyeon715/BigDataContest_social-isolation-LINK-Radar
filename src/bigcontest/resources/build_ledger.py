@@ -18,10 +18,10 @@
      - (city, name, address)가 같은 행은 처음 것만. 순서대로 rid = R0000…
      나머지 원본(15074349 한부모, 15129863 노인일자리, 15155517 스마트복지관 카탈로그, 15158908 강원 노인복지시설,
      강원 노인여가복지시설 xlsx)은 원장 행을 만들지 않는다 (참고·교차검증용). 15074350 춘천 노인복지관은 좌표 확인용.
-  2) 좌표: 2026-10-13 에 Esri ArcGIS World Geocoder(키 없음)로 얻은 값. **이 단계는 다시 돌리지 않는다.**
-     Esri 약관상 키 없는 결과의 저장·재배포가 걸릴 수 있어 지오코더 응답을 레포에 두지 않는다.
-     그래서 좌표(lat·lon·coord_source)는 지금 원장에서 rid 로 가져온다 (`coords=` 로 다른 좌표표를 줄 수 있음.
-     도로명주소 좌표 API 로 바꿀 때 여기에 넣는다). 원천 위경도가 있는 행(15167096, 15074350)은 원천 값.
+  2) 좌표: 도로명주소 좌표제공 API(juso.go.kr) 좌표. external/resources/좌표_도로명주소.csv (resources/juso.py 가 만듦)에서
+     주소로 찾는다 (`juso_coords`). 좌표표에서 하나로 정해지지 않은 주소는 지금 원장 좌표를 rid 로 가져온다
+     (2026-10-13 Esri ArcGIS World Geocoder(키 없음) 탐색용 값, coord_source 에 '도로명주소 미매칭'. 지오코더는 다시 돌리지 않고
+     응답도 레포에 두지 않는다). `coords=` 로 다른 좌표표를 줄 수 있음. 원천 위경도가 있는 행(15167096, 15074350)은 원천 값.
   3) 행정동 배정 (`assign_dongs`): 좌표를 ref/adm_boundary.geojson 경계에 넣어 찾고, 주소 괄호 속 법정동(강남)·
      읍면·법정동 이름(춘천)과 맞춰 본다. 규칙은 탐색 스크립트와 같음 (좌표+주소일치 / 좌표 / 좌표(번지점)+법정동≠행정동 경계 /
      주소텍스트 / 미배정 / 비공간).
@@ -256,7 +256,7 @@ def assign_dongs(R: pd.DataFrame, bd: Boundary | None = None, names: pd.DataFram
             pc = bd.locate(float(r.lat), float(r.lon))[0] or None
         if pc and pc[:2] != CITY_CODE[r.city]:
             pc = None
-        exact = "ArcGIS" in r.coord_source or r.coord_source == "원천 제공 위경도"
+        exact = "ArcGIS" in r.coord_source or "juso" in r.coord_source or r.coord_source == "원천 제공 위경도"
         if pc and (not tc or pc in tc):
             cds.append(pc)
             hows.append("좌표+주소일치" if tc else "좌표")
@@ -278,10 +278,19 @@ def assign_dongs(R: pd.DataFrame, bd: Boundary | None = None, names: pd.DataFram
     return out
 
 
+def juso_coords(cur: pd.DataFrame) -> pd.DataFrame:
+    """지금 원장(rid·address·city·lat·lon·coord_source) → 도로명주소 좌표표를 덧씌운 rid, lat, lon, coord_source."""
+    from bigcontest.resources import juso
+
+    if not juso.TABLE.exists():
+        return cur[["rid", "lat", "lon", "coord_source"]]
+    return juso.new_coords(cur, juso.load_table(), "rid")
+
+
 def build(raw: Path | None = None, coords: pd.DataFrame | None = None) -> pd.DataFrame:
     """원본 12개 → 원장 (칸 순서·문자열 형식은 복지자원_원장.csv 와 같음).
 
-    coords: rid, lat, lon, coord_source 표. 없으면 지금 원장의 좌표 (2026-10-13 ArcGIS, 다시 돌리지 않음).
+    coords: rid, lat, lon, coord_source 표. 없으면 지금 원장의 좌표에 도로명주소 좌표표를 덧씌운 값 (`juso_coords`).
     """
     raw = Path(raw or raw_dir())
     bad = verify_sources(raw)
@@ -289,9 +298,10 @@ def build(raw: Path | None = None, coords: pd.DataFrame | None = None) -> pd.Dat
         raise FileNotFoundError("원본이 출처목록과 다름: " + "; ".join(bad))
     R = rows_from_sources(raw)
     if coords is None:
-        coords = pd.read_csv(SRC, dtype=str, keep_default_na=False)[["rid", "name", "lat", "lon", "coord_source"]]
-        if not coords["name"].equals(R["name"]):
+        cur = pd.read_csv(SRC, dtype=str, keep_default_na=False)
+        if not cur["name"].equals(R["name"]):
             raise ValueError("원본에서 만든 행 순서가 지금 원장과 달라 좌표를 rid 로 옮길 수 없음")
+        coords = juso_coords(cur)
     c = coords.set_index("rid")
     eld = source_coords(raw)
     lat, lon, cs = [], [], []

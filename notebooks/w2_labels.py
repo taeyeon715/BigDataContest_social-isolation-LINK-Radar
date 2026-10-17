@@ -16,11 +16,12 @@ import yaml
 
 from bigcontest.config import ROOT
 from bigcontest.external import haversine_km
+from bigcontest.resources.ledger import SPATIAL
 from bigcontest.resources.ledger import load as load_ledger
 
 CFG = yaml.safe_load((ROOT / "configs" / "resource_eval.yaml").read_text(encoding="utf-8"))
 OUT = ROOT / "reports" / "w2_자원추천평가"
-SPATIAL_OK = {"탐색용", "확인됨", "도로명주소"}  # 좌표가 있는 물리 거점 (권역 외·미확인 제외)
+SPATIAL_OK = SPATIAL  # 좌표가 있는 물리 거점 = 확인(juso)·탐색용 (권역 외·미확인 제외). 예전 값은 확인(juso) 이름이 틀려 있었음
 
 
 def pairs() -> pd.DataFrame:

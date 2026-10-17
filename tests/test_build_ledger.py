@@ -40,3 +40,14 @@ def test_full_rebuild_identical():
     new = B.build()
     assert B.compare(new, old) == {}
     assert new.equals(old)
+
+
+def test_original_rows_non_coordinate_fields_fixed():
+    """원래 원장 745건: 좌표를 도로명주소로 바꿔도 좌표·행정동 밖의 칸은 그대로 (2026-10-13 원장과 같은 값)."""
+    import hashlib
+
+    d = pd.read_csv(SRC, dtype=str, keep_default_na=False)
+    assert list(d.columns) == B.COLS and len(d) == 745
+    cols = [c for c in d.columns if c not in ("adm_cd", "adm_nm", "dong_method", "lat", "lon", "coord_source")]
+    h = hashlib.sha256(d[cols].to_csv(index=False, lineterminator="\n").encode()).hexdigest()
+    assert h == "6154ff0e82c17455c13602145a010ffd8bf0ae5dce52116176aba02cdc39c1a6"

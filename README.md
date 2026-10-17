@@ -10,7 +10,7 @@
 ![Claude](https://img.shields.io/badge/Claude-Sonnet%205.5-D97757?logo=anthropic&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/pytest-1120%20passed-2EA44F?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest-1131%20passed-2EA44F?logo=pytest&logoColor=white)
 
 2026 빅콘테스트 · AI데이터 활용 분야 · 서울 강남구 · 강원 춘천시
 
@@ -279,7 +279,7 @@ flowchart TD
 | **기상청** ASOS 일자료, 기상특보 | 서울·춘천 기온·강수, 특보 | 폭염·강수 반증과 점검 트리거 |
 | **국립중앙의료원** E-Gen 약국·병의원·응급의료기관 | 휴일 운영 정보 | 연휴 점검 자원 |
 | **한국사회보장정보원** 복지로 중앙·지자체 서비스 | 자격·신청 방법 | 고립 관련 제도·사업 |
-| **행정안전부** 도로명주소 검색·좌표 | 표준 주소, 건물 좌표 | 자원 위치 정제 (승인 대기) |
+| **행정안전부** 도로명주소 검색·좌표 | 표준 주소, 건물 좌표 | 자원 위치 (건물 출입구 좌표, 2026-10-18 반영) |
 
 출처와 수집 방법은 [external/](external/README.md)에 있습니다.
 
@@ -347,7 +347,7 @@ cd web && npm test        # 화면 상태 (Vitest)
 
 | 항목 | 결과 |
 |---|---|
-| pytest | **1,120 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
+| pytest | **1,131 통과** (원본 데이터가 없으면 일부 건너뜀, 실제 Claude 호출 시험은 따로 켬) |
 | 화면 (vitest) | **136 통과** |
 | 하락 폭별 감지 | 2·3·5·10·15·20% 하락의 감지율과 코호트 단위 신뢰구간을 함께 공개 ([EDA-6](reports/eda6_사전경보재평가/)) |
 | 시연 사례 D1~D4 | 실제 데이터 도구로 끝까지 동작. 정상 자료에서 가짜 LLM 5종·LLM 없음·실제 Claude의 등급이 같음 (`test_demo_cases.py`. 가짜 도구 시나리오 7개에서는 가짜 LLM 7종, `test_determinism.py`) |
