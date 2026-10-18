@@ -38,6 +38,7 @@
 """
 
 import re
+from pathlib import Path
 
 import pandas as pd
 
@@ -222,7 +223,14 @@ def read_supplement(path=SUPPLEMENT) -> pd.DataFrame:
     """보강 자원 (sources.py 가 만든 것). 없으면 빈 표."""
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_csv(path, dtype=str, keep_default_na=False)
+    d = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if Path(path) == SUPPLEMENT:
+        from bigcontest.resources.senior_centers import rows
+
+        centers = rows(list(d.columns))
+        if len(centers):
+            d = pd.concat([d, centers], ignore_index=True)
+    return d
 
 
 def build(write: bool = True, corrections: pd.DataFrame | None = None,
