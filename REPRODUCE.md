@@ -62,13 +62,13 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 
 | 목록 | 무엇 | 개수 | `--check-hash` 에서 |
 |---|---|---|---|
-| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개 포함 | 89 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
+| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개 포함 | 95 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
 | `reports/결과_해시_로컬.txt` | 레포에 올리지 않는 로컬 전용 결과: `m1_기대활동모델/예측_전체.csv`(원천 결제건수가 있어 `.gitignore`) | 1 | 파일이 있을 때만 비교, 다르면 실패. 없으면 "건너뜀" (새 체크아웃에는 없음) |
 
-- `--write-hash`는 git이 추적하는 `reports/**/*.csv`로 검증 목록을 다시 씁니다. 리포트 CSV를 새로 추가했으면 커밋한 뒤 `--write-hash`로 목록에 넣습니다. 목록 밖 CSV는 검사에서 실패하므로 빠뜨릴 수 없습니다(`tests/test_r2_results.py`가 목록 = 추적 CSV 인지 확인).
+- `--write-hash`는 git 추적 및 무시되지 않은 신규 `reports/**/*.csv`로 검증 목록을 다시 씁니다. 리포트 CSV를 새로 추가했으면 변경을 확인한 뒤 `--write-hash`로 목록에 넣습니다. 목록 밖 CSV는 검사에서 실패하므로 빠뜨릴 수 없습니다(`tests/test_r2_results.py`가 목록 = 추적·무시되지 않은 신규 CSV 인지 확인).
 - `reports/재현_기록.csv`(실행 시간)는 컴퓨터마다 달라 해시에서 뺍니다.
 - 새 체크아웃에서 문서의 순서로 확인한 결과 (2026-10-14):
-  - 원본 없이: `--only w1 w2 m4 s1 check_no_raw --check-hash` → 검증 목록 같음 89, 다름·새 파일·없어짐 0, 로컬 전용 건너뜀 1, 종료 코드 0. (s1 은 `data/interim`이 필요합니다. 원본이 없으면 `--no-raw --check-hash` 로 w1·w2·m4·점검만 돌려도 같은 결과입니다.)
+  - 원본 없이: `--only w1 w2 m4 s1 check_no_raw --check-hash` → 검증 목록 같음 95, 다름·새 파일·없어짐 0, 로컬 전용 건너뜀 1, 종료 코드 0. (s1 은 `data/interim`이 필요합니다. 원본이 없으면 `--no-raw --check-hash` 로 w1·w2·m4·점검만 돌려도 같은 결과입니다.)
   - `data/interim`이 있을 때: r1·w2·r2·m3 를 다시 만들어도 커밋된 CSV와 같습니다.
 - 예전에 `reports/r1_등급규칙/카드_판단변화.csv`는 실행마다 **행 순서**가 바뀌었습니다(파이썬 집합 순서). 지금은 노트북이 도시·집단·기준일·코호트 순으로 정렬해 저장합니다. 정렬 전후 213행의 내용은 같고 순서만 바뀌었습니다.
 - 원본(대회 zip)이 필요한 단계: ingest. `data/interim`(원본을 적재한 정리본)이 필요한 단계: eda1~6, m1, m2, r1, r2, m3, s1. 원본 없이 되는 단계: w1, w2, m4, 점검. 원본은 재배포할 수 없어 새 체크아웃에는 없습니다.
@@ -79,3 +79,12 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 
 - 등급 규칙·신호·자원을 바꾸면(예: `configs/rules.yaml`) r1 → r2 → m3 를 다시 돌려야 결과표·평가 숫자가 맞습니다. R-2 요약표의 등급 수가 R-1 결과표와 같은지는 `tests/test_r2_results.py`가 확인합니다.
 - 자원 원장이 바뀌면 W-2 정답 세트도 바뀌어야 할 수 있습니다. 그때는 정답 규칙(`configs/resource_eval.yaml`)을 먼저 고정·커밋한 뒤 `--relabel`로 정답 세트를 만들고, 그다음 평가합니다.
+
+
+## 2026-10-18 접근성 재검증
+
+공식 경로당 372곳은 `external/resources/chuncheon_centers/시설목록.csv`와 `주소좌표.csv`에 고정했습니다. `notebooks/w1_resource_ledger.py`를 다시 실행하면 네트워크 없이 원장 1,440건을 만듭니다. 자원 출처와 미확인 운영·좌표 처리는 해당 폴더 README를 따릅니다.
+
+대회 정리본이 있는 환경에서는 W1 → R1 → W2 → M4 → R2 → M3 → S1 순서로 관련 결과를 재계산합니다. 고정된 W2 정답을 보존하기 위해 `--relabel`은 사용하지 않습니다. 보강 전후 감사는 `PYTHONPATH=src python notebooks/a1_access_audit.py`로 다시 만듭니다. 공개 보강 전 원장 스냅샷도 함께 제공했습니다.
+
+사용자 평가는 `evaluation/user_study_20261018/index.html`에서 시작합니다. `응답_양식.csv`는 헤더뿐이며 실제 응답을 넣어야 합니다. `analyze.py`는 빈 응답이나 배정 불일치·중복 응답을 거부합니다. 자료 준비를 실무 검증 완료로 표현하지 않습니다.
