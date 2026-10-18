@@ -53,10 +53,10 @@ def test_r2_tables_recount_to_summary():
 @need_r2
 def test_r2_distance_is_rule_distance():
     tab = _csv(R2 / "동별_등급표.csv", dtype={"adm_cd": str})
-    acc = _csv(REP / "w1_자원원장" / "동별_접근거리.csv").set_index(["도시", "동"])["안부·관계"]
-    t = tab[tab["adm_cd"].notna() & (tab["adm_cd"] != "")].drop_duplicates(["도시", "동"])
+    acc = _csv(REP / "w1_자원원장" / "집단별_접근거리.csv").set_index(["도시", "동", "집단"])["안부·관계"]
+    t = tab[tab["adm_cd"].notna() & (tab["adm_cd"] != "")].drop_duplicates(["도시", "동", "집단"])
     for _, r in t.iterrows():
-        assert r["A1 안부·관계 거점 거리(km)"] == pytest.approx(acc[(r["도시"], r["동"])], abs=0.006), r["동"]
+        assert r["A1 안부·관계 거점 거리(km)"] == pytest.approx(acc[(r["도시"], r["동"], r["집단"]) ], abs=0.006), r["동"]
     # 동내면: EDA-4 '가장 가까운 거점'으로는 5km 넘지만 안부·관계 거점은 5km 안 → 접근성 기준 안 넘음
     dn = t[t["동"] == "동내면"].iloc[0]
     assert dn["A1 안부·관계 거점 거리(km)"] < 5 and not dn["A1 접근성 기준 넘음"]

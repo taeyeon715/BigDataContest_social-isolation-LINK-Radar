@@ -129,28 +129,24 @@ def test_d2_chuncheon_winter_review(agent):
     assert st["waiting"] and final_guard(v) == PASS3
     assert "calc_winter_contraction" in v["tools_run"]
     cands = v["candidates"]
-    # 읍·면 10곳 중 구조 상위 또는 직선 5km 이상인 8곳만 후보 (rules-v1.1 진입 규칙)
-    assert len(cands) == 8 and all(c["trigger"].startswith("W 동절기") for c in cands)
-    assert all(c["input_status"] == "충족" for c in cands)  # 동절기 점검 필수 근거(겨울 변화) 포함
-    lv = {c["adm_cd"]: c["candidate_level"] for c in cands}
-    assert {a for a, l in lv.items() if l == "Level 3"} == {"32010350", "32010360", "32010390"}  # 남면·남산면·북산면
-    assert all(c["rule_id"] == "L3-STRUCT-ACCESS-TRIGGER" and c["response_type"] == "현장 확인"
-               for c in cands if c["candidate_level"] == "Level 3")
+    # 공식 경로당 보강 후 구조 상위 세 면만 남고 모두 Level 2이다.
+    assert len(cands) == 3 and all(c["trigger"].startswith("W 동절기") for c in cands)
+    assert all(c["input_status"] == "충족" for c in cands)
+    assert {c["adm_cd"] for c in cands} == {"32010350", "32010360", "32010390"}
+    assert all(c["candidate_level"] == "Level 2" and c["rule_id"] == "L2-STRUCT-TRIGGER" for c in cands)
     assert {c["event_id"] for c in cands} == {"춘천:W:2025"}
     t = text(v)
     assert "직선" in t and "춘천 읍·면 겨울 변화" in t
-    lv3 = {c["candidate_id"] for c in cands if c["candidate_level"] == "Level 3"}
-    assert all("현재 원장 기준 접근성" in c["level_reason"] for c in cands if c["candidate_level"] == "Level 3")
-    res = [r for r in v["resources"] if r["candidate_id"] in lv3]
-    assert res and any("전달 방식: 찾아가는 서비스" in r["warnings"] for r in res)
-    assert "전화형·찾아가는 서비스부터" in t
+    selected = {c["candidate_id"] for c in cands if c["selected_for_review"]}
+    res = [r for r in v["resources"] if r["candidate_id"] in selected]
+    assert res  # 거리가 가깝더라도 검토·자원 연결 흐름은 유지된다.
     # 제외 규칙(확인일 없음 등)을 먼저 적용한 뒤 상위 K → G-07 에서 다시 빠지는 자원이 없음
     assert "자원 제외(G-07)" not in t and all(r["verified_date"] for r in v["resources"])
     # 위기 전화는 첫 추천이 아니라 맨 아래 "위급 시 안내". 공식 페이지 확인 뒤 확인일이 있음
-    for cid in lv3:
+    for cid in selected:
         mine = [r for r in v["resources"] if r["candidate_id"] == cid]
         crisis = [i for i, r in enumerate(mine) if r.get("group") == "위급 시 안내"]
-        assert {mine[i]["resource_id"] for i in crisis} == {"R0742", "R0744"}
+        assert not crisis  # 현재 세 면은 원거리형이 아니므로 위기 전화 묶음을 강제로 붙이지 않는다.
         assert crisis == list(range(len(mine) - len(crisis), len(mine)))  # 모두 맨 아래
         # 고령층 안부·관계 첫 순위: 노인맞춤돌봄서비스(제도, 신청은 행정복지센터) → 면 행정복지센터
         assert [r["resource_type"] for r in mine[:2]] == ["노인맞춤돌봄서비스", "행정복지센터"]
@@ -262,7 +258,7 @@ def test_followup_other_city_on_chuncheon_card(agent):
     assert out["status"] == "abstained" and out["abstain_reason"].startswith("OUT_OF_SCOPE")
     out = answer_followup(v, "강남구 어르신은 어때?", "none")
     assert out["status"] == "abstained" and out["abstain_reason"].startswith("OUT_OF_SCOPE")
-    out = answer_followup(v, "남면은 왜 Level 3야?", "none")  # 같은 도시 동은 그대로 답함
+    out = answer_followup(v, "남면은 왜 Level 2야?", "none")  # 현재 등급으로 같은 도시 동을 묻는다
     assert out["status"] == "answered"
 
 
@@ -351,12 +347,12 @@ def test_d2_nammyeon_action(agent):
     v = run(agent, "D2", D2)["values"]
     cid = next(c["candidate_id"] for c in v["candidates"] if c.get("adm_cd") == "32010350")  # 남면
     a = actions_of(v)[cid]
-    assert a["candidate_level"] == "Level 3" and a["group"] == "고령층"
+    assert a["candidate_level"] == "Level 2" and a["group"] == "고령층"
     assert [x["area"] for x in a["check_areas"]][:2] == ["이동·외출", "주거·안전"]  # 동절기 접근 거리 + 난방
     p = a["action_plan"]
-    assert p["due_date"] == "2026-01-03" and p["method"].startswith("전화형·찾아가는 서비스 먼저")
+    assert p["due_date"] == "2026-01-03" and p["method"] == "전화 안부 → 방문 대상 추리기"
     assert "노인맞춤돌봄 수행기관" in p["owner"]
-    assert set(p["emergency_contacts"]) and not any(n in p["text"] for n in p["emergency_contacts"])
+    assert not any(n in p["text"] for n in p["emergency_contacts"])
     assert any("노인맞춤돌봄 대상자" in x for x in a["checklist"]["lists"])
 
 

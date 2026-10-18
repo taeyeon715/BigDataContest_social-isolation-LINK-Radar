@@ -215,7 +215,7 @@ def test_scoped_more_shows_requested_evidence_real(tmp_path, monkeypatch):
         c, st, card1, v, card2 = _scoped_more(
             a, "2025-09-26", "춘천", lambda cs: next(x for x in cs if x["adm_cd"] == "32010350"),
             "연휴 앞뒤 결제 차이를 더 봐줘")
-        assert c["candidate_level"] == "Level 3"
+        assert c["candidate_level"] == "Level 2"
         assert any(e.metric.startswith("폭염일") for e in card2.evidence)
         new, _ = _check_round(st, card1, v, card2)
         assert len(new) == 12  # 연휴 중·뒤 × 60·70·80대+ × 남녀

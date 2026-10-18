@@ -85,7 +85,7 @@ def test_structure_and_access():
     acc_gn = ok(W.get_access_gap(ctx("강남", group="고령층")))
     assert all(r.value < S.STUB_LEVEL_RULES["access_far_km"] for r in acc_gn)  # 강남: 거리 공백 근거 약함
     acc_cc = {r.evidence_id[-8:]: r.value for r in ok(W.get_access_gap(ctx("춘천")))}
-    assert acc_cc["32010350"] > 10  # 남면
+    assert acc_cc["32010350"] == pytest.approx(1.07, abs=0.01)  # 남면: 공식 경로당 보강
 
 
 def test_validation_reference_only_gangnam():

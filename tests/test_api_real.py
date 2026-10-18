@@ -615,7 +615,7 @@ def test_real_tools_dashboard_d2(tmp_path):
     with TestClient(app) as c:
         q = {"as_of": "2025-12-20", "city": "춘천"}
         cl = ok(c.get("/candidates", params=q), CandidateListResponse)
-        assert "Level 3" in {x.candidate_level for x in cl.items}
+        assert len(cl.items) == 3 and {x.candidate_level for x in cl.items} == {"Level 2"}
         ov = ok(c.get("/overview", params=q), OverviewResponse)
         assert "W" in {t.rule for t in ov.triggers} and ov.monitoring_run_id == cl.monitoring_run_id
         mp = ok(c.get("/map", params=q), MapResponse)
@@ -645,10 +645,10 @@ def test_real_tools_d2_through_api(tmp_path):
         acc = start(c, question="춘천 읍·면 어르신 겨울철 점검은 어디부터 해야 해?", as_of="2025-12-20")
         st = status(c, acc.run_id)
         assert st.status == "awaiting_approval" and acc.snapshot_id == snap.snapshot_id
-        assert "Level 3" in {x.candidate_level for x in st.candidates}
+        assert len(st.candidates) == 3 and {x.candidate_level for x in st.candidates} == {"Level 2"}
         res = ok(c.get(f"/runs/{acc.run_id}/resources"), RunResourcesResponse)
         assert res.items and {x.city for x in res.items} == {"춘천"}
-        f = ok(c.post(f"/runs/{acc.run_id}/followup", json={"question": "왜 Level 3 후보가 먼저야?"}),
+        f = ok(c.post(f"/runs/{acc.run_id}/followup", json={"question": "남면은 왜 Level 2야?"}),
                FollowupResponse)
         assert f.status == "answered"
         perf = c.app.state.runs.agent.status(acc.run_id)["values"]["run_meta"]["perf"]

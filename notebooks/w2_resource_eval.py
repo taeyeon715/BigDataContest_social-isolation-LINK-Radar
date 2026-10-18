@@ -178,7 +178,7 @@ if added or removed:
         den = min(KK, len(gs))
         rec_now.append(len([x for x in g["resource_id"] if x in gs]) / den if den else np.nan)
     r.p(f"정답 세트를 만든 뒤 원장이 바뀌었습니다. 같은 사전 규칙을 지금 원장에 다시 적용하면 정답이 {len(added)}건 늘고 {len(removed)}건 줄어듭니다 "
-        f"({', '.join(sorted({a_[4] for a_ in added})) or '-'}). 이 정답으로 다시 재면 평균 {R5} {np.nanmean(rec_now):.2f}입니다(참고). "
+        f"({', '.join(sorted({a_[4] for a_ in added})[:5]) or '-'} 등 일부 예시). 이 정답으로 다시 재면 평균 {R5} {np.nanmean(rec_now):.2f}입니다(참고). "
         "본 결과는 커밋한 정답 세트 기준입니다.")
 else:
     r.p("정답 세트를 만든 원장과 지금 원장에서 같은 규칙의 정답이 같습니다.")

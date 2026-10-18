@@ -1,0 +1,13 @@
+﻿source_id,url,collected_at,bytes,sha256,status
+centers,https://www.chuncheon.go.kr/new-welfare/life/senior/senior-center/,2026-10-18,242702,21c1fbc7aa0a9dfdda0b25837aa0031ace06196a1dba4eaada3c7b73c01666a7,retrieved
+care,https://www.chuncheon.go.kr/new-welfare/Single-person/senior/comprehensive-care-service/,2026-10-18,225098,1809a9abe29db08b8f0cafa74ca73c3cd7abb977973c90ded65aebece12b2754,retrieved
+welfare,https://www.chuncheon.go.kr/new-welfare/,2026-10-18,250863,9ff8d7e648390293e457d55e1692f3a78af24caed96cf8de752da1436ed1bd42,retrieved
+nam,https://www.chuncheon.go.kr/village/nam-myeon/,2026-10-18,66931,5972fe72b4371f963fc5d6da590428607808d54668c4583319590bdaf4a2c473,retrieved
+namsan,https://www.chuncheon.go.kr/village/namsan-myeon/,2026-10-18,66112,c2b242c4919a606c2d94f395f0ffa7707c9bebf4e65bf29aad2572e01c94485f,retrieved
+buksan,https://www.chuncheon.go.kr/village/buksan-myeon/,2026-10-18,67157,ad9b7684642575f03addd9860314c01af9087eaf244982d2796dd423f093542c,retrieved
+pharmacy,https://www.chuncheon.go.kr/village/namsan-myeon/institution/pharmacy/,2026-10-18,78767,dc0911ac8f28fd92da79a7003a1d345941eef482770e10160c3e9dbc853e1a37,retrieved
+east,https://cswc.or.kr/,2026-10-18,40974,c35f4cb05d735307b3c70014b8e1c1a5a9d9e1b8df0fe75a8547adfe5807fbc9,retrieved
+north,https://cnsw.or.kr/,2026-10-18,233727,63e593debcf4d627b341e8f6454c48fa543b02fd623ba2fb04ed21f78fb5cb95,retrieved
+mental,https://www.chuncheon.go.kr/new-welfare/life/youth-old/prevention-lonely-death/,2026-10-18,229888,e43a2c2a644591f93cac36e70ded5399936e38f5891b7b52122a83413bb9f6e9,retrieved
+companion,https://www.chuncheon.go.kr/new-welfare/Single-person/senior/policyhospital-companion/,2026-10-18,224077,e3df70fcb053a84f38f0d0c38da163d8ed757404efeb1c0a30be4b10f11a1bf0,retrieved
+pharmacy_shinbuk,https://www.chuncheon.go.kr/village/sinbuk-eup/institution/pharmacy/,2026-10-18,82720,4e63cb18184f660ea7599e924807bf9916ae5ed04b34e3ac73416cf9f2b61911,retrieved

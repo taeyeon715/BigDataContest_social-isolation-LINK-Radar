@@ -42,7 +42,7 @@ def header(path: Path) -> list[str]:
 
 def tracked_csvs(root: Path = ROOT) -> list[Path]:
     try:
-        out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "-z", "--", "reports"],
+        out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "reports"],
                              cwd=root, capture_output=True, check=True).stdout.decode("utf-8")
         files = [root / p for p in out.split("\0") if p.lower().endswith(".csv")]
     except (OSError, subprocess.CalledProcessError):

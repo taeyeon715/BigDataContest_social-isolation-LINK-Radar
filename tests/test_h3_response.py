@@ -149,8 +149,8 @@ def test_protective_gangnam_dong_counts():
 def test_protective_chuncheon_city_count_and_pending():
     out = P.protective_for(P.ledger_v2(), "춘천", "32010310")  # 동면 (면)
     g = {x["group"]: x for x in out["groups"]}
-    assert g["경로당"]["status"] == "도시 집계만" and g["경로당"]["city_total"] == 371
-    assert "면 지역 157곳" in g["경로당"]["note"] and g["경로당"]["in_dong"] is None
+    assert g["경로당"]["status"] == "수집" and g["경로당"]["city_total"] == 372
+    assert g["경로당"]["in_dong"] > 0 and g["경로당"]["items"]
     assert g["더위·한파 쉼터"]["status"] == "미수집"
     assert g["돌봄 이웃"]["items"]
 

@@ -120,7 +120,7 @@ def test_chuncheon_0926_medical_citation_opens_medical_envelope():
     rep = report_of(s)
     card = {e.evidence_id: e for e in rep.evidence_card.evidence}
     medical = [i for i in rep.investigation.items if i.qid == "MEDICAL_ACCESS"]
-    assert {i.adm_cd for i in medical} == {SINDONG, DONGSAN, DONGMYEON}
+    assert {i.adm_cd for i in medical} == {"32010350", "32010360", "32010390"}  # 보강 후 후보에서 추가 조사
     for item in medical:
         assert item.status == "answered" and "의료 접근 자원 후보 5건" in item.finding
         (eid,) = item.evidence_ids
@@ -130,5 +130,5 @@ def test_chuncheon_0926_medical_citation_opens_medical_envelope():
         assert "위급 시 안내 0건" in ev.denominator
         # 같은 동의 기본 추천 봉투(상위 5 + 위급 시 안내 2 = 7건)는 다른 ID 로 그대로 있음
         same_dong = [e for e in s["evidence"] if e["metric"] == "복지 자원 후보" and f"({item.adm_cd})" in e["applied_scope"]]
-        assert len(same_dong) == 1 and same_dong[0]["value"] == 7 and same_dong[0]["evidence_id"] != eid
-        assert "상위 5건 + 위급 시 안내 2건" in same_dong[0]["denominator"]
+        assert len(same_dong) == 1 and same_dong[0]["value"] == 5 and same_dong[0]["evidence_id"] != eid
+        assert "상위 5건 + 위급 시 안내 0건" in same_dong[0]["denominator"]

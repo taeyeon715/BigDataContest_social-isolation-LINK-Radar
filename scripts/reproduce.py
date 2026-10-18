@@ -16,7 +16,7 @@
     값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV 가 reports/ 에 새로 생기면 실패(종료 코드 1).
   - reports/결과_해시_로컬.txt: 레포에 올리지 않는 로컬 전용 결과(M1 예측_전체.csv, 원천 결제건수가 있음).
     파일이 있을 때만 비교하고, 없으면 "건너뜀"으로 적는다 (새 체크아웃에는 없음).
-- --write-hash 는 git 이 추적하는 reports/**/*.csv 로 검증 목록을 다시 쓴다 (git 이 없으면 로컬 전용을 뺀 전부).
+- --write-hash 는 git 추적 및 무시되지 않은 신규 reports/**/*.csv 로 검증 목록을 다시 쓴다 (git 이 없으면 로컬 전용을 뺀 전부).
 - 자원 추천 평가의 정답 세트(notebooks/w2_labels.py)는 결과를 보기 전에 고정한 입력이라 기본으로 다시 만들지 않는다 (--relabel).
 """
 
@@ -128,9 +128,9 @@ def result_hashes(root: Path = ROOT) -> dict[str, str]:
 
 
 def tracked_csvs(root: Path = ROOT) -> set[str] | None:
-    """git 이 추적하는 reports/**/*.csv (reports 기준 상대 경로). git 을 못 쓰면 None."""
+    """git 추적 및 무시되지 않은 신규 reports/**/*.csv (reports 기준 상대 경로). git 을 못 쓰면 None."""
     try:
-        out = subprocess.run(["git", "ls-files", "-z", "--", "reports"], cwd=root,
+        out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "reports"], cwd=root,
                              capture_output=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         return None
