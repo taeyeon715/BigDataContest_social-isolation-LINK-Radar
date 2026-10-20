@@ -107,6 +107,7 @@ for reg in MAIN:
                      '행동형 인구': int(r.loc[r['위험 유형'] == '행동형', '주민'].sum()),
                      '취약형 인구': int(r.loc[r['위험 유형'] == '취약형', '주민'].sum())})
 GAP = pd.DataFrame(rows).set_index(['지역', '생애단계']); display(GAP)
+GAP.to_csv(OUTD / '복지자원_공급공백_생애단계.csv', encoding='utf-8-sig')
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.6), sharey=True)
 for ax, reg in zip(axes, MAIN):
     g = GAP.loc[reg][F]; x = np.arange(len(g.index)); wd = .2
