@@ -41,7 +41,7 @@ plt.rcParams.update({'font.family': 'Malgun Gothic', 'axes.unicode_minus': False
     'axes.titlelocation': 'left', 'legend.frameon': False, 'lines.linewidth': 2})
 pd.set_option('display.max_columns', 60); pd.set_option('display.max_rows', 120); pd.set_option('display.width', 220)
 pd.set_option('display.float_format', '{:,.3f}'.format)
-DATA, EXT, OUTD = Path('csv'), Path('external'), Path('../../reports/t1_2축위험도'); OUTD.mkdir(exist_ok=True)
+DATA, EXT, OUTD = Path('csv'), Path('external'), Path('outputs'); OUTD.mkdir(exist_ok=True)
 MAIN = ['서울 강남구', '강원 춘천시']
 C_ = {'서울 강남구': '#2a78d6', '강원 춘천시': '#eb6834'}
 GRAY, INK, INK2 = '#b5b4ae', '#0b0b0b', '#52514e'

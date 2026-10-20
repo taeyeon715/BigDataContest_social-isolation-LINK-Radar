@@ -1,0 +1,201 @@
+﻿지역,연령5,위험 유형,순위,서비스,수준,점수,링크
+서울 강남구,20대,이중 위험,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,20대,이중 위험,2,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,20대,이중 위험,3,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,20대,이중 위험,4,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,20대,이중 위험,5,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,20대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,20대,행동형,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,20대,행동형,3,서울마음편의점 조성·운영,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,20대,행동형,4,서울 영테크,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006708&wlfareInfoReldBztpCd=02
+서울 강남구,20대,행동형,5,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,20대,취약형,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,20대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,20대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+서울 강남구,20대,취약형,4,양육비 선지급,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005856&wlfareInfoReldBztpCd=01
+서울 강남구,20대,취약형,5,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+서울 강남구,20대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,20대,저위험,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,20대,저위험,3,서울마음편의점 조성·운영,시도,3.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,20대,저위험,4,서울 영테크,시도,2.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006708&wlfareInfoReldBztpCd=02
+서울 강남구,20대,저위험,5,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,30대,이중 위험,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,30대,이중 위험,2,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,30대,이중 위험,3,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,30대,이중 위험,4,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,30대,이중 위험,5,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,30대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,30대,행동형,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,30대,행동형,3,서울마음편의점 조성·운영,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,30대,행동형,4,서울 영테크,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006708&wlfareInfoReldBztpCd=02
+서울 강남구,30대,행동형,5,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,30대,취약형,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,30대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,30대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+서울 강남구,30대,취약형,4,양육비 선지급,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005856&wlfareInfoReldBztpCd=01
+서울 강남구,30대,취약형,5,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+서울 강남구,30대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,30대,저위험,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+서울 강남구,30대,저위험,3,서울마음편의점 조성·운영,시도,3.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,30대,저위험,4,서울 영테크,시도,2.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006708&wlfareInfoReldBztpCd=02
+서울 강남구,30대,저위험,5,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,40대,이중 위험,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,40대,이중 위험,2,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,40대,이중 위험,3,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,40대,이중 위험,4,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,40대,이중 위험,5,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+서울 강남구,40대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,40대,행동형,2,서울마음편의점 조성·운영,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,40대,행동형,3,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,40대,행동형,4,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+서울 강남구,40대,행동형,5,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,40대,취약형,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,40대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,40대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+서울 강남구,40대,취약형,4,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+서울 강남구,40대,취약형,5,폭력피해자 주거지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001101&wlfareInfoReldBztpCd=01
+서울 강남구,40대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,40대,저위험,2,서울마음편의점 조성·운영,시도,3.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,40대,저위험,3,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,40대,저위험,4,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+서울 강남구,40대,저위험,5,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,50대,이중 위험,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,50대,이중 위험,2,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,50대,이중 위험,3,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,50대,이중 위험,4,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,50대,이중 위험,5,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+서울 강남구,50대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,50대,행동형,2,서울마음편의점 조성·운영,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,50대,행동형,3,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,50대,행동형,4,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+서울 강남구,50대,행동형,5,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,50대,취약형,1,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,50대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,50대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+서울 강남구,50대,취약형,4,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+서울 강남구,50대,취약형,5,폭력피해자 주거지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001101&wlfareInfoReldBztpCd=01
+서울 강남구,50대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,50대,저위험,2,서울마음편의점 조성·운영,시도,3.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,50대,저위험,3,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,50대,저위험,4,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+서울 강남구,50대,저위험,5,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,이중 위험,1,독거노인·장애인 응급안전안심서비스,중앙,8.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001093&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,이중 위험,2,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,60대+,이중 위험,3,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,이중 위험,4,노인복지민간단체지원,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000033&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,이중 위험,5,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,행동형,2,서울마음편의점 조성·운영,시도,5.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,60대+,행동형,3,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,행동형,4,치매검사비 지원,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005004&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,행동형,5,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,취약형,1,독거노인·장애인 응급안전안심서비스,중앙,8.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001093&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,취약형,2,서울시 1인가구 동행서비스(건강동행서비스),시도,7.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005003&wlfareInfoReldBztpCd=02
+서울 강남구,60대+,취약형,3,노인맞춤돌봄서비스,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00003191&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,취약형,4,장기요양 본인부담금 감경,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001177&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,취약형,5,특별현금급여(가족요양비),중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001086&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,저위험,2,서울마음편의점 조성·운영,시도,3.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006579&wlfareInfoReldBztpCd=02
+서울 강남구,60대+,저위험,3,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,저위험,4,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+서울 강남구,60대+,저위험,5,치매검사비 지원,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005004&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,이중 위험,1,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,이중 위험,2,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,이중 위험,3,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,이중 위험,4,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,이중 위험,5,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,행동형,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,행동형,3,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,행동형,4,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,행동형,5,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,취약형,1,도내 대학생 등록금 장학금 지원사업,시도,6.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001888&wlfareInfoReldBztpCd=02
+강원 춘천시,20대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,취약형,4,양육비 선지급,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005856&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,취약형,5,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,저위험,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,저위험,3,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,저위험,4,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+강원 춘천시,20대,저위험,5,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,이중 위험,1,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,이중 위험,2,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,이중 위험,3,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,이중 위험,4,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,이중 위험,5,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,행동형,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,행동형,3,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,행동형,4,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,행동형,5,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,취약형,1,도내 대학생 등록금 장학금 지원사업,시도,6.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001888&wlfareInfoReldBztpCd=02
+강원 춘천시,30대,취약형,2,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,취약형,3,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,취약형,4,양육비 선지급,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005856&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,취약형,5,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,저위험,2,"위기청년(가족돌봄, 고립은둔) 전담 지원사업",중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006301&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,저위험,3,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,저위험,4,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+강원 춘천시,30대,저위험,5,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,이중 위험,1,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,이중 위험,2,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,이중 위험,3,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,이중 위험,4,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,이중 위험,5,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,행동형,2,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,행동형,3,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,행동형,4,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,행동형,5,의사상자지원,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00003272&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,취약형,1,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,취약형,2,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,취약형,3,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,취약형,4,폭력피해자 주거지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001101&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,취약형,5,정신질환자 치료비 지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,저위험,2,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,저위험,3,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,저위험,4,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,40대,저위험,5,노후준비서비스,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,이중 위험,1,일상돌봄 서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,이중 위험,2,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,이중 위험,3,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,이중 위험,4,가족전용상담전화,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006315&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,이중 위험,5,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,행동형,2,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,행동형,3,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,행동형,4,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,행동형,5,의사상자지원,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00003272&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,취약형,1,일상돌봄 서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,취약형,2,한국형 상병수당 시범사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00004997&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,취약형,3,건강보험 임의계속가입제도,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006258&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,취약형,4,폭력피해자 주거지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001101&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,취약형,5,정신질환자 치료비 지원 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,저위험,2,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,저위험,3,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,저위험,4,일상돌봄 서비스 사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005411&wlfareInfoReldBztpCd=01
+강원 춘천시,50대,저위험,5,노후준비서비스,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,이중 위험,1,독거노인·장애인 응급안전안심서비스,중앙,8.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001093&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,이중 위험,2,정신질환자 치료비 지원 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,이중 위험,3,노인복지민간단체지원,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000033&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,이중 위험,4,안부살핌 우편서비스 사업,중앙,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,이중 위험,5,춘천형 노인통합돌봄사업,시군구,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005308&wlfareInfoReldBztpCd=02
+강원 춘천시,60대+,행동형,1,안부살핌 우편서비스 사업,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,행동형,2,정신건강 심리상담 바우처사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,행동형,3,치매검사비 지원,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005004&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,행동형,4,노후준비서비스,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,행동형,5,정신질환자 치료비 지원 사업,중앙,5.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006241&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,취약형,1,독거노인·장애인 응급안전안심서비스,중앙,8.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001093&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,취약형,2,춘천형 노인통합돌봄사업,시군구,7.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005308&wlfareInfoReldBztpCd=02
+강원 춘천시,60대+,취약형,3,장수수당 지원,시도,6.5,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001873&wlfareInfoReldBztpCd=02
+강원 춘천시,60대+,취약형,4,노인맞춤돌봄서비스,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00003191&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,취약형,5,장기요양 본인부담금 감경,중앙,6.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00001177&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,저위험,1,안부살핌 우편서비스 사업,중앙,4.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00006237&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,저위험,2,정신건강 심리상담 바우처사업,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,저위험,3,통합문화이용권,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000055&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,저위험,4,치매검사비 지원,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005004&wlfareInfoReldBztpCd=01
+강원 춘천시,60대+,저위험,5,노후준비서비스,중앙,2.0,https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00000031&wlfareInfoReldBztpCd=01

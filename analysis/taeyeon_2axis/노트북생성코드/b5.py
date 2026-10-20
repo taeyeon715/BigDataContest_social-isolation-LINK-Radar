@@ -27,7 +27,7 @@ plt.rcParams.update({'font.family': 'Malgun Gothic', 'axes.unicode_minus': False
     'grid.color': '#e6e5e1', 'grid.linewidth': .6, 'axes.edgecolor': '#b5b4ae', 'axes.labelcolor': '#52514e',
     'xtick.color': '#52514e', 'ytick.color': '#52514e', 'axes.titlesize': 11.5, 'axes.titleweight': 'bold', 'axes.titlelocation': 'left', 'legend.frameon': False})
 pd.set_option('display.max_columns', 30); pd.set_option('display.width', 220); pd.set_option('display.max_colwidth', 60)
-EXT, OUTD = Path('external'), Path('../../reports/t1_2축위험도')
+EXT, OUTD = Path('external'), Path('outputs')
 MAIN = ['서울 강남구', '강원 춘천시']; AGE5 = ['20대', '30대', '40대', '50대', '60대+']
 R = pd.read_csv(OUTD / '위험도_2축_강남_춘천_동x성x연령.csv', dtype={'SGIS코드': str})
 nat = pd.read_csv(EXT / 'welfare/중앙부처복지서비스_목록.csv').assign(제공='중앙부처', ctpvNm=np.nan, sggNm=np.nan)

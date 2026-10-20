@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import norm
 pd.set_option('display.max_columns', 30); pd.set_option('display.width', 220); pd.set_option('display.max_colwidth', 70)
-EXT, OUTD = Path('external'), Path('../../reports/t1_2축위험도')
+EXT, OUTD = Path('external'), Path('outputs')
 MAIN = ['서울 강남구', '강원 춘천시']; ORDER = ['심각', '경계', '주의', '관심', '정상']
 R = pd.read_csv(OUTD / '위험도_2축_강남_춘천_동x성x연령.csv', dtype={'SGIS코드': str})
 REC = pd.read_csv(OUTD / '복지자원_추천_유형x생애단계.csv')

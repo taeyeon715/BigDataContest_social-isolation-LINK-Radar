@@ -44,5 +44,4 @@ Thumbs.db
 # 태연 분석(analysis/taeyeon_2axis): 대회 원본 zip과 변환본 csv/는 올리지 않음
 analysis/taeyeon_2axis/원본데이터/*.zip
 analysis/taeyeon_2axis/csv/
-analysis/taeyeon_2axis/outputs/
 analysis/taeyeon_2axis/external/codes/*.geojson
