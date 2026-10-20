@@ -49,11 +49,13 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 | 14 | r2 | `notebooks/r2_risk_results.py` | 1, r1·eda3·eda5·eda6·m1 | `reports/r2_위험도결과` | 안 됨 | 17초 |
 | 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | 2분 26초 |
 | 16 | s1 | `notebooks/s1_link_sim.py` | 1 (실제 자료 비교) | `reports/s1_LINK-Sim`, `data/sim` (가상 자료, git 제외) | 안 됨 | 3분 30초 |
-| 17 | 점검 | `scripts/check_no_raw.py` | — | 리포트 CSV 원천 값 열 점검 | **됨** | 1초 |
-| 18 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
+| 17 | t2 | `notebooks/t2_cross_validation.py` | `reports/t1_2축위험도`(태연 분석 결과), r2 CSV, `analysis/taeyeon_2axis/external` | `reports/t2_교차검증` | **됨** | 15초 |
+| 18 | 점검 | `scripts/check_no_raw.py` | — | 리포트·`analysis/` CSV 원천 값 열 점검 | **됨** | 1초 |
+| 19 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
 
 - 시간은 Windows 11 노트북(2026-10-14, rules-v1.1) 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 39분, m1 이 30분). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
 - 원본 없이도 되는 것: 자원 원장(w1), 자원 추천 평가(w2), 위험 요인 모델(M4), 점검, API·화면(가짜 데이터, `README.md` 시작하기).
+- 태연 분석(`analysis/taeyeon_2axis/`)은 이 명령에 넣지 않았습니다. 노트북(04·07)은 대회 원본 zip을 `analysis/taeyeon_2axis/원본데이터/`에 넣고 `convert_to_csv.py`로 `csv/`를 만든 뒤 그 폴더에서 실행합니다. 결과는 `outputs/`에 쓰고 `sync_reports.py`로 `reports/t1_2축위험도/`에 복사합니다. 재현 확인 결과는 [`reports/t1_2축위험도/README.md`](reports/t1_2축위험도/README.md) 7절.
 - 난수 seed: 경보 주입 실험 `numpy.random.default_rng(0)` (EDA-6·M3 같은 쌍), 합성 정상 시계열 seed 0~4·0~9, M3 하락률·부트스트랩 seed 0 (`configs/models_m3.yaml`), M4 반복 seed 0~49, LightGBM `random_state=0`.
 
 ## 4. 결과 확인 (해시)
@@ -62,7 +64,7 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 
 | 목록 | 무엇 | 개수 | `--check-hash` 에서 |
 |---|---|---|---|
-| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개 포함 | 95 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
+| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개, T-1 태연 분석 8개, T-2 교차 검증 7개 포함 | 110 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
 | `reports/결과_해시_로컬.txt` | 레포에 올리지 않는 로컬 전용 결과: `m1_기대활동모델/예측_전체.csv`(원천 결제건수가 있어 `.gitignore`) | 1 | 파일이 있을 때만 비교, 다르면 실패. 없으면 "건너뜀" (새 체크아웃에는 없음) |
 
 - `--write-hash`는 git 추적 및 무시되지 않은 신규 `reports/**/*.csv`로 검증 목록을 다시 씁니다. 리포트 CSV를 새로 추가했으면 변경을 확인한 뒤 `--write-hash`로 목록에 넣습니다. 목록 밖 CSV는 검사에서 실패하므로 빠뜨릴 수 없습니다(`tests/test_r2_results.py`가 목록 = 추적·무시되지 않은 신규 CSV 인지 확인).

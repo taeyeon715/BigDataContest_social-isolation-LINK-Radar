@@ -69,7 +69,9 @@ STEPS: list[Step] = [
     Step("r2", (*PY, "notebooks/r2_risk_results.py"), "interim", "reports/r2_위험도결과", "r1·eda3·eda5·eda6·m1 다음"),
     Step("m3", (*PY, "notebooks/m3_models.py"), "interim", "reports/m3_모델링결과", "eda6·m1·m2·r1·w2·m4 다음"),
     Step("s1", (*PY, "notebooks/s1_link_sim.py"), "interim", "reports/s1_LINK-Sim, data/sim (가상 자료)", "실제 자료 비교에 data/interim 필요"),
-    Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트 CSV 원천 값 열 점검"),
+    Step("t2", (*PY, "notebooks/t2_cross_validation.py"), "none", "reports/t2_교차검증",
+         "reports/t1_2축위험도(태연 분석 결과)·r2 CSV 사용"),
+    Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트·analysis CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]
 
