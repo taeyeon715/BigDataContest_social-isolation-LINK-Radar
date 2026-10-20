@@ -1,0 +1,14 @@
+# 대회 제공 데이터 (재배포 불가)
+원본데이터/*.zip
+csv/
+# API 키
+.env
+# 용량·저작권으로 링크만 제공하는 자료
+external/codes/*.geojson
+external/refs/
+external/seoul_living_docs/
+external/weather/meteostat*
+문서/*.pdf
+# 기타
+.ipynb_checkpoints/
+__pycache__/
