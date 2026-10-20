@@ -4,7 +4,7 @@
 리포트 CSV에는 비율·오차율·z·순위·지수 같은 파생 지표만 남긴다.
 
 실행: uv run python scripts/check_no_raw.py [CSV 경로 ...]
-인자가 없으면 git이 추적하는 reports/**/*.csv 를 모두 본다. 금지 열이 하나라도 있으면 종료 코드 1.
+인자가 없으면 git이 추적하는 reports/**/*.csv 와 analysis/**/*.csv(태연 분석 결과·외부 공공데이터)를 모두 본다. 금지 열이 하나라도 있으면 종료 코드 1.
 """
 
 from __future__ import annotations
@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# 검사하는 폴더: 리포트와 태연 분석(analysis/). analysis/**/csv/ 같은 대회 원본 변환본은 .gitignore 라 git 목록에 없음
+SCAN_DIRS = ("reports", "analysis")
 
 # 열 이름이 정확히 이것이면 금지 (대소문자·앞뒤 공백 무시)
 FORBIDDEN_EXACT = {
@@ -36,17 +38,23 @@ def forbidden(col: str) -> bool:
 
 
 def header(path: Path) -> list[str]:
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        return next(csv.reader(f), [])
+    # 외부 공공데이터 중 일부(행정안전부 주민등록 등)는 cp949
+    for enc in ("utf-8-sig", "cp949"):
+        try:
+            with open(path, encoding=enc, newline="") as f:
+                return next(csv.reader(f), [])
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeDecodeError("utf-8/cp949", b"", 0, 1, f"헤더를 읽을 수 없음: {path}")
 
 
 def tracked_csvs(root: Path = ROOT) -> list[Path]:
     try:
-        out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "reports"],
+        out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", *SCAN_DIRS],
                              cwd=root, capture_output=True, check=True).stdout.decode("utf-8")
         files = [root / p for p in out.split("\0") if p.lower().endswith(".csv")]
     except (OSError, subprocess.CalledProcessError):
-        files = sorted((root / "reports").rglob("*.csv"))
+        files = sorted(p for d in SCAN_DIRS for p in (root / d).rglob("*.csv"))
     return [p for p in files if p.exists()]
 
 
