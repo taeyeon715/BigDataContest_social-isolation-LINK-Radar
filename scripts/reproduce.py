@@ -71,6 +71,8 @@ STEPS: list[Step] = [
     Step("s1", (*PY, "notebooks/s1_link_sim.py"), "interim", "reports/s1_LINK-Sim, data/sim (가상 자료)", "실제 자료 비교에 data/interim 필요"),
     Step("t2", (*PY, "notebooks/t2_cross_validation.py"), "none", "reports/t2_교차검증",
          "reports/t1_2축위험도(태연 분석 결과)·r2 CSV 사용"),
+    Step("t1_5", (*PY, "notebooks/t1_5_cohort_s1.py"), "interim", "reports/t1_5_집단별S1",
+         "r2·t2 다음. 공식 등급은 그대로, 집단별 S1 대안 비교 (R-2 등급표 재현 확인 포함)"),
     Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트·analysis CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]

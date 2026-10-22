@@ -50,8 +50,9 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 | 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | 2분 26초 |
 | 16 | s1 | `notebooks/s1_link_sim.py` | 1 (실제 자료 비교) | `reports/s1_LINK-Sim`, `data/sim` (가상 자료, git 제외) | 안 됨 | 3분 30초 |
 | 17 | t2 | `notebooks/t2_cross_validation.py` | `reports/t1_2축위험도`(태연 분석 결과), r2 CSV, `analysis/taeyeon_2axis/external` | `reports/t2_교차검증` | **됨** | 15초 |
-| 18 | 점검 | `scripts/check_no_raw.py` | — | 리포트·`analysis/` CSV 원천 값 열 점검 | **됨** | 1초 |
-| 19 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
+| 18 | t1_5 | `notebooks/t1_5_cohort_s1.py` | 1, r2·t2, `external/resident/` | `reports/t1_5_집단별S1` (집단별 S1 대안 비교, 공식 등급 그대로) | 안 됨 | 25초 |
+| 19 | 점검 | `scripts/check_no_raw.py` | — | 리포트·`analysis/` CSV 원천 값 열 점검 | **됨** | 1초 |
+| 20 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
 
 - 시간은 Windows 11 노트북(2026-10-14, rules-v1.1) 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 39분, m1 이 30분). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
 - 원본 없이도 되는 것: 자원 원장(w1), 자원 추천 평가(w2), 위험 요인 모델(M4), 점검, API·화면(가짜 데이터, `README.md` 시작하기).
