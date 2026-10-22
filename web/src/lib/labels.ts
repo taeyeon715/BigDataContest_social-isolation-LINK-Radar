@@ -147,7 +147,7 @@ export const INPUT_LABEL: Record<string, string> = {
   target_group: '대상 집단',
   structure_vulnerability: '구조 취약성 (주민등록 1인세대)',
   resident_structure: '주민등록 세대 구조',
-  access_gap: '접근성 (노인복지관·사회복지관까지 직선거리)',
+  access_gap: '접근성 (안부·관계 거점까지 직선거리)',
   card_cohort_series: '카드 결제 일별 흐름',
   expected_activity: '평소 활동 기준선',
   cohort_deviation: '이탈 경보',
@@ -276,10 +276,10 @@ export const DECISION_LABEL: Record<string, string> = { approved: '승인', held
 export const REVISION_REASON_LABEL: Record<string, string> = { initial: '처음', review_changed: '검토 변경', guard_revise: '문장 검사 뒤 고침', extra_round: '추가 조사' }
 
 // ---- 접근성 거리 이름 (심사 지적: "거점 18.6km"인데 같은 화면에 "행정복지센터 1.7km")
-// 서버 지표 이름 "관측 거점까지 직선거리"의 거점은 노인복지관·종합사회복지관(안부·관계 프로그램)만 뜻한다.
-export const HUB_LABEL = '노인복지관·사회복지관(안부·관계 거점)까지 거리'
+// 서버의 거점 거리는 대상 집단별 자원 범위로 계산한다. 고령층에는 보강한 경로당도 포함한다.
+export const HUB_LABEL = '안부·관계 거점까지 거리'
 export const HUB_SHORT = '안부·관계 거점까지'
-export const HUB_NOTE = '행정복지센터(주민센터)는 안부·관계 프로그램을 운영하지 않아 이 거리에 넣지 않습니다. 직선거리이며 실제 이동 시간이 아닙니다.'
+export const HUB_NOTE = '고령층 거리에는 경로당·노인복지관·사회복지관을 포함하며, 다른 집단에는 경로당을 적용하지 않습니다. 행정복지센터(주민센터)는 안부·관계 프로그램을 운영하지 않아 이 거리에 넣지 않습니다. 직선거리이며 실제 이동 시간이 아닙니다.'
 
 /** 노인복지관·사회복지관 거리에 넣는 자원인가 (이름·종류로 판단). 행정복지센터는 넣지 않음 */
 export function isHubResource(r: { name: string; resource_type: string }): boolean {
@@ -297,7 +297,7 @@ export function isAdminOffice(r: { name: string; resource_type: string }): boole
 export function plainText(s: string): string {
   return hideInternal(s)
     .replace(/관측(된)? 거점(까지)?\s*(직선)?\s*거리/g, HUB_LABEL)
-    .replace(/관측(된)? 거점/g, '안부·관계 거점(노인복지관·사회복지관)')
+    .replace(/관측(된)? 거점/g, '안부·관계 거점')
     .replace(/거리은\(는\)/g, '거리는')
 }
 

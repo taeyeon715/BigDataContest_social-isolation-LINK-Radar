@@ -104,7 +104,7 @@ export function ResourcePanel({
                 </div>
                 {isAdminOffice(r) && (
                   <div className="mt-0.5 text-xs text-ink-600" data-testid="admin-office-note">
-                    행정 창구라 안부·관계 거점(노인복지관·사회복지관) 거리에는 넣지 않습니다.
+                    행정 창구라 안부·관계 거점 거리에는 넣지 않습니다.
                   </div>
                 )}
               </div>
