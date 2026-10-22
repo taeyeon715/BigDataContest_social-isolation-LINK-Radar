@@ -146,7 +146,7 @@ def main(argv=None) -> int:
     if not same and a.write:
         df.to_csv(CSV, index=False, encoding="utf-8-sig")
         print("씀:", CSV.relative_to(ROOT))
-    return 0
+    return 0 if same or a.write else 1
 
 
 if __name__ == "__main__":

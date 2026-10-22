@@ -116,3 +116,25 @@ def test_resident_single_parse_offline():
     if not all(rs.raw_path(m).exists() for m in rs.MONTHS):
         pytest.skip("원문 xlsx 없음 (external/resident/raw, git 추적 안 함)")
     assert rs.same_as(rs.build(), rs.CSV)
+
+
+def test_single_cli_fails_on_mismatched_extract(monkeypatch):
+    from bigcontest import resident_single as rs
+
+    monkeypatch.setattr(rs, "build", lambda: pd.DataFrame())
+    monkeypatch.setattr(rs, "same_as", lambda df, path: False)
+    assert rs.main(["--offline"]) == 1
+    monkeypatch.setattr(rs, "same_as", lambda df, path: True)
+    assert rs.main(["--offline"]) == 0
+
+
+def test_single_cli_explicit_write_accepts_new_extract(monkeypatch, tmp_path):
+    from bigcontest import resident_single as rs
+
+    target = tmp_path / "updated.csv"
+    monkeypatch.setattr(rs, "CSV", target)
+    monkeypatch.setattr(rs, "ROOT", tmp_path)
+    monkeypatch.setattr(rs, "build", lambda: pd.DataFrame({"sample": [1]}))
+    monkeypatch.setattr(rs, "same_as", lambda df, path: False)
+    assert rs.main(["--offline", "--write"]) == 0
+    assert pd.read_csv(target)["sample"].tolist() == [1]
