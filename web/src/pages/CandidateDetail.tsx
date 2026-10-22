@@ -1,3 +1,4 @@
+import { StructuralRisk } from '../components/StructuralRisk'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
@@ -723,6 +724,7 @@ export default function CandidateDetail() {
                   <EventTimeline steps={candidate.event_timeline} bundleId={candidate.event_bundle_id} />
                 </div>
               )}
+              {card && <StructuralRisk items={card.structural_risk} candidateId={candidate.candidate_id} />}
               {(candidate.context?.length ?? 0) > 0 && (
                 <div className="mt-4">
                   <CandidateContext items={candidate.context} onCite={runId ? cite : undefined} refName={refName} />

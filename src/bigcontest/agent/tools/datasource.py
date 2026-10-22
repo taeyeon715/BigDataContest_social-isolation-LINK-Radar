@@ -92,7 +92,12 @@ def file_hash(path: Path) -> str:
 
 
 def dev_files(root: Path = ROOT) -> dict[str, Path]:
-    return {k: Path(root) / v for k, v in DEV_FILES.items()}
+    files = {k: Path(root) / v for k, v in DEV_FILES.items()}
+    # 사후 참고 자료는 선택 입력이지만, 있을 때 실행 스냅샷 해시에 포함한다.
+    reference = Path(root) / "reports/t1_2축위험도/위험도_2축_강남_춘천_동x성x연령.csv"
+    if reference.exists():
+        files["structural_risk"] = reference
+    return files
 
 
 def _hashes_of(files: dict[str, Path]) -> dict[str, str]:
@@ -309,6 +314,12 @@ class DataSource:
         if "asos_heat" not in self.files:
             return pd.DataFrame(columns=["city", "date", "tmax", "at_max", "at_max_hi"])
         return self._get("heat", lambda: pd.read_csv(self.files["asos_heat"], parse_dates=["date"]))
+
+    def structural_risk(self) -> pd.DataFrame:
+        """실행 시작 때 고정한 선택 참고 자료. 없으면 전역 경로로 보충하지 않는다."""
+        if "structural_risk" not in self.files:
+            raise DataUnavailable("고정 스냅샷에 구조 위험 참고 자료 없음")
+        return self._get("structural_risk", lambda: pd.read_csv(self.files["structural_risk"], dtype={"SGIS코드": str}))
 
     def recipients(self) -> pd.DataFrame:
         """서울 동별 기초생활수급자 (강남만, adm_cd). 파일이 없는 스냅샷이면 빈 표."""
