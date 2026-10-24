@@ -72,6 +72,8 @@ MONITORING_REQUEST = {"metric": "카드결제", "group": "고령층"}
 WINTER_TOOLS = ("calc_winter_contraction",)
 # 도시별로 항상 같이 모으는 선택 맥락 (등급 입력 아님): 강남 시민생활은 탐색적 참고
 CONTEXT_TOOLS = {"강남": ("get_validation_reference",)}
+# 연휴 주의 기간(연휴 전 lead_days ~ 연휴 끝, 춘천은 연휴 뒤까지)에만 도는 고정 도구 (rules_v2.yaml holiday_watch)
+HOLIDAY_WATCH_TOOL = "get_holiday_watch"
 
 # 조회 경로: 지표 → 조회 도구
 LOOKUP_TOOL = {
@@ -620,7 +622,18 @@ def fixed_tools(state: dict) -> list[str]:
             names += [t for t in WINTER_TOOLS if t not in names]
         if _backend(state) == "real":
             names += [t for t in CONTEXT_TOOLS.get(city, ()) if t not in names]
+    if _backend(state) == "real" and HOLIDAY_WATCH_TOOL not in names and in_holiday_watch(state):
+        names.append(HOLIDAY_WATCH_TOOL)
     return names
+
+
+def in_holiday_watch(state: dict) -> bool:
+    """기준일이 어느 도시든 연휴 주의 기간인가 (rules_v2.yaml holiday_watch)."""
+    from bigcontest.agent.tools.datasource import open_datasource
+    from bigcontest.holiday_watch import holiday_phase
+
+    blocks = S.holiday_blocks(open_datasource(state["snapshot_id"]))
+    return any(holiday_phase(blocks, _as_of(state), c) for c in _cities(state))
 
 
 def collect_signals(state: dict) -> dict:
@@ -1210,7 +1223,126 @@ def check_findings(state: dict) -> dict:
 def assign_level(state: dict) -> dict:
     """후보마다 등급 (configs/rules.yaml rules-v1.1, tools.signal.assign_level). 기각 → Level 1 + 사유,
     보류 → 판단 보류. 모든 후보에 rule_id·rule_version."""
-    return {"candidates": _dump(S.assign_level(_candidates(state), _evidence(state), as_of=_as_of(state)))}
+    evidence = _evidence(state)
+    return {"candidates": _dump(apply_holiday_watch(S.assign_level(_candidates(state), evidence, as_of=_as_of(state)),
+                                                    evidence, _as_of(state)))}
+
+
+HOLIDAY_TRIGGERS = ("R1", "R2", "R3")
+CAP_HOLIDAY_WATCH = "CAP-HOLIDAY-WATCH"
+
+
+def watch_summaries(evidence: list[ToolResult]) -> list[ToolResult]:
+    return [e for e in evidence if e.metric == S.WATCH_SUMMARY_METRIC and e.status == "OK"]
+
+
+def watch_cells_of(evidence: list[ToolResult]) -> dict[str, dict[str, list[ToolResult]]]:
+    """연휴 주의 기간인 도시 → 주의 동 → 그 동의 주의 칸 근거 (get_holiday_watch)."""
+    out: dict[str, dict[str, list[ToolResult]]] = {city_of_evidence(e): {} for e in watch_summaries(evidence)}
+    for e in evidence:
+        if e.metric == S.WATCH_METRIC and e.status == "OK":
+            out.setdefault(city_of_evidence(e), {}).setdefault(_adm_of(e), []).append(e)
+    return out
+
+
+def _holiday_scheduled(c: Candidate) -> bool:
+    return c.candidate_type == "scheduled_access_review" and (c.trigger or "")[:2] in HOLIDAY_TRIGGERS
+
+
+def _watch_update(c: Candidate, cells: list[ToolResult]) -> dict:
+    """주의 동 후보 → Level 3 (rules-v2.0 holiday_watch). 등급 사유에 칸마다 선 축."""
+    from bigcontest.holiday_watch import watch_config
+
+    axes = "; ".join(f"{e.applied_scope.split(') ')[-1]} {e.warnings[0]}" for e in cells)
+    return {"candidate_level": "Level 3", "rule_id": "V2-L3-HOLIDAY-WATCH", "rule_version": "rules-v2.0 holiday_watch",
+            "rule_checks": [], "evidence_confidence": "보통",
+            "level_reason": f"연휴 주의 목록: {axes} + 예정된 트리거({c.trigger}). "
+                            f"연휴에 끊기는 연령 근거는 {watch_config()['observed']}"}
+
+
+def apply_holiday_watch(cands: list[Candidate], evidence: list[ToolResult], as_of: date) -> list[Candidate]:
+    """연휴 트리거(R1·R2·R3) 후보를 연휴 주의 목록에 맞춘다 (rules_v2.yaml holiday_watch).
+    - 주의 동(60대 이상 칸 근거 축 2개 이상)의 고령층 후보 → Level 3. 그 동 후보가 없으면 같은 트리거로 새로 만든다
+    - 목록 밖 연휴 후보의 Level 3 → Level 2 상한 (CAP-HOLIDAY-WATCH)
+    주의 기간이 아닌 도시는 그대로."""
+    watch = watch_cells_of(evidence)
+    if not watch:
+        return cands
+    out, done = [], set()
+    for c in cands:
+        if c.city in watch and _holiday_scheduled(c):
+            if R.group_key(c) == "고령층" and c.adm_cd in watch[c.city]:
+                c = c.model_copy(update=_watch_update(c, watch[c.city][c.adm_cd]))
+                done.add((c.city, c.adm_cd))
+            elif c.candidate_level == "Level 3":
+                c = c.model_copy(update={
+                    "candidate_level": "Level 2", "rule_id": f"{c.rule_id}+{CAP_HOLIDAY_WATCH}",
+                    "level_reason": f"{c.level_reason or ''} · 연휴 주의 목록 밖(연휴에 끊기는 연령의 근거 축 2개 이상 칸이 "
+                                    "아님) → Level 2 상한 [rules-v2.0 holiday_watch]"})
+        out.append(c)
+    city_level = {e.evidence_id for e in evidence if _adm_of(e) is None}
+    used = {c.candidate_id for c in out}
+    for city, adms in watch.items():
+        tmpl = next((c for c in out if c.city == city and _holiday_scheduled(c) and R.group_key(c) == "고령층"), None)
+        if tmpl is None:  # 이 도시에 고령층 연휴 후보가 없음 (다른 집단만 감시) → 블록에만 나옴
+            continue
+        n = S.ID_BASE.get(city, 0) + 300
+        for adm, cells in adms.items():
+            if (city, adm) in done:
+                continue
+            while (cid := f"C-{as_of:%Y%m%d}-{n:03d}") in used:
+                n += 1
+            used.add(cid)
+            base = tmpl.model_copy(update={"candidate_id": cid, "adm_cd": adm, "context": [], "queue_rank": None,
+                                           "selected_for_review": False, "input_status": "충족", "missing_inputs": [],
+                                           "evidence_ids": [i for i in tmpl.evidence_ids if i in city_level]
+                                           + [e.evidence_id for e in cells]})
+            out.append(base.model_copy(update=_watch_update(base, cells)))
+    return out
+
+
+def _join_dongs(names: list[str]) -> str:
+    """['논현1동', '논현2동'] → '논현1·2동' (같은 이름에 번호만 다른 동을 묶음)."""
+    groups: dict[str, list[str]] = {}
+    for n in names:
+        m = re.match(r"^(\D+?)(\d+)동$", n)
+        groups.setdefault(m.group(1) if m else n, []).append(m.group(2) if m else "")
+    return "·".join(f"{k}{'·'.join(v)}동" if v[0] else k for k, v in groups.items())
+
+
+def holiday_watch_lines(evidence: list[ToolResult]) -> list[str]:
+    """연휴 주의 블록 (템플릿): 주의 지역 / 근거 / 할 일 / 관측 한계. 연휴 주의 기간이 아니면 빈 목록."""
+    from bigcontest.holiday_watch import watch_config
+
+    summ = watch_summaries(evidence)
+    if not summ:
+        return []
+    cfg = watch_config()
+    label = summ[0].warnings[0]  # 예: "2025 추석 연휴 전 (10/03~10/09)"
+    head = label.split(" 연휴 ")[0]
+    parts, n_cells, n_dongs, follow = [], 0, 0, []
+    for e in sorted(summ, key=lambda e: CITIES.index(city_of_evidence(e))):
+        city = city_of_evidence(e)
+        dongs = [d for d in e.warnings[1].removeprefix("동: ").split("·") if d and d != "없음"]
+        n_cells += int(e.n_obs or 0)
+        n_dongs += len(dongs)
+        if dongs:
+            parts.append(f"{city} {_join_dongs(dongs)}")
+        days = (cfg.get("follow_up_days") or {}).get(city)
+        if days:
+            follow.append(f"{city}은 연휴 뒤 {days}일까지 이어서 확인")
+    where = ", ".join(parts)
+    after = " 연휴 뒤 " in label
+    title = f"{head} 연휴 뒤 이어서 볼 지역" if after else f"{head} 연휴 주의 지역"
+    card_basis = cfg["follow_up_card_basis"] if after else cfg["card_basis"]
+    todo = ", ".join(cfg["follow_up_actions"]) if after else (
+        ", ".join(cfg["actions"]) + (". " + ". ".join(follow) if follow else ""))
+    lines = [f"{title}: {where}의 60대 이상 (Level 3, 주의 칸 {n_cells}개, {n_dongs}개 동, {label})" if parts
+             else f"{title}: 근거 축 2개 이상인 60대 이상 칸 없음 ({label})",
+             f"근거: {card_basis} + {cfg['cell_basis']}",
+             f"할 일: {todo}",
+             f"관측 한계: 연휴에 끊기는 연령은 {cfg['observed']}이라 아직 검증 전 ({cfg['confirm']})"]
+    return lines
 
 
 def assign_queue(state: dict) -> dict:
@@ -1497,7 +1629,8 @@ def write_report(state: dict) -> dict:
     cands = _candidates(state)
     attempt = (state.get("revise_count") or {}).get("guard_report", 0) + 1
     facts = report_facts(card, cands, state.get("route"))
-    sentences = [G.render_fact(f) for f in facts]
+    watch = holiday_watch_lines(card.evidence)  # 연휴 주의 블록을 맨 앞에 (rules_v2.yaml holiday_watch)
+    sentences = watch + [G.render_fact(f) for f in facts]
     many = len(cands) > 6
     sentences += [candidate_sentence(c) for c in cands if not (
         many and c.candidate_type == "scheduled_access_review" and c.candidate_level in ("Level 0", "Level 1"))]
@@ -1541,7 +1674,7 @@ def write_report(state: dict) -> dict:
                     level_explanations=[R.explain_level(c) for c in cands if c.rule_checks],
                     decision_trace=report_trace(state), round_changes=changes,
                     review_ids=list(review.get("review_ids") or []),
-                    investigation=investigation_section(state, card, cands))
+                    investigation=investigation_section(state, card, cands), holiday_watch=watch)
     return {"report": pack_report(report), "report_revision": rev, "llm_log": _log(state, init_rec, rec)}
 
 

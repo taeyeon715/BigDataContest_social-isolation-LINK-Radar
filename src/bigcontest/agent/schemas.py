@@ -574,6 +574,8 @@ class Report(_Model):
     review_ids: list[str] = Field(default_factory=list)
     # ---- 조사 루프에서 추가로 확인한 것 (등급·반증 입력 아님, 근거 ID 포함)
     investigation: Investigation | None = None
+    # ---- 연휴 주의 블록 (주의 지역 / 근거 / 할 일 / 관측 한계, 템플릿. fact_sentences 맨 앞에도 들어 있음)
+    holiday_watch: list[str] = Field(default_factory=list)
     # ---- 배포 표시와 대외용 문구
     distribution: Literal["내부용(대외비)"] = DISTRIBUTION_INTERNAL
     external_notice: str = EXTERNAL_NOTICE
