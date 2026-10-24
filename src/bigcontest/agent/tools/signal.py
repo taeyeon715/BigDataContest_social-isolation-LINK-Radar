@@ -1317,9 +1317,9 @@ WATCH_CARD_METRIC = "지난 연휴 60대 이상 의료 결제 40·50대 대비"
 
 
 def get_holiday_watch(ctx) -> list[ToolResult]:
-    """연휴 주의 지역: 연휴에 끊기는 연령(규칙, R-3b) 칸 중 근거 축 2개 이상인 칸 (rules-v2.0 등급 판정).
-    기준일이 연휴 전 lead_days ~ 연휴 끝(그리고 follow_up_days 도시는 연휴 뒤)일 때만 낸다.
-    참고 근거로 기준일에 결제를 다 볼 수 있는 지난 연휴의 카드 값을 붙인다 (등급 입력 아님)."""
+    """연휴 주의 지역: 연휴 연령(60대 이상) 칸 중 rules-v2.0 Level 3 칸.
+    카드(C) 신호 = 기준일에 결제를 다 볼 수 있는 지난 연휴에서 그 성의 60대 이상 의료 결제가 40·50대보다 더 줄었나.
+    기준일이 연휴 전 lead_days ~ 연휴 끝(그리고 follow_up_days 도시는 연휴 뒤)일 때만 낸다."""
     from bigcontest import holiday_watch as HW
     from bigcontest.agent.tools.cell_axes import axes_at
 
@@ -1332,7 +1332,11 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
     ax = axes_at(ds, as_of, ctx.analysis_mode)
     if ax is None:
         return [empty(ctx, "HW", WATCH_SUMMARY_METRIC, "기준일에 쓸 수 있는 주민등록·통신 달 없음 (TIME_AVAILABILITY_UNKNOWN)")]
-    cells = HW.watch_cells(ax.df[ax.df["city"] == city], ph.label)
+    cutoff = daily_cutoff("card2", as_of, ctx.analysis_mode)
+    periods = HW.card_periods(holiday_blocks(ds), ds.holiday_names(), cutoff) if cutoff else []
+    gap = HW.card_gap(ds.card2(), city, periods[-1], ds.holidays()) if periods else None
+    card = {} if gap is None else {r["sex"][0]: r["rel"] for _, r in gap.iterrows()}
+    cells = HW.watch_cells(ax.df[ax.df["city"] == city], ph.label, card=card)
     names = ds.adm_index
     time = dict(observed_from=ax.observed_from, observed_to=ax.observed_to, simulated_available_at=ax.simulated_available_at)
     note = [f"연휴 연령 근거: {cfg['observed']}, {cfg['confirm']}", ax.months_label]
@@ -1351,11 +1355,8 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
         denominator=f"주의 칸 {len(cells)}개", measured_grain="행정동", applied_scope=f"{city} (연휴 주의 지역)",
         interpretation_status="계산 재현", value_state="observed",
         warnings=[ph.label, "동: " + ("·".join(dongs) or "없음"), *note], **time))
-    cutoff = daily_cutoff("card2", as_of, ctx.analysis_mode)
-    periods = HW.card_periods(holiday_blocks(ds), ds.holiday_names(), cutoff) if cutoff else []
-    if periods:
-        g = HW.card_gap(ds.card2(), city, periods[-1], ds.holidays())
-        for _, r in g.iterrows():
+    if gap is not None:
+        for _, r in gap.iterrows():
             out.append(envelope(
                 ctx, f"HWC-{SEX_CODE[r['sex']]}", "card2", metric=WATCH_CARD_METRIC,
                 value=round(r["rel"] * 100, 1), unit="%p", direction="감소" if r["rel"] < 0 else "증가",
@@ -1365,7 +1366,7 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
                 analysis_cohort=f"60대 이상 {r['sex']}", interpretation_status="계산 재현", value_state="observed",
                 observed_from=r["start"], observed_to=r["end"],
                 simulated_available_at=r["end"] + timedelta(days=lag_days("card2")),
-                claim_category="의료", warnings=[f"{r['name']} 연휴", "참고 근거 (등급 입력 아님)", f"연휴 중 평소 대비 {r['ratio']:+.1%}"]))
+                claim_category="의료", warnings=[f"{r['name']} 연휴", "등급 입력: 카드(C) 신호", f"연휴 중 평소 대비 {r['ratio']:+.1%}"]))
     return out
 
 

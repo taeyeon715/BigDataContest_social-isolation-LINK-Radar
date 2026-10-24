@@ -86,8 +86,9 @@ def cell_axes(pop: pd.DataFrame, one: pd.DataFrame, tel_age: pd.DataFrame, tel_t
     return df.reset_index(drop=True)
 
 
-def cell_facts(row, trigger: str, rules: dict) -> CellFacts:
-    """칸 하나 → 등급 판정 입력 (R-3 r3_rules_v2.facts_for 와 같은 규칙, 동절기 칸 없음)."""
+def cell_facts(row, trigger: str, rules: dict, card_gap: float | None = None) -> CellFacts:
+    """칸 하나 → 등급 판정 입력. card_gap: 그 도시·성의 연휴 연령 카드 값(40·50대 대비, card_gap 의 rel).
+    holiday_watch.card_min_gap 보다 낮으면 C(카드) 신호. None 이면 카드 신호를 세지 않는다."""
     axes = {"S": bool(row["s_top"]), "A": bool(row["a_top"])}
     why = {"S": f"1인 비율 {row['s_eb']:.3f}, 같은 성·연령 {int(row['s_rank'])}/{int(row['s_n'])}위"
            if pd.notna(row["s_eb"]) else ""}
@@ -99,6 +100,9 @@ def cell_facts(row, trigger: str, rules: dict) -> CellFacts:
         why["V"] = f"{row['v_eb']:.3f} ({row['v_source']})"
     if pd.notna(row["a_km"]):
         why["A"] = f"거점 직선 {row['a_km']:.1f}km (현재 원장 기준)"
+    if card_gap is not None and not pd.isna(card_gap):
+        axes["C"] = card_gap <= float(watch_config(rules)["card_min_gap"])
+        why["C"] = f"지난 연휴 의료 결제 40·50대 대비 {card_gap:+.0%}"
     conf, cwhy = "보통", ["가정한 공개 시점(simulated_replay)", "현재 원장 기준 접근성"]
     if row["s_small"]:
         conf = "낮음"
@@ -106,13 +110,16 @@ def cell_facts(row, trigger: str, rules: dict) -> CellFacts:
     return CellFacts("scheduled_access_review", "충족", [], trigger, axes, why, confidence=conf, confidence_why=cwhy)
 
 
-def watch_cells(axes: pd.DataFrame, trigger: str, rules: dict | None = None) -> pd.DataFrame:
-    """주의 연령 칸마다 등급을 정하고 Level 3 칸만 돌려준다 (근거 축 많은 순 → 칸 인구 큰 순)."""
+def watch_cells(axes: pd.DataFrame, trigger: str, rules: dict | None = None,
+                card: dict[str, float] | None = None) -> pd.DataFrame:
+    """주의 연령 칸마다 등급을 정하고 Level 3 칸만 돌려준다 (근거 축 많은 순 → 칸 인구 큰 순).
+    card: 성(남·여) → 기준일에 볼 수 있는 지난 연휴의 카드 값 (없으면 카드 신호 없음 → Level 3 불가)."""
     rules = rules or load_rules_v2()
     ages = watch_config(rules)["target_ages"]
+    card = card or {}
     rows = []
     for _, r in axes[axes["age5"].isin(ages)].iterrows():
-        f = cell_facts(r, trigger, rules)
+        f = cell_facts(r, trigger, rules, card.get(r["sex"]))
         d = decide_v2(f, rules)
         rows.append({**{k: r[k] for k in ("city", "adm_cd", "sex", "age5", "pop")},
                      "axes_on": d.axes_on, "n_axes": len(d.axes_on), "cell_type": cell_type(d.axes_on),
@@ -180,15 +187,16 @@ WINTER_AGES = ["60대+"]
 
 
 def winter_facts(row, w: pd.Series | None, trigger: str, rules: dict) -> CellFacts:
-    """동절기 칸 하나. 그 읍·면 주민형 격자 60+ 겨울/여름 변화가 rules winter.decline 미만일 때만 필수 근거 충족.
-    겨울 달이 아직 없거나 감소가 아니면 부분 판정(Level 2 상한), 격자가 적어 읍·면 전체 값이면 공유 맥락 표시."""
+    """동절기 칸 하나. 그 읍·면 주민형 격자 60+ 겨울/여름 변화(SK)가 rules winter.decline 미만이면 W 신호.
+    겨울 달이 아직 없으면 필수 근거 결측(부분 판정), 격자가 적어 읍·면 전체 값이면 공유 맥락 표시."""
     f = cell_facts(row, trigger, rules)
     if w is None or pd.isna(w.get("w_ok")):
         f.input_status, f.missing_inputs = "부분 판정", ["읍·면 겨울 체류 변화 (겨울 달 공개 전)"]
-    elif not bool(w["w_ok"]):
-        f.input_status, f.missing_inputs = "부분 판정", [f"겨울 체류 감소 아님 ({w['w60']:+.1%})"]
-    elif bool(w["shared"]):
-        f.confidence_why.append("겨울 체류: 읍·면 전체 값(공유 맥락)")
+    else:
+        f.axes["W"] = bool(w["w_ok"])
+        f.axis_why["W"] = f"60+ 겨울/여름 {w['w60']:+.1%}"
+        if bool(w["shared"]):
+            f.confidence_why.append("겨울 체류: 읍·면 전체 값(공유 맥락)")
     return f
 
 

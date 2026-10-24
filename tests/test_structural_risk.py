@@ -41,7 +41,7 @@ def test_cells_are_v2_axes_and_candidate_untouched(monkeypatch):
     before = c.model_dump()
     ref = sr.get_structural_risk(ctx(), [c])[0]
     assert ref.status == "available" and len(ref.cells) == 2
-    assert ref.cells[0].axes_on == ["S", "H"] and ref.cells[0].cell_type == "이중 위험"
+    assert ref.cells[0].axes_on == ["H", "S"] and ref.cells[0].cell_type == "이중 위험"
     assert ref.cells[1].axes_on == [] and ref.cells[1].small
     assert "주민등록 8월, 통신 7·8월" in ref.period_label and "60~64세" in ref.mapping_note
     assert "참고" in ref.comparison_note  # v1.1 후보 → 축은 참고

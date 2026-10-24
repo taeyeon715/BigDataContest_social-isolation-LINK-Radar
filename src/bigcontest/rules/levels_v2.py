@@ -1,10 +1,14 @@
-"""rules-v2.0 등급 판정 (configs/rules_v2.yaml, reports/r3_규칙개정/변경계획.md 3·4절). LLM 과 무관하고 결정적이다.
+"""rules-v2.0 등급 판정 (configs/rules_v2.yaml levels). LLM 과 무관하고 결정적이다.
 
-입력은 칸(동 × 성 × 연령) 하나의 사실(`CellFacts`)이다. 판단 보류·반증·이탈 크기·트리거 순서는 v1.1 levels.decide 와 같고,
-구조 조건만 "서로 다른 근거 축 개수"로 바뀐다.
-- 근거 축: S(혼자 사는 구조), H(행동 고립), V(경제 취약), A(접근성).
-- Level 3 = 예정된 트리거 + 축 2개 이상(단 {S, V}만은 제외) + 필수 근거 충족 + 근거 신뢰도 보통 이상.
-- 이탈(도시 × 코호트)은 Level 2 상한 (v1.1 CAP-SHARED-CONTEXT 와 같음).
+입력은 칸(동 × 성 × 연령) 하나의 사실(`CellFacts`)이다. 판단 보류·반증·이탈 크기·트리거 순서는 v1.1 levels.decide 와 같다.
+
+근거는 두 갈래로 센다.
+- 제공 데이터 신호(신한카드·SK 통신): H 행동 고립(SK), W 겨울 체류 감소(SK, 읍·면), C 카드 근거(신한, 그 성·연령)
+- 외부 확인(공공 통계·자원 원장): S 1인 비율(주민등록), V 경제 취약(수급 통계), A 거점 원거리(자원 원장)
+
+Level 3 = 예정된 트리거 + 제공 데이터 신호 2개 이상(서로 다른 신호) + 외부 확인 1개 이상 + 필수 근거 충족 + 신뢰도 보통 이상.
+제공 데이터 신호가 1개면 Level 2, 없으면 Level 1 (외부 확인만으로는 등급이 오르지 않는다).
+이탈(도시 × 코호트, 카드)은 Level 2 상한이고, 먼저 확인할 칸에 SK 신호가 있어야 Level 2.
 """
 
 from __future__ import annotations
@@ -14,7 +18,11 @@ from functools import lru_cache
 
 from bigcontest.contracts import load_yaml
 
-AXIS_NAME = {"S": "혼자 사는 구조", "H": "행동 고립", "V": "경제 취약", "A": "접근성"}
+AXIS_NAME = {"H": "행동 고립", "W": "겨울 체류 감소", "C": "카드 결제 공백",
+             "S": "혼자 사는 구조", "V": "경제 취약", "A": "거점 원거리"}
+DATA_AXES = ("H", "W", "C")  # 신한·SK
+EXTERNAL_AXES = ("S", "V", "A")  # 공공 통계·자원 원장
+ORDER = DATA_AXES + EXTERNAL_AXES
 
 
 @lru_cache
@@ -28,8 +36,8 @@ class CellFacts:
     input_status: str = "충족"  # 충족 / 부분 판정 / 보류
     missing_inputs: list[str] = field(default_factory=list)
     trigger: str | None = None
-    axes: dict[str, bool] = field(default_factory=dict)  # 축 → 섰나 (결측 축은 넣지 않음)
-    axis_why: dict[str, str] = field(default_factory=dict)  # 축 → 사유 문장
+    axes: dict[str, bool] = field(default_factory=dict)  # 신호 → 섰나 (결측 신호는 넣지 않음)
+    axis_why: dict[str, str] = field(default_factory=dict)  # 신호 → 사유 문장
     counter_result: str = "해당 없음"  # 통과 / 보류 / 기각 / 해당 없음
     counter_reason: str | None = None
     holiday_travel: bool = False
@@ -48,14 +56,12 @@ class DecisionV2:
 
 
 def axes_on(f: CellFacts) -> list[str]:
-    return [a for a in ("S", "H", "V", "A") if f.axes.get(a)]
+    return [a for a in ORDER if f.axes.get(a)]
 
 
-def level3_ok(on: list[str], rules: dict) -> bool:
-    lv = rules["levels"]
-    if len(on) < lv["level3_min_axes"]:
-        return False
-    return sorted(on) not in [sorted(s) for s in lv["level3_excluded_sets"]]
+def split(on: list[str]) -> tuple[list[str], list[str]]:
+    """선 신호 → (제공 데이터, 외부 확인)."""
+    return [a for a in on if a in DATA_AXES], [a for a in on if a in EXTERNAL_AXES]
 
 
 def _why(f: CellFacts, on: list[str]) -> str:
@@ -64,7 +70,9 @@ def _why(f: CellFacts, on: list[str]) -> str:
 
 def decide_v2(f: CellFacts, rules: dict | None = None) -> DecisionV2:
     rules = rules or load_rules_v2()
+    lv = rules["levels"]
     on = axes_on(f)
+    data, ext = split(on)
     conf_ok = f.confidence in ("보통", "높음")
     min_drop = rules["deviation"]["min_drop"]
 
@@ -80,31 +88,34 @@ def decide_v2(f: CellFacts, rules: dict | None = None) -> DecisionV2:
         if f.deviation_drop is not None and f.deviation_drop < min_drop:
             return DecisionV2("Level 1", "L1-DEV-SMALL",
                               f"이탈 크기 {f.deviation_drop:.1%}가 최소 하락폭 {min_drop:.0%} 미만", on)
-        if on:
-            d = DecisionV2("Level 2", "V2-L2-DEV-AXIS", f"반증 통과 이탈 + 먼저 확인할 칸의 근거: {_why(f, on)}", on)
+        if data:
+            d = DecisionV2("Level 2", "V2-L2-DEV-DATA", f"반증 통과 카드 이탈 + 먼저 확인할 칸의 근거: {_why(f, on)}", on)
             d.caps.append("CAP-SHARED-CONTEXT")
             return d
-        return DecisionV2("Level 1", "L1-DEVIATION-ONLY", "반증 통과 이탈이지만 근거 축이 선 칸 없음", on)
+        return DecisionV2("Level 1", "L1-DEVIATION-ONLY", "반증 통과 이탈이지만 먼저 확인할 칸에 통신 신호가 없음", on)
 
     # 예정된 점검
     trig = f"예정된 트리거({f.trigger})"
-    if not on:
-        return DecisionV2("Level 1", "L1-TRIGGER-ONLY", f"{trig}만. 근거 축 없음", on)
+    if not data:
+        what = f"외부 확인만({_why(f, ext)})" if ext else "근거 없음"
+        return DecisionV2("Level 1", "L1-TRIGGER-ONLY", f"{trig}. 신한·SK 신호 없음, {what}", on)
     why = f"{_why(f, on)} + {trig}"
-    if level3_ok(on, rules):
-        if f.input_status == "충족" and conf_ok:
-            return DecisionV2("Level 3", "V2-L3-AXES2-TRIGGER", why, on)
-        d = DecisionV2("Level 2", "V2-L2-AXES-TRIGGER", why, on)
-        d.caps.append("CAP-CONF-LOW" if not conf_ok else "CAP-PARTIAL")
-        return d
-    d = DecisionV2("Level 2", "V2-L2-AXES-TRIGGER", why, on)
-    if len(on) >= 2:
-        d.caps.append("CAP-SV-ONLY")  # {S, V}만: 입력이 겹쳐 두 축으로 세지 않음
+    d = DecisionV2("Level 2", "V2-L2-DATA-TRIGGER", why, on)
+    if len(data) < lv["level3_min_data"]:
+        d.caps.append("CAP-DATA-ONE")  # 신한·SK 신호 하나
+    if len(ext) < lv["level3_min_external"]:
+        d.caps.append("CAP-NO-EXTERNAL")  # 외부 확인 없음
+    if f.input_status != "충족":
+        d.caps.append("CAP-PARTIAL")
+    if not conf_ok:
+        d.caps.append("CAP-CONF-LOW")
+    if not d.caps:
+        return DecisionV2("Level 3", "V2-L3-DATA2-EXT1", why, on)
     return d
 
 
 def cell_type(on: list[str]) -> str:
-    """위험 유형 (rules_v2.yaml types)."""
+    """위험 유형 (rules_v2.yaml types). H(행동)와 S·V(구조·경제)로 정한다."""
     h = "H" in on
     sv = bool({"S", "V"} & set(on))
     if h and sv:

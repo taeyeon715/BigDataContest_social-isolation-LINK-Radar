@@ -129,13 +129,13 @@ def test_d2_chuncheon_winter_review(agent):
     assert st["waiting"] and final_guard(v) == PASS3
     assert "calc_winter_contraction" in v["tools_run"]
     cands = v["candidates"]
-    # 동절기는 읍·면 60대 이상 칸 판정: 남산면·동산면은 근거 축 2개 이상이라 Level 3,
-    # 남면은 1인 비율·경제 취약만이라 Level 2, 북산면은 축 하나라 Level 2. 동산면은 칸 판정으로 새로 든 면
+    # 동절기는 읍·면 60대 이상 칸 판정: 남산면·동산면은 통신 신호 2개(행동 고립 + 겨울 체류 감소) + 외부 확인이라 Level 3,
+    # 남면·북산면은 통신 신호 하나라 Level 2. 동산면은 칸 판정으로 새로 든 면
     assert len(cands) == 4 and all(c["trigger"].startswith("W 동절기") for c in cands)
     assert all(c["input_status"] == "충족" for c in cands)
     lv = {c["adm_cd"]: (c["candidate_level"], c["rule_id"]) for c in cands}
-    assert lv == {"32010350": ("Level 2", "V2-L2-AXES-TRIGGER+CAP-SV-ONLY"), "32010360": ("Level 3", "V2-L3-AXES2-TRIGGER"),
-                  "32010390": ("Level 2", "V2-L2-AXES-TRIGGER"), "32010320": ("Level 3", "V2-L3-AXES2-TRIGGER")}
+    assert lv == {"32010350": ("Level 2", "V2-L2-DATA-TRIGGER+CAP-DATA-ONE"), "32010360": ("Level 3", "V2-L3-DATA2-EXT1"),
+                  "32010390": ("Level 2", "V2-L2-DATA-TRIGGER+CAP-DATA-ONE"), "32010320": ("Level 3", "V2-L3-DATA2-EXT1")}
     assert {c["event_id"] for c in cands} == {"춘천:W:2025"}
     t = text(v)
     assert "직선" in t and "춘천 읍·면 겨울 변화" in t

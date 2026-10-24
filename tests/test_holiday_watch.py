@@ -31,16 +31,19 @@ def _cell(adm, age, s=False, h=False, v=False, a=False, pop=500, h_obs=True, v_o
 
 def test_watch_cells_rule():
     ax = pd.DataFrame([
-        _cell("32010001", "60대+", s=True, h=True),           # S+H → Level 3
-        _cell("32010002", "60대+", s=True, v=True),           # {S, V}만 → 아님
-        _cell("32010003", "60대+", h=True),                   # 축 하나 → 아님
+        _cell("32010001", "60대+", s=True, h=True),           # H + C(카드) + S → Level 3
+        _cell("32010002", "60대+", s=True, v=True),           # 외부만 → 아님
+        _cell("32010003", "60대+", h=True),                   # H + C, 외부 확인 없음 → 아님
         _cell("32010004", "60대+", s=True, h=True, pop=50),   # 작은 칸 → 신뢰도 낮음 → 아님
         _cell("32010005", "40대", s=True, h=True, v=True),    # 연휴 연령이 아님 → 아님
-        _cell("32010006", "60대+", h=True, a=True),           # H+A → Level 3
+        _cell("32010006", "60대+", h=True, a=True),           # H + C + A → Level 3
     ])
-    w = watch_cells(ax, "R1 시험")
+    w = watch_cells(ax, "R1 시험", card={"남": -0.2})
     assert set(w["adm_cd"]) == {"32010001", "32010006"}
     assert (w["level"] == "Level 3").all()
+    # 카드 근거가 없으면(직전 연휴 결제가 40·50대보다 더 줄지 않음) Level 3 없음
+    assert watch_cells(ax, "R1 시험", card={"남": 0.01}).empty
+    assert watch_cells(ax, "R1 시험").empty
 
 
 def test_join_dongs():
