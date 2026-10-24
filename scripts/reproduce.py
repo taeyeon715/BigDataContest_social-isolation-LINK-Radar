@@ -71,6 +71,11 @@ STEPS: list[Step] = [
     Step("s1", (*PY, "notebooks/s1_link_sim.py"), "interim", "reports/s1_LINK-Sim, data/sim (가상 자료)", "실제 자료 비교에 data/interim 필요"),
     Step("t2", (*PY, "notebooks/t2_cross_validation.py"), "none", "reports/t2_교차검증",
          "reports/t1_2축위험도(태연 분석 결과)·r2 CSV 사용"),
+    Step("r3_sim", (*PY, "notebooks/r3_card_threshold_sim.py"), "interim", "reports/r3_규칙개정/카드기준_*.csv",
+         "rules-v2.0 카드 이탈 기준 (LINK-Sim 합성)"),
+    Step("r3", (*PY, "notebooks/r3_rules_v2.py"), "interim", "reports/r3_규칙개정", "r2 다음. rules-v2.0 470칸 등급, v1.1 비교"),
+    Step("r3b", (*PY, "notebooks/r3b_holiday_effect.py"), "interim", "reports/r3_규칙개정/공휴일_*.csv",
+         "r3 다음. 공휴일 효과 1차 분석 (추석 1회 관측)"),
     Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트·analysis CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]
