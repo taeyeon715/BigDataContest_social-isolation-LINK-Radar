@@ -1683,7 +1683,7 @@ def summary_sentences(cands: list[Candidate], evidence: list[ToolResult]) -> lis
     out = []
     low = [c for c in cands if c.candidate_type == "scheduled_access_review" and c.candidate_level in ("Level 0", "Level 1")]
     if low:
-        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 근거 하나만(트리거)이라 Level 1 (구조·접근성 기준 미달) [rules-v1.1]")
+        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 동을 가리키는 통신 신호가 없어 Level 1 (공공 자료만으로는 오르지 않음) [rules-v2.0]")
     far = S.STUB_LEVEL_RULES["access_far_km"]
     for city in dict.fromkeys(c.city for c in cands):
         acc = [e for e in evidence if e.metric == ACCESS_METRIC and e.status == "OK"

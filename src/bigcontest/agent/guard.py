@@ -82,7 +82,7 @@ class _Hits:
 
 def fmt_value(v) -> str:
     if isinstance(v, float):
-        return f"{v:g}"
+        return f"{v:.15g}"  # :g 는 유효숫자 6자리라 110409.7 → 110410 으로 바뀌어 사실 대조가 어긋남
     return str(v)
 
 

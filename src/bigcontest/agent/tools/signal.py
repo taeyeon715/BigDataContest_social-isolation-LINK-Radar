@@ -48,6 +48,8 @@ from bigcontest.rules import candidates as RC
 from bigcontest.rules import context as X
 from bigcontest.rules.heat import heat_stage
 from bigcontest.rules.levels import Axes, decide, full_rule_id, rule_checks, rule_label
+from bigcontest.rules.levels_v2 import load_rules_v2
+from bigcontest.rules.version import active as active_rules
 from bigcontest.rules.version import deviation_min_drop
 
 DEVIATION_METRIC = "카드 결제건수 평소 대비 (이탈 경보)"
@@ -73,6 +75,9 @@ ACCESS_CURRENT = "현재 원장 기준 접근성"
 LEVEL_RULES = copy.deepcopy(load_rules())
 # rules-v2.0: 이탈 크기 최소값은 rules_v2.yaml deviation (v1.1 재현 노트북은 rules.version 으로 예전 값)
 LEVEL_RULES["thresholds"]["deviation"]["min_drop"] = deviation_min_drop(LEVEL_RULES["thresholds"]["deviation"]["min_drop"])
+if active_rules() == "v2.0" and not load_rules_v2()["levels"]["city_guidance"]:
+    # 청년 남성도 다른 칸과 같은 규칙으로 동 단위 칸 판정을 받는다 (도시 단위 안내 예외 없음)
+    LEVEL_RULES["thresholds"]["city_guidance"]["groups"] = []
 STUB_LEVEL_RULES = legacy_thresholds(LEVEL_RULES)
 # 기상특보 근사 (일자료라 특보 기준과 같지 않음. 임시)
 WARN_RULES = {"호우": ("rain", ">=", 80.0), "대설": ("snow_new", ">=", 5.0), "한파": ("tmin", "<=", -12.0)}
