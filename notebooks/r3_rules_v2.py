@@ -1,9 +1,12 @@
 """R-3 rules-v2.0 결과: 470칸 × 기준일 3개 등급, v1.1과 비교 (reports/r3_규칙개정/변경계획.md).
 
+칸 판정은 에이전트와 같은 함수를 쓴다 (holiday_watch.cell_facts·winter_facts, agent.tools.cell_axes.axes_at).
+등급 근거는 신한·SK 신호(H·W·C), 공공 자료(S·V·A)는 Level 3 확인용 (README 9절). 방향 미확인 신호는 configs/signal_check.csv (10절).
+
 순서
 0. 칸 단위 H 방향 확인 (설계 7절): 강남 시민생활 '외출·소통 모두 적음' 비율과 H의 칸 단위 순위상관을 성·연령마다.
-   ρ < 0 인 성·연령이 절반 이상이면 H를 근거 축에서 빼고 맥락으로만 둔다 (결과 전 고정 규칙).
-1. 기준일마다 그날 공개된 달로 S·H·V·W, 접근성 A는 R-2 결과표(v1.1과 같은 원장·같은 거리 규칙)
+   ρ < 0 인 성·연령이 절반 이상이면 H를 근거 축에서 빼고 맥락으로만 둔다 (결과 전 고정 규칙). 성·연령별 확인은 r3c.
+1. 기준일마다 그날 공개된 달로 S·H·V·A(axes_at)와 읍·면 겨울 변화 W, 지난 연휴 카드 값 C
 2. 트리거·반증·이탈 크기: LINK-Radar 근거 수집(rules.compare.collect)을 v2.0 카드 경보 기준(z −2.0, 7일 중 4일)으로
 3. 칸마다 decide_v2, 위험 유형
 4. v1.1(R-2 동별_등급표)과 비교: 집단 차별화, 동 규모 판별, 독립 기준, 등급 분포, 바뀐 후보, 도시별 Level 3
@@ -27,15 +30,17 @@ from bigcontest.signals import alarm as AL
 V2 = {"z_thr": -2.0, "k": 4}
 AL.Panel.__init__.__defaults__ = (AL.AlarmConfig(**V2),)  # 이 실행 안에서만 v2.0 경보 기준 (rules_v2.yaml deviation)
 
+from bigcontest import holiday_watch as HW  # noqa: E402
 from bigcontest.agent.tools import signal as SIG  # noqa: E402
-from bigcontest.agent.tools.common import usable_months  # noqa: E402
+from bigcontest.agent.tools.cell_axes import axes_at  # noqa: E402
+from bigcontest.agent.tools.common import daily_cutoff, usable_months  # noqa: E402
 from bigcontest.agent.tools.datasource import dev_snapshot_id, open_datasource  # noqa: E402
 from bigcontest.cells import cell_index, s_axis  # noqa: E402
 from bigcontest.config import ROOT  # noqa: E402
 from bigcontest.contracts import cohorts_config  # noqa: E402
 from bigcontest.external import resident_single_by_age, resident_population, seoul_living  # noqa: E402
 from bigcontest.rules.compare import collect, ctx_for, run_variant  # noqa: E402
-from bigcontest.rules.levels_v2 import CellFacts, cell_type, decide_v2, load_rules_v2  # noqa: E402
+from bigcontest.rules.levels_v2 import CellFacts, axes_on, cell_type, decide_v2, load_rules_v2  # noqa: E402
 from bigcontest.stay import h_axis  # noqa: E402
 from bigcontest.vulnerability import v_axis  # noqa: E402
 from bigcontest.winter import winter_by_area  # noqa: E402
@@ -90,28 +95,11 @@ H_ON = H_OPPOSITE < len(hdir) / 2
 print(f"H 방향: 반대 {H_OPPOSITE}/{len(hdir)} → H {'근거 축으로 씀' if H_ON else '맥락으로 내림'}")
 
 # ------------------------------------------------------------ 1. 기준일별 축
-acc = pd.read_csv(R2 / "동별_등급표.csv", dtype={"adm_cd": str})
-acc["dname"] = acc["기준일"].str.split(" \\(").str[0]
-# 거점 거리는 집단 자격으로 계산돼 있다(경로당·노인맞춤돌봄은 고령층 자원). 칸 연령 → 그 연령의 정책 집단 거리.
-# 여성 칸도 같은 연령의 거리 (원장의 자격은 주로 연령 기준, 결과 README에 적음)
-ACC_GROUP = {"60대+": "고령층", "50대": "중장년 남성 1인가구", "40대": "중장년 남성 1인가구",
-             "30대": "청년 남성", "20대": "청년 남성"}
-
-
 def axes_for(dname: str, d: date) -> pd.DataFrame:
-    res_m = int(month_of("resident_hh", d)[-1][4:])
-    tel_m = sorted(int(m[4:]) for m in month_of("tel_age", d))
-    s = s_axis(POP, ONE, res_m)
-    h = h_axis(TEL["tel_age"], TEL["tel_time"], POP, tel_m)
-    v = v_axis(POP, res_m)
-    df = s.merge(h[["adm_cd", "sex", "age5", "h", "h_top", "h_state", "h_basis", "flow"]], on=["adm_cd", "sex", "age5"])
-    df = df.merge(v[["adm_cd", "sex", "age5", "v_eb", "v_top", "v_state", "v_source"]], on=["adm_cd", "sex", "age5"])
-    a = acc[acc["dname"] == dname].drop_duplicates(["adm_cd", "집단"]).set_index(["adm_cd", "집단"])
-    key = pd.MultiIndex.from_arrays([df["adm_cd"], df["age5"].map(ACC_GROUP)])
-    df["a_km"] = a["A1 안부·관계 거점 거리(km)"].reindex(key).to_numpy()
-    df["a_top"] = a["A1 접근성 기준 넘음"].reindex(key).astype(str).eq("True").to_numpy()
-    gn_pub = date.fromisoformat(RV2["axes"]["v_published"]["강남"])
-    df["v_counts"] = df["v_top"] & ((df["city"] != "강남") | (d >= gn_pub))
+    """에이전트와 같은 470칸 축(axes_at: 거점 거리는 칸 연령의 정책 집단 자격 거리) + 읍·면 겨울 변화."""
+    at = axes_at(DS, d, MODE)
+    res_m, tel_m = at.res_month, list(at.tel_months)
+    df = at.df.copy()
     w = winter_by_area(*TEL.values(), month_of("tel_age", d))
     wk = w.set_index("adm_cd") if len(w) else pd.DataFrame(columns=["w60", "w_ok", "shared"])
     df["w60"] = df["adm_cd"].map(wk["w60"]) if len(w) else np.nan
@@ -123,6 +111,22 @@ def axes_for(dname: str, d: date) -> pd.DataFrame:
 
 
 AX = {dn: axes_for(dn, d) for dn, d in DATES.items()}
+
+# 카드 C: 기준일에 결제를 다 볼 수 있는 지난 연휴의 60대 이상 의료 결제, 같은 성 40·50대 대비 (get_holiday_watch 와 같음)
+BLOCKS = SIG.holiday_blocks(DS)
+CARD, CARD_ROWS = {}, []
+for city in CITIES:
+    for dname, d in DATES.items():
+        cut = daily_cutoff("card2", d, MODE)
+        periods = HW.card_periods(BLOCKS, DS.holiday_names(), cut) if cut else []
+        gap = HW.card_gap(DS.card2(), city, periods[-1], DS.holidays()) if periods else None
+        CARD[(city, dname)] = {} if gap is None else {r["sex"][0]: r["rel"] for _, r in gap.iterrows()}
+        if gap is not None:
+            CARD_ROWS += [{"도시": city, "기준일": dname, "참고 연휴": f"{r['name']} ({r['start']:%m/%d}~{r['end']:%m/%d})",
+                           "성": r["sex"], "연령": r["age"], "평소 대비": r["ratio"], "40·50대 대비": r["rel"]}
+                          for _, r in gap.iterrows()]
+HOLIDAY = ("R1", "R2", "R3")
+TARGET = HW.watch_config(RV2)["target_ages"]
 
 # ------------------------------------------------------------ 2. 트리거·반증·이탈 (v2.0 경보 기준으로 근거 수집)
 TRIG, DEVS = {}, []
@@ -171,43 +175,34 @@ def cell_trigger(city: str, dname: str, row) -> str | None:
     return got[mine[0]] if mine else None
 
 
-def facts_for(row, trig) -> CellFacts:
-    axes = {"S": bool(row["s_top"]), "A": bool(row["a_top"])}
-    why = {"S": f"1인 비율 {row['s_eb']:.3f}, 같은 성·연령 {int(row['s_rank'])}/{int(row['s_n'])}위" if pd.notna(row["s_eb"]) else ""}
-    if H_ON and row["h_state"] == "observed":
-        axes["H"] = bool(row["h_top"])
-        why["H"] = f"H {row['h']:.2f} ({row['h_basis']})"
-    if row["v_state"] == "observed":
-        axes["V"] = bool(row["v_counts"])
-        why["V"] = f"{row['v_eb']:.3f} ({row['v_source']})"
-    if pd.notna(row["a_km"]):
-        why["A"] = f"거점 직선 {row['a_km']:.1f}km (현재 원장 기준)"
-    status, missing, conf, cwhy = "충족", [], "보통", ["가정한 공개 시점(simulated_replay)", "현재 원장 기준 접근성"]
-    if trig and str(trig).startswith("W"):
-        if pd.isna(row["w_ok"]):
-            status, missing = "부분 판정", ["읍·면 겨울 체류 변화"]
-        elif not row["w_ok"]:
-            status, missing = "부분 판정", [f"겨울 체류 감소 아님 ({row['w60']:+.1%})"]
-        elif row["w_shared"]:
-            cwhy.append("겨울 체류: 읍·면 전체 값(공유 맥락)")
-    if row["s_small"]:
-        conf = "낮음"
-        cwhy.append(f"칸 인구 {int(row['pop']) if pd.notna(row['pop']) else 0}명 < {RV2['unit']['small_cell']}")
-    return CellFacts("scheduled_access_review", status, missing, trig, axes, why, confidence=conf, confidence_why=cwhy)
+def facts_for(row, trig, dname: str) -> CellFacts:
+    """에이전트 v2_levels._cell_decisions 와 같음: 카드 C는 연휴 트리거의 연휴 연령 칸만, 겨울 W는 동절기 칸만."""
+    code = str(trig or "")[:2]
+    if code.startswith("W"):
+        w = None if pd.isna(row["w_ok"]) else pd.Series(
+            {"w_ok": bool(row["w_ok"]), "w60": row["w60"], "shared": bool(row["w_shared"])})
+        f = HW.winter_facts(row, w, trig, RV2)
+    else:
+        gap = CARD[(row["city"], dname)].get(row["sex"]) if code in HOLIDAY and row["age5"] in TARGET else None
+        f = HW.cell_facts(row, trig or "-", RV2, gap)
+    if not H_ON:
+        f.axes.pop("H", None)
+    return f
 
 
 rows = []
 for dname, df in AX.items():
     for _, r in df.iterrows():
         trig = cell_trigger(r["city"], dname, r)
-        f = facts_for(r, trig)
-        on = [a for a, v in f.axes.items() if v]
+        f = facts_for(r, trig, dname)
+        on = axes_on(f)
         base = {"도시": r["city"], "기준일": dname, "adm_cd": r["adm_cd"], "동": names.loc[r["adm_cd"], "adm_nm"],
                 "동 유형": names.loc[r["adm_cd"], "adm_type"], "성": r["sex"], "연령": r["age5"],
                 "칸 인구": r["pop"], "S 1인 비율(수축)": r["s_eb"], "S 섬": r["s_top"], "H": r["h"], "H 섬": r["h_top"],
                 "H 근거 축": H_ON, "H 기준": r["h_basis"], "V(수축)": r["v_eb"], "V 섬(공개일 반영)": r["v_counts"],
                 "V 출처": r["v_source"], "A 거점 거리(km)": r["a_km"], "A 섬": r["a_top"], "W 겨울 변화": r["w60"],
-                "선 축": "+".join(sorted(on)) or "-", "위험 유형": cell_type(on), "트리거": trig or "-",
+                "W 섬": f.axes.get("W"), "C 섬": f.axes.get("C"), "방향 미확인": ",".join(f.unverified) or "-",
+                "선 축": "+".join(on) or "-", "위험 유형": cell_type(on), "트리거": trig or "-",
                 "주민등록 기준월": r["res_month"], "통신 달": r["tel_months"]}
         if trig:
             d = decide_v2(f, RV2)
@@ -217,19 +212,20 @@ for dname, df in AX.items():
             rows.append({**base, "등급": "후보 아님", "규칙 id": "-", "상한": "-", "입력 상태": "-", "근거 신뢰도": "-", "사유": "트리거 없음"})
 CELLS = pd.DataFrame(rows)
 
-# 이탈 후보 (도시 × 코호트, Level 2 상한)
+# 이탈 후보 (도시 × 코호트, Level 2 상한): 먼저 확인할 동 = 같은 성·연령 칸의 행동 고립 상위 (에이전트 relevel_deviation)
 drows = []
 for _, r in DEV.iterrows():
     sx, a = cohort_cell(r["분석 코호트"]) or (None, None)
     ax = AX[r["기준일"]]
-    cells = ax[(ax["city"] == r["도시"]) & (ax["sex"] == sx) & (ax["age5"] == a)]
-    on_cells = cells[cells["s_top"] | (cells["h_top"] & H_ON) | cells["v_counts"] | cells["a_top"]]
+    g = ax[(ax["city"] == r["도시"]) & (ax["sex"] == sx) & (ax["age5"] == a)
+           & ax["h_top"].fillna(False).astype(bool) & ~ax["s_small"]].copy()
+    g["ext"] = g["s_top"].astype(int) + g["v_counts"].astype(int) + g["a_top"].astype(int)
+    first = g.sort_values(["ext", "h"], ascending=[False, False])["adm_cd"].head(3).tolist()
     f = CellFacts("unexpected_activity_deviation", counter_result=r["반증 결과"], counter_reason=r["반증 사유"],
-                  holiday_travel=bool(r["연휴 이동"]), deviation_drop=r["이탈 크기"], axes={"S": len(on_cells) > 0})
+                  holiday_travel=bool(r["연휴 이동"]), deviation_drop=r["이탈 크기"], axes={"H": bool(first)})
     d = decide_v2(f, RV2)
-    first = ", ".join(names.loc[on_cells.sort_values("s_rank")["adm_cd"], "adm_nm"].head(5))
     drows.append({**r.to_dict(), "칸": f"{sx} {a}", "등급": d.level, "규칙 id": d.rule_id, "사유": d.reason,
-                  "먼저 확인할 동(근거 축이 선 칸, 최대 5)": first or "-"})
+                  "먼저 확인할 동(행동 고립 상위, 최대 3)": ", ".join(names.loc[first, "adm_nm"]) or "-"})
 DEVT = pd.DataFrame(drows)
 
 # ------------------------------------------------------------ 4. v1.1 과 비교
@@ -322,7 +318,7 @@ for share in (0.25, 0.30, 0.3333, 0.40):
                 trig = cell_trigger(r["city"], dn, r)
                 if not trig:
                     continue
-                lv = decide_v2(facts_for(r, trig), RV2).level
+                lv = decide_v2(facts_for(r, trig, dn), RV2).level
                 n3[r["city"]] += lv == "Level 3"
                 n2[r["city"]] += lv == "Level 2"
         sens.append({"상위 비율": share, "거점 km": far, **{f"{c} Level 3 칸": n3[c] for c in CITIES},
@@ -383,6 +379,7 @@ def save(df, name):
 
 save(hdir, "H_방향확인_칸단위.csv")
 save(CELLS, "칸별_등급표.csv")
+save(pd.DataFrame(CARD_ROWS), "카드_지난연휴.csv")
 save(DEVT, "이탈_후보_v2.csv")
 save(CMP, "판비교_v11_v20.csv")
 save(DIFF, "집단차별화_v11_v20.csv")

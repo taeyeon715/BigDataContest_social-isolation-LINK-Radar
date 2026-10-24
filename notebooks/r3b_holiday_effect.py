@@ -109,7 +109,7 @@ def flag(t: pd.DataFrame) -> pd.Series:
 
 
 def to_cells(t: pd.DataFrame) -> pd.DataFrame:
-    """연휴 주의 코호트(60대+ 묶음 포함 5연령)의 470칸 중 근거 축이 선 칸."""
+    """연휴 주의 코호트(60대+ 묶음 포함 5연령)의 470칸 중 Level 2 이상 칸."""
     cells = pd.read_csv(OUT / "칸별_등급표.csv", dtype={"adm_cd": str})
     f = t[t["주의"] & t["age_g"].isin(["20대", "30대", "40대", "50대", "60대+"])]
     why = f.groupby(["city", "sex", "age_g"]).apply(
@@ -117,13 +117,13 @@ def to_cells(t: pd.DataFrame) -> pd.DataFrame:
     out = []
     for (city, sex, age), w in why.items():
         c = cells[(cells["도시"] == city) & (cells["성"] == sex) & (cells["연령"] == age) & (cells["기준일"] == "추석 D-7")]
-        c = c[c["선 축"].fillna("-") != "-"].copy()
+        c = c[c["등급"].isin(["Level 3", "Level 2"])].copy()  # 동을 가리키는 통신 신호가 선 칸
         c["연휴 근거"] = w
         out.append(c)
     if not out:
         return pd.DataFrame()
     o = pd.concat(out)
-    o["축 수"] = o["선 축"].str.count(r"[SHVA]")
+    o["축 수"] = o["선 축"].str.split("+").str.len()
     cols = ["도시", "동", "동 유형", "성", "연령", "칸 인구", "선 축", "축 수", "위험 유형", "등급", "근거 신뢰도", "연휴 근거"]
     return o.sort_values(["도시", "축 수", "칸 인구"], ascending=[True, False, False])[cols]
 
