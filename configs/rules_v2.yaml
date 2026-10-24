@@ -93,3 +93,12 @@ holiday_watch:
   card_min_gap: -0.05
   #   [결과 후 결정, 2026-10-24] 위 값이 이보다 낮으면(40·50대보다 5%p 이상 더 줄면) 그 성의 연휴 연령 칸에 C(카드) 신호.
   #   R-3b 판정 기준(−5%p)과 같은 값
+
+signal_check:
+  # [사전 설정, 2026-10-24] 신호 방향 확인 (reports/r3_규칙개정/변경계획.md 10절). 결과는 configs/signal_check.csv
+  reference: "강남 시민생활 외출·커뮤니케이션 모두 적음(전체) ÷ 인구, 2025-07~12"
+  axes: [H, S]
+  rho_min: 0.0
+  p_max: 0.05
+  permutations: 10000
+  seed: 0
