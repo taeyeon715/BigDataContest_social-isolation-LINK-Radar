@@ -103,29 +103,23 @@ def resident_households(path=None, map_path=None) -> pd.DataFrame:
     return d[["adm_cd", "month", "전체세대수", "1인세대", "one_person_rate"]]
 
 
-ONE_PERSON_BY_AGE_FILE = EXT / "resident" / "주민등록_성연령별1인세대수_2025-07_12.csv"
-ONE_PERSON_BANDS = ["0~9세", "10~19세", "20~29세", "30~39세", "40~49세", "50~59세", "60~69세", "70~79세",
-                    "80~89세", "90~99세", "100세 이상"]
+SINGLE_FILE = EXT / "resident" / "주민등록_성연령별1인세대_2025-07_12.csv"
 
 
-def resident_one_person_by_age(path=None, map_path=None) -> pd.DataFrame:
-    """주민등록 성·연령별 1인세대수(행안부 월간) → 행정동 × 월 × 성 × 10세 구간 (long, rules-v2.0 S축).
-
-    원본 열: '2025년07월_남_20~29세' 처럼 월 × 성(계·남·여) × 구간. 성별 '계'는 쓰지 않는다(남+여와 같음).
-    구간 시작 나이(age_from)와 끝(age_to, 100세 이상은 None)을 함께 둔다. 변환 실패 값은 NA + 사유."""
-    d = pd.read_csv(path or ONE_PERSON_BY_AGE_FILE, dtype=str)
+def resident_single_by_age(path=None, map_path=None) -> pd.DataFrame:
+    """행안부 성·연령별 1인세대수 → 행정동 × 월 × 성 × 5세 구간 (long). age_lo~age_hi (100세 이상은 age_hi 결측).
+    1인세대의 성·연령은 혼자인 세대주의 성·연령. 만들기: bigcontest.resident_single."""
+    d = pd.read_csv(path or SINGLE_FILE, dtype=str)
     d["adm_cd"] = map_codes(d["행정기관코드"], "mois_adm_cd2", map_path=map_path)
-    pat = re.compile(r"^(\d{4})년(\d{2})월_(남|여)_(.+)$")
-    cols = [c for c in d.columns if (m := pat.match(c)) and m.group(4) in ONE_PERSON_BANDS]
-    long = d.melt(id_vars=["adm_cd"], value_vars=cols, var_name="k", value_name="one_person")
-    parts = long["k"].str.extract(pat.pattern)
-    long["month"] = parts[1].astype(int)
-    long["sex"] = parts[2]
-    long["band"] = parts[3]
-    long["age_from"] = long["band"].str.extract(r"^(\d+)")[0].astype(int)
-    long["age_to"] = long["band"].str.extract(r"~(\d+)세")[0].astype(float)
-    long["one_person"], long["one_person_na_reason"] = to_number(long["one_person"], "주민등록 성·연령별 1인세대")
-    return long[["adm_cd", "month", "sex", "band", "age_from", "age_to", "one_person", "one_person_na_reason"]]
+    d["month"] = pd.to_datetime(d["기준연월"]).dt.month
+    cols = [c for c in d.columns if re.match(r"^(\d+~\d+세|100세이상)(남자|여자)$", c)]
+    long = d.melt(id_vars=["adm_cd", "month"], value_vars=cols, var_name="k", value_name="n")
+    long["age_lo"] = long["k"].str.extract(r"^(\d+)").astype(int)
+    hi = long["k"].str.extract(r"^\d+~(\d+)세")[0]
+    long["age_hi"] = pd.to_numeric(hi).astype("Int64")
+    long["sex"] = np.where(long["k"].str.endswith("남자"), "남", "여")
+    long["n"], long["n_na_reason"] = to_number(long["n"], "주민등록 1인세대")
+    return long[["adm_cd", "month", "sex", "age_lo", "age_hi", "n", "n_na_reason"]]
 
 
 RECIPIENTS_FILE = EXT / "welfare" / "서울_기초생활수급자_동별_2024.csv"

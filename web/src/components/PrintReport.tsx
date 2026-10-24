@@ -1,3 +1,4 @@
+import { StructuralRisk } from './StructuralRisk'
 // 결재용 인쇄 보기. 근거 + 할 수 있는 말 + 자원 판정 + 대응안·체크리스트 + 승인자·판·스냅샷 + 고지, 대외비 표시.
 import type { ReactNode } from 'react'
 import type { Candidate, EvidenceCard, Report } from '../api'
@@ -112,6 +113,8 @@ export function PrintReport({
           ))}
         </tbody>
       </table>
+
+      <StructuralRisk items={card.structural_risk} candidateId={candidate?.candidate_id} />
 
       <Section title="근거">
         <table className="w-full text-sm">

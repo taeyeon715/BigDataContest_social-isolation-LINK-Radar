@@ -51,10 +51,10 @@ def cell_population(pop: pd.DataFrame, month: int) -> pd.DataFrame:
 
 
 def cell_one_person(one: pd.DataFrame, month: int) -> pd.DataFrame:
-    """성·연령별 1인세대(10세 구간, external.resident_one_person_by_age) → 칸 1인세대 수 (그 달)."""
+    """성·연령별 1인세대(5세 구간, external.resident_single_by_age) → 칸 1인세대 수 (그 달)."""
     o = one[one["month"] == month].copy()
-    o["age5"] = o["age_from"].map(age5)
-    o = o.dropna(subset=["age5"])
+    o["age5"] = o["age_lo"].map(age5)
+    o = o.dropna(subset=["age5"]).rename(columns={"n": "one_person"})
     return o.groupby(["adm_cd", "sex", "age5"], as_index=False)["one_person"].sum(min_count=1)
 
 

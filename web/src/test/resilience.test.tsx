@@ -302,7 +302,7 @@ describe('보고서 문장의 근거 코드 → 이름표 (FE-09)', () => {
   it('인쇄용 글자는 "(근거 n)", 자원 코드는 이름, 거점 이름은 쉬운 말', () => {
     expect(refsToText(`값 [${ev[1].evidence_id}]`, idx)).toBe('값 (근거 2)')
     expect(reportText('R0007 먼저 연락', { R0007: '외로움안녕120' })).toBe('외로움안녕120 먼저 연락')
-    expect(plainText('관측 거점까지 직선거리 18.57km')).toBe('노인복지관·사회복지관(안부·관계 거점)까지 거리 18.57km')
+    expect(plainText('관측 거점까지 직선거리 18.57km')).toBe('안부·관계 거점까지 거리 18.57km')
     expect(splitRefs('a [EV-1-2] b')).toEqual([{ text: 'a ' }, { ref: 'EV-1-2' }, { text: ' b' }])
   })
   it('인쇄 보기: 근거 ID 대신 번호, 장마다 대외비(@page 여백 상자), 승인자는 기록 그대로', () => {

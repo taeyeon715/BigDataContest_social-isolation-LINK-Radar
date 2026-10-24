@@ -1336,7 +1336,7 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
     기준일이 연휴 전 lead_days ~ 연휴 끝(그리고 follow_up_days 도시는 연휴 뒤)일 때만 낸다.
     참고 근거로 기준일에 결제를 다 볼 수 있는 지난 연휴의 카드 값을 붙인다 (등급 입력 아님)."""
     from bigcontest import holiday_watch as HW
-    from bigcontest.external import resident_one_person_by_age
+    from bigcontest.external import resident_single_by_age
 
     ds = open_datasource(ctx.snapshot_id)
     city, as_of = ctx.request.city, ctx.as_of
@@ -1349,7 +1349,7 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
     if not res or not tel:
         return [empty(ctx, "HW", WATCH_SUMMARY_METRIC, "기준일에 쓸 수 있는 주민등록·통신 달 없음 (TIME_AVAILABILITY_UNKNOWN)")]
     res_m, tel_m = int(res[-1].base_month[4:]), sorted(int(m.base_month[4:]) for m in tel)
-    ax = HW.cell_axes(ds.resident_pop(), resident_one_person_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
+    ax = HW.cell_axes(ds.resident_pop(), resident_single_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
                       res_m, tel_m, as_of, _watch_access(ds, city), cfg["target_ages"])
     cells = HW.watch_cells(ax[ax["city"] == city], ph.label)
     names = ds.adm_index

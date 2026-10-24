@@ -5,12 +5,12 @@ import pandas as pd
 import pytest
 
 from bigcontest import cells as C
-from bigcontest.external import resident_one_person_by_age, resident_population
+from bigcontest.external import resident_single_by_age, resident_population
 
 
 @pytest.fixture(scope="module")
 def data():
-    return resident_population(), resident_one_person_by_age()
+    return resident_population(), resident_single_by_age()
 
 
 def test_cell_index_is_470():
@@ -28,7 +28,7 @@ def test_one_person_loader_covers_months_and_bands(data):
     assert sorted(one["month"].unique()) == [7, 8, 9, 10, 11, 12]
     assert one["adm_cd"].nunique() == 47
     assert set(one["sex"]) == {"남", "여"}
-    assert one["one_person"].notna().all()
+    assert one["n"].notna().all()
 
 
 def test_one_person_not_above_population(data):

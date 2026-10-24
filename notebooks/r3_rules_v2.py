@@ -33,7 +33,7 @@ from bigcontest.agent.tools.datasource import dev_snapshot_id, open_datasource  
 from bigcontest.cells import cell_index, s_axis  # noqa: E402
 from bigcontest.config import ROOT  # noqa: E402
 from bigcontest.contracts import cohorts_config  # noqa: E402
-from bigcontest.external import resident_one_person_by_age, resident_population, seoul_living  # noqa: E402
+from bigcontest.external import resident_single_by_age, resident_population, seoul_living  # noqa: E402
 from bigcontest.rules.compare import collect, ctx_for, run_variant  # noqa: E402
 from bigcontest.rules.levels_v2 import CellFacts, cell_type, decide_v2, load_rules_v2  # noqa: E402
 from bigcontest.stay import h_axis  # noqa: E402
@@ -63,7 +63,7 @@ RANK = {"후보 아님": 0, "Level 0": 0, "Level 1": 1, "Level 2": 2, "Level 3":
 names = DS.adm_names().set_index("adm_cd")
 
 POP = resident_population()
-ONE = resident_one_person_by_age()
+ONE = resident_single_by_age()
 TEL = {n: DS.tel(n) for n in ("tel_age", "tel_time", "tel_wkdy")}
 
 

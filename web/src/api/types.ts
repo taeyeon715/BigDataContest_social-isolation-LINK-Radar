@@ -349,6 +349,22 @@ export interface Fact {
   evidence_id: string
 }
 
+export interface StructuralRiskReference {
+  candidate_id: string
+  city: City
+  adm_cd: string | null
+  dong: string | null
+  policy_group: string | null
+  status: 'available' | 'unavailable' | 'not_applicable'
+  period_label: string
+  mapping_note: string | null
+  comparison_note: string
+  note: string
+  source_path: string
+  source_hash: string | null
+  cells: { sex: string; age_band: string; stage: string; risk_type: string; behavior: number; vulnerability: number }[]
+}
+
 export interface EvidenceCard {
   card_id: string
   run_id: string | null
@@ -358,6 +374,7 @@ export interface EvidenceCard {
   analysis_mode: AnalysisMode
   as_of: string
   evidence_revision: number
+  structural_risk?: StructuralRiskReference[]
   facts: Fact[]
   evidence: ToolResult[]
   limitations: string[]

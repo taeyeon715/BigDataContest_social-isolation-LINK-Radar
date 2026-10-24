@@ -326,6 +326,32 @@ class Fact(_Model):
     evidence_id: str
 
 
+class StructuralRiskCell(_Model):
+    sex: Literal["남성", "여성"]
+    age_band: Literal["20대", "30대", "40대", "50대", "60대+"]
+    stage: Literal["심각", "경계", "주의", "관심", "정상"]
+    risk_type: Literal["이중 위험", "행동형", "취약형", "저위험"]
+    behavior: float = Field(ge=0, le=1)
+    vulnerability: float = Field(ge=0, le=1)
+
+
+class StructuralRiskReference(_Model):
+    """사후 참고 자료. ToolResult·facts·등급·LLM 입력에 섞지 않는다."""
+    candidate_id: str
+    city: City
+    adm_cd: str | None = None
+    dong: str | None = None
+    policy_group: str | None = None
+    status: Literal["available", "unavailable", "not_applicable"] = "unavailable"
+    period_label: str
+    mapping_note: str | None = None
+    comparison_note: str
+    note: str = ""
+    source_path: str
+    source_hash: str | None = None
+    cells: list[StructuralRiskCell] = Field(default_factory=list)
+
+
 class EvidenceCard(_Model):
     card_id: str
     run_id: str | None = None
@@ -336,6 +362,7 @@ class EvidenceCard(_Model):
     as_of: date
     evidence_revision: int = Field(ge=1)
     facts: list[Fact] = Field(default_factory=list)
+    structural_risk: list[StructuralRiskReference] = Field(default_factory=list)
     evidence: list[ToolResult] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     time_label: str | None = None

@@ -1,0 +1,7 @@
+fetched_at,month,source,raw_file,bytes,sha256,rows_47dong,same_as_csv
+2026-10-22T09:01:11,2025-07,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202507.xlsx,1295800,d45884f7f306e9e25ffbcc8f5dca1735fd4f8af45109bf195fdeca2ab7a9bd34,47,아니오 → 새로 씀
+2026-10-22T09:01:16,2025-08,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202508.xlsx,1295407,424b8ea814e27db55594dfc1f91a65cfe7aeb90153efdf4a2f1bec9c4936d3e6,47,아니오 → 새로 씀
+2026-10-22T09:01:23,2025-09,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202509.xlsx,1295711,5a73b1d821d0bd58233b15dc1c936e6bc9922998bdf5c336aba2f26a7c7d1371,47,아니오 → 새로 씀
+2026-10-22T09:01:29,2025-10,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202510.xlsx,1296183,0778e88ac234fe328e57f24815a9ed35601c072c08cf937f920d6e210fcff939,47,아니오 → 새로 씀
+2026-10-22T09:01:34,2025-11,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202511.xlsx,1295840,06593f20e6df43883d08583ba7cec23d830368aa4c8e2e5c65647c84ade30758,47,아니오 → 새로 씀
+2026-10-22T09:01:40,2025-12,"jumin.mois.go.kr sexdAge1HshdDown.do (행정동, 성/연령별 주민등록 1인세대수, 전체읍면동현황, 5세, 등록 구분 전체)",external/resident/raw/sexdAge1Hshd_202512.xlsx,1296078,c2b512b702e5d5e945bd03e76da6582f06c7ca282aa572c4efb6e0e3b77ff365,47,아니오 → 새로 씀

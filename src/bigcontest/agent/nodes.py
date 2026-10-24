@@ -1476,6 +1476,11 @@ def build_card(state: dict) -> dict:
         max(1, state.get("evidence_revision") or 1), evidence, title,
         limitations=list((state.get("contract_check") or {}).get("warnings", [])),
         sort_desc=state.get("route") == "lookup")
+    # 등급·순서와 facts가 확정된 뒤 별도 사후 참고 칸만 붙임. LLM 문장 입력에도 넣지 않음.
+    from bigcontest.agent.tools.structural_risk import get_structural_risk
+
+    if state.get("route") != "lookup":
+        card.structural_risk = get_structural_risk(_ctx(state), cands)
     upd: dict[str, Any] = {"evidence_card": pack_card(card)}  # 근거는 evidence 에만, 카드에는 근거 ID
     if state.get("run_meta_dir") and _backend(state) == "real":
         meta, created = R.write_run_metadata(_ctx(state), state["run_id"], Path(state["run_meta_dir"]),
@@ -1663,7 +1668,7 @@ def write_report(state: dict) -> dict:
     sentences.append(DISCLAIMER)  # G-10 최종 판단은 담당자
     llm, init_rec = _llm(state)
     brief = state.get("mode") == "monitoring"
-    view = card.model_copy(update={"facts": facts})
+    view = card.model_copy(update={"facts": facts, "structural_risk": []})
     feedback = [r for g in (state.get("guard") or [])[-2:] if g["guard"] == "guard_report" and g["verdict"] != "PASS"
                 for r in g["reasons"] if not r.startswith("G-07")] if attempt > 1 else []
     lines, rec = call_llm(llm, "explain", llm.explain if llm else None, view,

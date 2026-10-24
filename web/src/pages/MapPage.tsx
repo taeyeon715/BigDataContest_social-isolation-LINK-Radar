@@ -318,7 +318,7 @@ export default function MapPage() {
             <Legend2D />
             {city === '춘천' && (
               <div className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700">
-                춘천 읍·면 거리는 행정동 중심점에서 <b>노인복지관·사회복지관(안부·관계 거점)</b>까지의 <b>직선거리</b>입니다. 행정복지센터(주민센터)는
+                춘천 읍·면 거리는 행정동 중심점에서 <b>안부·관계 거점</b>까지의 <b>직선거리</b>입니다. 행정복지센터(주민센터)는
                 안부·관계 프로그램을 운영하지 않아 넣지 않습니다. 실제 이동 시간이나 서비스 공급 부족이 아닙니다.
               </div>
             )}
@@ -327,7 +327,7 @@ export default function MapPage() {
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
           <Card title="구조 취약성 × 안부·관계 거점까지 직선거리">
-            <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 노인복지관·사회복지관까지 직선거리(세로) 산점도. 같은 값은 행정동 표에 있습니다.">
+            <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 안부·관계 거점까지 직선거리(세로) 산점도. 같은 값은 행정동 표에 있습니다.">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
                   <CartesianGrid stroke="#E3E7EF" />
@@ -355,7 +355,7 @@ export default function MapPage() {
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
-            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 노인복지관·사회복지관에서 멉니다. 순위를 매기는 그림이 아닙니다. {HUB_NOTE}</div>
+            <div className="text-xs text-ink-600">오른쪽 위로 갈수록 구조 취약성이 높고 안부·관계 거점에서 멉니다. 순위를 매기는 그림이 아닙니다. {HUB_NOTE}</div>
           </Card>
         </div>
       </PageBody>

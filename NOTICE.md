@@ -17,7 +17,7 @@
 | Open-Meteo 과거 날씨 | `external/weather/openmeteo_*.json` (비교용) | https://open-meteo.com/ | CC BY 4.0. 출처 표시 필요 |
 | 기상청 ASOS 일자료 (기상특보는 받지 않고 이 일자료로 근사) | `external/weather/kma_asos_daily_2025-07_12.csv` (원문은 `raw/`, 올리지 않음) | 공공데이터포털 15059093 (기상청) | 공공누리 1유형 (출처 표시) |
 | 공휴일 (2025년 월력요항) | `configs/project.yaml` `holidays`, `external/holidays/공휴일_2025-07_12.csv` | 한국천문연구원 천문우주지식정보 https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025 (우주항공청 관보 게재 자료) | 공공 정보. 출처 표시 |
-| 주민등록 인구·세대 | `external/resident/` | 공공데이터포털 15097972, 15097974 (행정안전부) | 이용허락범위 제한 없음 |
+| 주민등록 인구·세대, 성·연령별 1인세대수 | `external/resident/` | 공공데이터포털 15097972, 15097974 (행정안전부), 행정안전부 주민등록 인구통계 jumin.mois.go.kr (성/연령별 주민등록 1인세대수) | 이용허락범위 제한 없음 |
 | 춘천 독거노인 현황 | `external/chuncheon/` | 공공데이터포털 15081202 (춘천시) | 이용허락범위 제한 없음 |
 | 서울 시민생활 데이터 | `external/seoul_living/` | 서울 열린데이터광장 OA-22266, OA-22267 | 공공누리 1유형 (출처 표시) |
 | 복지자원 원장 | `external/resources/` | 여러 공공데이터. 원본별 URL은 `external/resources/원본_출처목록.csv` | 각 원본 라이선스 |

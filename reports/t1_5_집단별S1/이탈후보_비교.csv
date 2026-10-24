@@ -1,0 +1,26 @@
+﻿도시,기준일,집단,분석 코호트,등급 (v1.1),규칙 id (v1.1),먼저 확인할 동 (v1.1),등급 (대안),규칙 id (대안),먼저 확인할 동 (대안),등급 바뀜,먼저 확인할 동 바뀜
+강남,추석 D-7 (09/26),50~69세 남성,60대 남성,Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 논현2동",Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 수서동",False,True
+강남,추석 D-7 (09/26),고령층,60대 남성,Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 논현2동",Level 1,L1-DEV-SMALL,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),50~69세 남성,50대 남성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 수서동",False,True
+강남,추석 뒤 (10/13),50~69세 남성,60대 남성,Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 논현2동",Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 수서동",False,True
+강남,추석 뒤 (10/13),고령층,60대 남성,Level 1,L1-DEV-SMALL,"역삼1동, 논현1동, 논현2동",Level 1,L1-DEV-SMALL,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),고령층,60대 여성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),고령층,70대 남성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),고령층,70대 여성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),고령층,80대+ 남성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),고령층,80대+ 여성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"수서동, 일원1동, 개포3동",False,True
+강남,추석 뒤 (10/13),중장년 남성 1인가구,40대 남성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",False,False
+강남,추석 뒤 (10/13),중장년 남성 1인가구,50대 남성,판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",판단 보류,HOLD-COUNTER,"역삼1동, 논현1동, 논현2동",False,False
+강남,추석 뒤 (10/13),청년 남성,20대 남성,판단 보류,HOLD-COUNTER,-,판단 보류,HOLD-COUNTER,-,False,False
+강남,추석 뒤 (10/13),청년 남성,30대 남성,Level 1,L1-DEV-SMALL,-,Level 1,L1-DEV-SMALL,-,False,False
+춘천,추석 D-7 (09/26),50~69세 남성,60대 남성,Level 1,L1-DEV-SMALL,"효자2동, 교동, 효자3동",Level 1,L1-DEV-SMALL,"북산면, 남면, 효자2동",False,True
+춘천,추석 D-7 (09/26),고령층,60대 남성,Level 1,L1-DEV-SMALL,"효자2동, 교동, 효자3동",Level 1,L1-DEV-SMALL,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),50~69세 남성,50대 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"북산면, 남면, 교동",False,True
+춘천,추석 뒤 (10/13),50~69세 남성,60대 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"북산면, 남면, 교동",False,True
+춘천,추석 뒤 (10/13),고령층,60대 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),고령층,60대 여성,Level 2,L2-STRUCT-DEVIATION,"효자2동, 교동, 효자3동",Level 2,L2-STRUCT-DEVIATION,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),고령층,70대 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),고령층,70대 여성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),고령층,80대+ 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),고령층,80대+ 여성,Level 2,L2-STRUCT-DEVIATION,"효자2동, 교동, 효자3동",Level 2,L2-STRUCT-DEVIATION,"조운동, 효자2동, 북산면",False,True
+춘천,추석 뒤 (10/13),중장년 남성 1인가구,50대 남성,판단 보류,HOLD-COUNTER,"효자2동, 교동, 효자3동",판단 보류,HOLD-COUNTER,"남면, 북산면, 교동",False,True

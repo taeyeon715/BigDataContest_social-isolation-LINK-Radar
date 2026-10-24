@@ -50,8 +50,9 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 | 15 | m3 | `notebooks/m3_models.py` | 1, eda6·m1·m2·r1·w2·m4 | `reports/m3_모델링결과` | 안 됨 | 2분 26초 |
 | 16 | s1 | `notebooks/s1_link_sim.py` | 1 (실제 자료 비교) | `reports/s1_LINK-Sim`, `data/sim` (가상 자료, git 제외) | 안 됨 | 3분 30초 |
 | 17 | t2 | `notebooks/t2_cross_validation.py` | `reports/t1_2축위험도`(태연 분석 결과), r2 CSV, `analysis/taeyeon_2axis/external` | `reports/t2_교차검증` | **됨** | 15초 |
-| 18 | 점검 | `scripts/check_no_raw.py` | — | 리포트·`analysis/` CSV 원천 값 열 점검 | **됨** | 1초 |
-| 19 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
+| 18 | t1_5 | `notebooks/t1_5_cohort_s1.py` | 1, r2·t2, `external/resident/` | `reports/t1_5_집단별S1` (집단별 S1 대안 비교, 공식 등급 그대로) | 안 됨 | 25초 |
+| 19 | 점검 | `scripts/check_no_raw.py` | — | 리포트·`analysis/` CSV 원천 값 열 점검 | **됨** | 1초 |
+| 20 | 시험 | `uv run pytest -q` | — | 원본이 없으면 일부 건너뜀 | 일부 | 3분 40초 |
 
 - 시간은 Windows 11 노트북(2026-10-14, rules-v1.1) 에서 `scripts/reproduce.py`로 잰 값입니다(적재 제외 합계 약 39분, m1 이 30분). 적재(ingest)는 공용 정리본을 덮어쓰지 않으려고 이번에 다시 돌리지 않았습니다.
 - 원본 없이도 되는 것: 자원 원장(w1), 자원 추천 평가(w2), 위험 요인 모델(M4), 점검, API·화면(가짜 데이터, `README.md` 시작하기).
@@ -64,7 +65,7 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 
 | 목록 | 무엇 | 개수 | `--check-hash` 에서 |
 |---|---|---|---|
-| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개, T-1 태연 분석 8개, T-2 교차 검증 7개 포함 | 110 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
+| `reports/결과_해시.txt` | git 에 올린(제출하는) 리포트 CSV 전부. S-1 LINK-Sim 24개, T-1 태연 분석 8개, T-2 교차 검증 7개, T-1.5 대안 비교 12개 포함 | 122 | 값이 다르거나, 목록의 파일이 없거나, 목록에 없는 CSV가 `reports/`에 새로 생기면 **실패**(종료 코드 1) |
 | `reports/결과_해시_로컬.txt` | 레포에 올리지 않는 로컬 전용 결과: `m1_기대활동모델/예측_전체.csv`(원천 결제건수가 있어 `.gitignore`) | 1 | 파일이 있을 때만 비교, 다르면 실패. 없으면 "건너뜀" (새 체크아웃에는 없음) |
 
 - `--write-hash`는 git 추적 및 무시되지 않은 신규 `reports/**/*.csv`로 검증 목록을 다시 씁니다. 리포트 CSV를 새로 추가했으면 변경을 확인한 뒤 `--write-hash`로 목록에 넣습니다. 목록 밖 CSV는 검사에서 실패하므로 빠뜨릴 수 없습니다(`tests/test_r2_results.py`가 목록 = 추적·무시되지 않은 신규 CSV 인지 확인).
@@ -90,3 +91,10 @@ uv run python scripts/reproduce.py --only r1 w2 m4 r2 m3 s1 --check-hash      # 
 대회 정리본이 있는 환경에서는 W1 → R1 → W2 → M4 → R2 → M3 → S1 순서로 관련 결과를 재계산합니다. 고정된 W2 정답을 보존하기 위해 `--relabel`은 사용하지 않습니다. 보강 전후 감사는 `PYTHONPATH=src python notebooks/a1_access_audit.py`로 다시 만듭니다. 공개 보강 전 원장 스냅샷도 함께 제공했습니다.
 
 사용자 평가는 `evaluation/user_study_20261018/index.html`에서 시작합니다. `응답_양식.csv`는 헤더뿐이며 실제 응답을 넣어야 합니다. `analyze.py`는 빈 응답이나 배정 불일치·중복 응답을 거부합니다. 자료 준비를 실무 검증 완료로 표현하지 않습니다.
+
+## 2026-10-22 T1.5·후보 카드 통합
+
+- `notebooks/t1_5_cohort_s1.py`는 공식 등급을 덮어쓰지 않고 별도 폴더에 대안 비교 12개 CSV를 만듭니다. 원본 성·연령별 1인세대 xlsx는 포함하지 않습니다. 공개 추출 CSV와 SHA-256은 `external/README.md`와 `external/resident/수집_기록_1인세대.csv`에 있습니다.
+- 원본 대조 CLI `python -m bigcontest.resident_single`은 비교 불일치 시 종료 코드 1입니다. `--write`는 명시적으로 정리본을 새로 쓰는 모드입니다.
+- 카드의 선택 입력 `reports/t1_2축위험도/위험도_2축_강남_춘천_동x성x연령.csv`도 실행 시작 시 스냅샷 해시에 고정합니다. 파일이 없으면 참고값만 생략하며 공식 등급은 유지합니다. 고정한 파일이 바뀌면 스냅샷 불일치로 실패합니다.
+- 통합 검증: Python 1,160개 통과·9개 건너뜀, 웹 139개 통과, TypeScript·Vite 빌드 통과. 이 체크아웃에는 외부 원본 xlsx가 없어 원본 대조 시험 1개를 추가로 건너뛰었습니다. 병합 전 `C:/lr-ty`에서는 실제 원본 6개 대조도 통과했습니다.
