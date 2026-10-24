@@ -327,16 +327,21 @@ class Fact(_Model):
 
 
 class StructuralRiskCell(_Model):
-    sex: Literal["남성", "여성"]
+    """칸(동 × 성 × 연령) 하나의 rules-v2.0 근거 축 (기준일 계산)."""
+    sex: Literal["남", "여"]
     age_band: Literal["20대", "30대", "40대", "50대", "60대+"]
-    stage: Literal["심각", "경계", "주의", "관심", "정상"]
-    risk_type: Literal["이중 위험", "행동형", "취약형", "저위험"]
-    behavior: float = Field(ge=0, le=1)
-    vulnerability: float = Field(ge=0, le=1)
+    pop: int | None = None  # 칸 주민등록 인구
+    axes_on: list[Literal["S", "H", "V", "A"]] = Field(default_factory=list)
+    cell_type: Literal["이중 위험", "관계 단절형", "구조·경제 취약형", "해당 없음"]
+    s: float | None = Field(default=None, ge=0, le=1)  # 1인 비율 (수축)
+    h: float | None = Field(default=None, ge=0, le=1)  # 행동 고립 (같은 도시·성·연령 백분위 평균)
+    v: float | None = Field(default=None, ge=0, le=1)  # 경제 취약 비율 (수축)
+    a_km: float | None = Field(default=None, ge=0)  # 안부·관계 거점 직선거리
+    small: bool = False  # 칸 인구 100 미만 (근거 신뢰도 낮음)
 
 
 class StructuralRiskReference(_Model):
-    """사후 참고 자료. ToolResult·facts·등급·LLM 입력에 섞지 않는다."""
+    """후보 카드의 칸 근거 축 (rules-v2.0, 기준일 계산). ToolResult·facts·LLM 입력에 섞지 않는다."""
     candidate_id: str
     city: City
     adm_cd: str | None = None

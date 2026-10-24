@@ -362,7 +362,11 @@ export interface StructuralRiskReference {
   note: string
   source_path: string
   source_hash: string | null
-  cells: { sex: string; age_band: string; stage: string; risk_type: string; behavior: number; vulnerability: number }[]
+  cells: {
+    sex: string; age_band: string; pop: number | null; axes_on: ('S' | 'H' | 'V' | 'A')[]
+    cell_type: '이중 위험' | '관계 단절형' | '구조·경제 취약형' | '해당 없음'
+    s: number | null; h: number | null; v: number | null; a_km: number | null; small: boolean
+  }[]
 }
 
 export interface EvidenceCard {

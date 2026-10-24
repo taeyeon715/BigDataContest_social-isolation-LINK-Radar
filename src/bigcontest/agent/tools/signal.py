@@ -1312,31 +1312,12 @@ WATCH_SUMMARY_METRIC = "연휴 주의 동 수"
 WATCH_CARD_METRIC = "지난 연휴 60대 이상 의료 결제 40·50대 대비"
 
 
-def _watch_access(ds, city: str) -> dict[tuple[str, str], float]:
-    """도시의 동마다 고령층 안부·관계 거점 직선거리 (welfare.get_access_gap 과 같은 계산, 고령층 자격)."""
-    from bigcontest.agent.tools.welfare import ACCESS_NEED, _ledger_city, _origin
-    from bigcontest.resources import match as M
-
-    names = ds.adm_names()
-    sub, recs = _ledger_city(ds, city)
-    out = {}
-    for adm in names.loc[names["city"] == city, "adm_cd"]:
-        origin = _origin(ds, adm)
-        if origin is None:
-            continue
-        g = ds.cached(("access", adm, ACCESS_NEED, "고령층"),
-                      lambda adm=adm, origin=origin: M.access_gap(sub, adm, origin, ACCESS_NEED, "고령층", records=recs))
-        if g["nearest_km"] is not None:
-            out[(adm, "고령층")] = float(g["nearest_km"])
-    return out
-
-
 def get_holiday_watch(ctx) -> list[ToolResult]:
     """연휴 주의 지역: 연휴에 끊기는 연령(규칙, R-3b) 칸 중 근거 축 2개 이상인 칸 (rules-v2.0 등급 판정).
     기준일이 연휴 전 lead_days ~ 연휴 끝(그리고 follow_up_days 도시는 연휴 뒤)일 때만 낸다.
     참고 근거로 기준일에 결제를 다 볼 수 있는 지난 연휴의 카드 값을 붙인다 (등급 입력 아님)."""
     from bigcontest import holiday_watch as HW
-    from bigcontest.external import resident_single_by_age
+    from bigcontest.agent.tools.cell_axes import axes_at
 
     ds = open_datasource(ctx.snapshot_id)
     city, as_of = ctx.request.city, ctx.as_of
@@ -1344,19 +1325,13 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
     ph = HW.holiday_phase(holiday_blocks(ds), as_of, city)
     if ph is None:
         return [empty(ctx, "HW", WATCH_SUMMARY_METRIC, "기준일이 연휴 주의 기간이 아님")]
-    res = usable_months("resident_hh", as_of, ctx.analysis_mode)
-    tel = usable_months("tel_age", as_of, ctx.analysis_mode)
-    if not res or not tel:
+    ax = axes_at(ds, as_of, ctx.analysis_mode)
+    if ax is None:
         return [empty(ctx, "HW", WATCH_SUMMARY_METRIC, "기준일에 쓸 수 있는 주민등록·통신 달 없음 (TIME_AVAILABILITY_UNKNOWN)")]
-    res_m, tel_m = int(res[-1].base_month[4:]), sorted(int(m.base_month[4:]) for m in tel)
-    ax = HW.cell_axes(ds.resident_pop(), resident_single_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
-                      res_m, tel_m, as_of, _watch_access(ds, city), cfg["target_ages"])
-    cells = HW.watch_cells(ax[ax["city"] == city], ph.label)
+    cells = HW.watch_cells(ax.df[ax.df["city"] == city], ph.label)
     names = ds.adm_index
-    items = [res[-1], *tel]
-    time = dict(observed_from=min(i.observed_from for i in items), observed_to=max(i.observed_to for i in items),
-                simulated_available_at=max(i.simulated_available_at for i in items if i.simulated_available_at))
-    note = [f"연휴 연령 근거: {cfg['observed']}, {cfg['confirm']}", f"주민등록 {res_m}월, 통신 {'·'.join(map(str, tel_m))}월"]
+    time = dict(observed_from=ax.observed_from, observed_to=ax.observed_to, simulated_available_at=ax.simulated_available_at)
+    note = [f"연휴 연령 근거: {cfg['observed']}, {cfg['confirm']}", ax.months_label]
     out = []
     for _, r in cells.iterrows():
         label = f"{city} {names[r['adm_cd']]['adm_nm']} ({r['adm_cd']}) {r['sex']}성 60대 이상"
