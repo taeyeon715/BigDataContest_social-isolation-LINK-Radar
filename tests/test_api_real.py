@@ -615,7 +615,7 @@ def test_real_tools_dashboard_d2(tmp_path):
     with TestClient(app) as c:
         q = {"as_of": "2025-12-20", "city": "춘천"}
         cl = ok(c.get("/candidates", params=q), CandidateListResponse)
-        assert len(cl.items) == 3 and {x.candidate_level for x in cl.items} == {"Level 2"}
+        assert len(cl.items) == 4 and {x.candidate_level for x in cl.items} == {"Level 2", "Level 3"}  # 동절기 칸 판정 (rules-v2.0)
         ov = ok(c.get("/overview", params=q), OverviewResponse)
         assert "W" in {t.rule for t in ov.triggers} and ov.monitoring_run_id == cl.monitoring_run_id
         mp = ok(c.get("/map", params=q), MapResponse)
