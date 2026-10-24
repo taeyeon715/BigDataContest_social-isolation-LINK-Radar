@@ -52,23 +52,35 @@ def access_km(ds) -> dict[tuple[str, str], float]:
     return out
 
 
+_SHARED: dict[tuple, pd.DataFrame] = {}  # (스냅샷, 주민등록 달, 통신 달, 강남 V 공개 여부) → 470칸 축 (DataSource 를 다시 열어도 씀)
+_SHARED_MAX = 16
+
+
+def _cell_frame(ds, res_m: int, tel_m: tuple[int, ...], as_of: date) -> pd.DataFrame:
+    """축은 기준일이 아니라 '쓸 수 있던 달 조합'과 강남 V 공개 여부로만 정해진다 → 그 열쇠로 한 번만 계산."""
+    from bigcontest import holiday_watch as HW
+    from bigcontest.external import resident_single_by_age
+    from bigcontest.rules.levels_v2 import load_rules_v2
+
+    pub = load_rules_v2()["axes"]["v_published"].get("강남")
+    gn_ok = pub is None or as_of >= date.fromisoformat(pub)
+    key = (ds.snapshot_id, res_m, tel_m, gn_ok)
+    if key not in _SHARED:
+        if len(_SHARED) >= _SHARED_MAX:
+            _SHARED.pop(next(iter(_SHARED)))
+        _SHARED[key] = HW.cell_axes(ds.resident_pop(), resident_single_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
+                                    res_m, list(tel_m), as_of, access_km(ds))
+    return _SHARED[key]
+
+
 def axes_at(ds, as_of: date, mode: str) -> AxesAt | None:
-    """기준일·모드에서 쓸 수 있던 달로 470칸 축. 같은 스냅샷·기준일·모드는 한 번만 계산한다."""
+    """기준일·모드에서 쓸 수 있던 달로 470칸 축. 같은 달 조합이면 다시 계산하지 않는다."""
     res = usable_months("resident_hh", as_of, mode)
     tel = usable_months("tel_age", as_of, mode)
     if not res or not tel:
         return None
-
-    def build() -> AxesAt:
-        from bigcontest import holiday_watch as HW
-        from bigcontest.external import resident_single_by_age
-
-        res_m, tel_m = int(res[-1].base_month[4:]), sorted(int(m.base_month[4:]) for m in tel)
-        df = HW.cell_axes(ds.resident_pop(), resident_single_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
-                          res_m, tel_m, as_of, access_km(ds))
-        items = [res[-1], *tel]
-        sim = [i.simulated_available_at for i in items if i.simulated_available_at]
-        return AxesAt(df, res_m, tuple(tel_m), min(i.observed_from for i in items), max(i.observed_to for i in items),
-                      max(sim) if sim else None)
-
-    return ds.cached(("cell_axes", as_of, mode), build)
+    res_m, tel_m = int(res[-1].base_month[4:]), tuple(sorted(int(m.base_month[4:]) for m in tel))
+    items = [res[-1], *tel]
+    sim = [i.simulated_available_at for i in items if i.simulated_available_at]
+    return AxesAt(_cell_frame(ds, res_m, tel_m, as_of), res_m, tel_m, min(i.observed_from for i in items),
+                  max(i.observed_to for i in items), max(sim) if sim else None)

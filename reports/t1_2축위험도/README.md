@@ -2,6 +2,8 @@
 
 [← 전체 리포트 목록](../README.md)
 
+> **서비스에서는 이 단계를 쓰지 않습니다.** LINK-Radar 화면·README·발표의 위험 수준은 대응 등급(Level 0~3 + 판단 보류) 하나이고, 후보 카드에는 기준일에 계산한 칸 근거 축(rules-v2.0)이 나옵니다. 아래 5단계(심각~정상)와 유형 이름(행동형·취약형·저위험)은 태연 분석 당시 결과 기록입니다.
+
 **태연 분석**을 LINK-Radar 레포로 옮긴 결과 묶음입니다. 분석 코드와 노트북은 [`analysis/taeyeon_2axis/`](../../analysis/taeyeon_2axis/README.md)에 있고, 이 폴더의 파일은 그 `outputs/`를 그대로 복사한 것입니다(`analysis/taeyeon_2axis/sync_reports.py`, 같은지 시험으로 확인). 숫자와 판정은 태연 결과 그대로이고, 이 README는 LINK-Radar 쪽 표현과 맞춘 읽는 법만 더합니다.
 
 - 출처: 00~06·부록 A·B는 `junseo0im/2026-big-contest` `TaeYeon's-branch` 커밋 `003adc2`, 07은 이 레포 `taeyeon/age-isolation-hypothesis` 커밋 `5d7f25e`.

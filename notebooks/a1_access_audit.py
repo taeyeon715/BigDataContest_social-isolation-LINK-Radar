@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("LINKRADAR_RULES", "v1.1")  # rules-v1.1 결과 재현 (bigcontest.rules.version)
+
 from pathlib import Path
 from datetime import date
 import sys,json

@@ -172,3 +172,40 @@ def card_gap(card2: pd.DataFrame, city: str, period: tuple[date, date, str], hol
                          "rel": float(np.expm1(lr[a] - ref)), "start": start, "end": end, "name": period[2],
                          "base_from": base[0].date(), "base_to": base[-1].date()})
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------- 동절기 칸 (rules-v2.0 설계 3절: W → 춘천 읍·면 60대 이상 칸)
+
+WINTER_AGES = ["60대+"]
+
+
+def winter_facts(row, w: pd.Series | None, trigger: str, rules: dict) -> CellFacts:
+    """동절기 칸 하나. 그 읍·면 주민형 격자 60+ 겨울/여름 변화가 rules winter.decline 미만일 때만 필수 근거 충족.
+    겨울 달이 아직 없거나 감소가 아니면 부분 판정(Level 2 상한), 격자가 적어 읍·면 전체 값이면 공유 맥락 표시."""
+    f = cell_facts(row, trigger, rules)
+    if w is None or pd.isna(w.get("w_ok")):
+        f.input_status, f.missing_inputs = "부분 판정", ["읍·면 겨울 체류 변화 (겨울 달 공개 전)"]
+    elif not bool(w["w_ok"]):
+        f.input_status, f.missing_inputs = "부분 판정", [f"겨울 체류 감소 아님 ({w['w60']:+.1%})"]
+    elif bool(w["shared"]):
+        f.confidence_why.append("겨울 체류: 읍·면 전체 값(공유 맥락)")
+    return f
+
+
+def winter_cells(axes: pd.DataFrame, w: pd.DataFrame, eupmyeon: set[str], trigger: str,
+                 rules: dict | None = None) -> pd.DataFrame:
+    """춘천 읍·면 60대 이상 칸마다 동절기 등급 (levels_v2.decide_v2). 모든 칸을 돌려준다 (Level 1·2·3)."""
+    rules = rules or load_rules_v2()
+    wk = w.set_index("adm_cd") if len(w) else pd.DataFrame()
+    rows = []
+    sel = axes[(axes["city"] == "춘천") & axes["adm_cd"].isin(eupmyeon) & axes["age5"].isin(WINTER_AGES)]
+    for _, r in sel.iterrows():
+        wr = wk.loc[r["adm_cd"]] if r["adm_cd"] in wk.index else None
+        f = winter_facts(r, wr, trigger, rules)
+        d = decide_v2(f, rules)
+        rows.append({**{k: r[k] for k in ("city", "adm_cd", "sex", "age5", "pop")},
+                     "axes_on": d.axes_on, "n_axes": len(d.axes_on), "cell_type": cell_type(d.axes_on),
+                     "level": d.level, "rule_id": d.rule_id, "caps": d.caps, "reason": d.reason,
+                     "input_status": f.input_status, "missing": f.missing_inputs, "confidence": f.confidence,
+                     "w60": None if wr is None else wr["w60"]})
+    return pd.DataFrame(rows)

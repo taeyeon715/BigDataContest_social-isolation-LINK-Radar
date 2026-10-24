@@ -645,7 +645,7 @@ def test_real_tools_d2_through_api(tmp_path):
         acc = start(c, question="춘천 읍·면 어르신 겨울철 점검은 어디부터 해야 해?", as_of="2025-12-20")
         st = status(c, acc.run_id)
         assert st.status == "awaiting_approval" and acc.snapshot_id == snap.snapshot_id
-        assert len(st.candidates) == 3 and {x.candidate_level for x in st.candidates} == {"Level 2"}
+        assert len(st.candidates) == 4 and {x.candidate_level for x in st.candidates} == {"Level 2", "Level 3"}
         res = ok(c.get(f"/runs/{acc.run_id}/resources"), RunResourcesResponse)
         assert res.items and {x.city for x in res.items} == {"춘천"}
         f = ok(c.post(f"/runs/{acc.run_id}/followup", json={"question": "남면은 왜 Level 2야?"}),

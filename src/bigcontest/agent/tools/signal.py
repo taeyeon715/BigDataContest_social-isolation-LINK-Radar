@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 import re
 from datetime import date, timedelta
@@ -47,6 +48,7 @@ from bigcontest.rules import candidates as RC
 from bigcontest.rules import context as X
 from bigcontest.rules.heat import heat_stage
 from bigcontest.rules.levels import Axes, decide, full_rule_id, rule_checks, rule_label
+from bigcontest.rules.version import deviation_min_drop
 
 DEVIATION_METRIC = "카드 결제건수 평소 대비 (이탈 경보)"
 EXPECTED_METRIC = "카드 결제건수 기대값 (이탈 기준선, EDA-6)"
@@ -68,7 +70,9 @@ ACCESS_CURRENT = "현재 원장 기준 접근성"
 
 # 등급 규칙: configs/rules.yaml (rules-v1.1). 예전 이름 STUB_LEVEL_RULES 는 같은 열쇠의 임계값 dict 로 남김
 # (다른 노드·실행 메타데이터가 access_far_km 등을 읽음)
-LEVEL_RULES = load_rules()
+LEVEL_RULES = copy.deepcopy(load_rules())
+# rules-v2.0: 이탈 크기 최소값은 rules_v2.yaml deviation (v1.1 재현 노트북은 rules.version 으로 예전 값)
+LEVEL_RULES["thresholds"]["deviation"]["min_drop"] = deviation_min_drop(LEVEL_RULES["thresholds"]["deviation"]["min_drop"])
 STUB_LEVEL_RULES = legacy_thresholds(LEVEL_RULES)
 # 기상특보 근사 (일자료라 특보 기준과 같지 않음. 임시)
 WARN_RULES = {"호우": ("rain", ">=", 80.0), "대설": ("snow_new", ">=", 5.0), "한파": ("tmin", "<=", -12.0)}
@@ -1363,3 +1367,42 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
                 simulated_available_at=r["end"] + timedelta(days=lag_days("card2")),
                 claim_category="의료", warnings=[f"{r['name']} 연휴", "참고 근거 (등급 입력 아님)", f"연휴 중 평소 대비 {r['ratio']:+.1%}"]))
     return out
+
+
+# ---------------------------------------------------------------- 동절기 칸 (rules-v2.0 W, 춘천 읍·면 60대 이상)
+
+WINTER_CELL_METRIC = "동절기 칸 근거 축 수"
+
+
+def get_winter_cells(ctx) -> list[ToolResult]:
+    """춘천 동절기(11~2월): 읍·면 60대 이상 칸마다 rules-v2.0 등급. 겨울 체류 감소는 읍·면마다(주민형 격자).
+    기준일에 공개된 통신 달만 쓴다. 값 = 선 근거 축 수, 경고 칸에 등급·규칙·겨울 변화."""
+    from bigcontest import holiday_watch as HW
+    from bigcontest.agent.tools.cell_axes import axes_at
+    from bigcontest.winter import winter_by_area
+
+    ds = open_datasource(ctx.snapshot_id)
+    city, as_of = ctx.request.city, ctx.as_of
+    if city != "춘천" or as_of.month not in WINTER_MONTHS:
+        return [empty(ctx, "WC", WINTER_CELL_METRIC, "춘천 동절기(11~2월)가 아님")]
+    ax = axes_at(ds, as_of, ctx.analysis_mode)
+    if ax is None:
+        return [empty(ctx, "WC", WINTER_CELL_METRIC, "기준일에 쓸 수 있는 주민등록·통신 달 없음 (TIME_AVAILABILITY_UNKNOWN)")]
+    months = [m.base_month for m in usable_months("tel_age", as_of, ctx.analysis_mode)]
+    w = ds.cached(("winter_by_area", tuple(months)),
+                  lambda: winter_by_area(ds.tel("tel_age"), ds.tel("tel_time"), ds.tel("tel_wkdy"), months))
+    eup = {a for a, r in ds.adm_index.items() if r["city"] == "춘천" and r["adm_type"] in ("읍", "면")}
+    cells = HW.winter_cells(ax.df, w, eup, "W 동절기 (춘천 읍·면)")
+    time = dict(observed_from=ax.observed_from, observed_to=ax.observed_to, simulated_available_at=ax.simulated_available_at)
+    out = []
+    for _, r in cells.iterrows():
+        label = f"{city} {ds.adm_index[r['adm_cd']]['adm_nm']} ({r['adm_cd']}) {r['sex']}성 60대 이상"
+        wtxt = "겨울 변화 미관측" if r["w60"] is None or pd.isna(r["w60"]) else f"60+ 겨울/여름 {r['w60']:+.1%}"
+        out.append(envelope(
+            ctx, f"WC-{r['adm_cd']}-{'M' if r['sex'] == '남' else 'F'}", "tel_age", metric=WINTER_CELL_METRIC,
+            value=int(r["n_axes"]), unit="축", n_obs=int(r["pop"]), denominator="칸 주민등록 인구",
+            measured_grain="행정동 × 성 × 연령", applied_scope=label, interpretation_status="계산 재현",
+            value_state="observed", warnings=[f"{r['level']} ({r['rule_id']}{'+' + '+'.join(r['caps']) if r['caps'] else ''})",
+                                              f"선 축 {'+'.join(r['axes_on']) or '없음'} ({r['cell_type']})", wtxt,
+                                              r["reason"], ax.months_label], **time))
+    return out or [empty(ctx, "WC", WINTER_CELL_METRIC, "읍·면 60대 이상 칸 없음")]

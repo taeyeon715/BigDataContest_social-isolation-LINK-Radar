@@ -74,6 +74,7 @@ WINTER_TOOLS = ("calc_winter_contraction",)
 CONTEXT_TOOLS = {"강남": ("get_validation_reference",)}
 # 연휴 주의 기간(연휴 전 lead_days ~ 연휴 끝, 춘천은 연휴 뒤까지)에만 도는 고정 도구 (rules_v2.yaml holiday_watch)
 HOLIDAY_WATCH_TOOL = "get_holiday_watch"
+WINTER_CELL_TOOL = "get_winter_cells"
 
 # 조회 경로: 지표 → 조회 도구
 LOOKUP_TOOL = {
@@ -624,6 +625,8 @@ def fixed_tools(state: dict) -> list[str]:
             names += [t for t in CONTEXT_TOOLS.get(city, ()) if t not in names]
     if _backend(state) == "real" and HOLIDAY_WATCH_TOOL not in names and in_holiday_watch(state):
         names.append(HOLIDAY_WATCH_TOOL)
+    if _backend(state) == "real" and "춘천" in _cities(state) and month in S.WINTER_MONTHS:
+        names.append(WINTER_CELL_TOOL)  # rules-v2.0 동절기: 읍·면 60대 이상 칸
     return names
 
 
@@ -1224,8 +1227,10 @@ def assign_level(state: dict) -> dict:
     """후보마다 등급 (configs/rules.yaml rules-v1.1, tools.signal.assign_level). 기각 → Level 1 + 사유,
     보류 → 판단 보류. 모든 후보에 rule_id·rule_version."""
     evidence = _evidence(state)
-    return {"candidates": _dump(apply_holiday_watch(S.assign_level(_candidates(state), evidence, as_of=_as_of(state)),
-                                                    evidence, _as_of(state)))}
+    cands = S.assign_level(_candidates(state), evidence, as_of=_as_of(state))
+    cands = apply_holiday_watch(cands, evidence, _as_of(state))
+    cands = apply_winter_cells(cands, evidence, _as_of(state))
+    return {"candidates": _dump(cands)}
 
 
 HOLIDAY_TRIGGERS = ("R1", "R2", "R3")
@@ -1298,6 +1303,68 @@ def apply_holiday_watch(cands: list[Candidate], evidence: list[ToolResult], as_o
                                            "evidence_ids": [i for i in tmpl.evidence_ids if i in city_level]
                                            + [e.evidence_id for e in cells]})
             out.append(base.model_copy(update=_watch_update(base, cells)))
+    return out
+
+
+LEVEL_RANK = {"Level 1": 1, "Level 2": 2, "Level 3": 3}
+
+
+def winter_cells_of(evidence: list[ToolResult]) -> dict[str, list[tuple[ToolResult, str, str]]]:
+    """동절기 칸 근거 → 동 → [(근거, 등급, 규칙 id)] (get_winter_cells 경고 칸 첫 줄 'Level 3 (V2-...)')."""
+    out: dict[str, list[tuple[ToolResult, str, str]]] = {}
+    for e in evidence:
+        if e.metric == S.WINTER_CELL_METRIC and e.status == "OK":
+            m = re.match(r"^(Level \d) \((.+)\)$", e.warnings[0])
+            if m:
+                out.setdefault(_adm_of(e), []).append((e, m.group(1), m.group(2)))
+    return out
+
+
+def _winter_update(c: Candidate, cells: list[tuple[ToolResult, str, str]]) -> dict:
+    e, level, rid = max(cells, key=lambda x: (LEVEL_RANK[x[1]], x[0].value))
+    why = "; ".join(f"{x[0].applied_scope.split(') ')[-1]} {x[1]}, {x[0].warnings[1]}, {x[0].warnings[2]}" for x in cells)
+    return {"candidate_level": level, "rule_id": rid if rid.startswith("V2-") else f"V2-{rid}",
+            "rule_version": "rules-v2.0", "rule_checks": [],
+            "evidence_ids": list(dict.fromkeys([*c.evidence_ids, *(x[0].evidence_id for x in cells)])),
+            "level_reason": f"동절기 칸(읍·면 60대 이상, 칸 중 가장 높은 등급): {why} + 예정된 트리거({c.trigger})"}
+
+
+def apply_winter_cells(cands: list[Candidate], evidence: list[ToolResult], as_of: date) -> list[Candidate]:
+    """동절기 트리거(W) 후보를 rules-v2.0 칸 판정에 맞춘다 (설계 3절).
+    - 고령층 후보: 그 읍·면 60대 이상 칸(남·여) 중 가장 높은 등급. 겨울 체류 감소가 아니면 칸 판정이 Level 2 상한
+    - 다른 집단 후보: Level 1 (동절기 트리거는 60대 이상 칸만)
+    - Level 3 칸이 있는 읍·면에 고령층 후보가 없으면 같은 트리거로 새로 만든다"""
+    win = winter_cells_of(evidence)
+    if not win:
+        return cands
+    out, done = [], set()
+    for c in cands:
+        if c.city == "춘천" and c.candidate_type == "scheduled_access_review" and (c.trigger or "").startswith("W"):
+            if R.group_key(c) == "고령층":
+                if c.adm_cd in win:
+                    c = c.model_copy(update=_winter_update(c, win[c.adm_cd]))
+                    done.add(c.adm_cd)
+            else:
+                c = c.model_copy(update={
+                    "candidate_level": "Level 1", "rule_id": "V2-L1-WINTER-AGE", "rule_version": "rules-v2.0",
+                    "rule_checks": [], "level_reason": "동절기 점검은 읍·면 60대 이상 칸에만 건다 [rules-v2.0 동절기]"})
+        out.append(c)
+    tmpl = next((c for c in out if c.city == "춘천" and (c.trigger or "").startswith("W") and R.group_key(c) == "고령층"),
+                None)
+    if tmpl is not None:
+        city_level = {e.evidence_id for e in evidence if _adm_of(e) is None}
+        used = {c.candidate_id for c in out}
+        n = S.ID_BASE["춘천"] + 400
+        for adm, cells in win.items():
+            if adm in done or not any(lv == "Level 3" for _, lv, _ in cells):
+                continue
+            while (cid := f"C-{as_of:%Y%m%d}-{n:03d}") in used:
+                n += 1
+            used.add(cid)
+            base = tmpl.model_copy(update={"candidate_id": cid, "adm_cd": adm, "context": [], "queue_rank": None,
+                                           "selected_for_review": False, "input_status": "충족", "missing_inputs": [],
+                                           "evidence_ids": [i for i in tmpl.evidence_ids if i in city_level]})
+            out.append(base.model_copy(update=_winter_update(base, cells)))
     return out
 
 

@@ -254,7 +254,9 @@ class DataSource:
         def build():
             b = daily(self.card2(), ["city", "age_g", "SEX_CCD"])
             wide = b.pivot_table(index="date", columns=["city", "age_g", "SEX_CCD"], values="USE_CNT").astype(float)
-            return Panel(wide, self.holidays())
+            from bigcontest.rules.version import alarm_config
+
+            return Panel(wide, self.holidays(), alarm_config())  # 규칙 판에 맞는 경보 기준 (rules.version)
 
         return self._get("panel", build)
 

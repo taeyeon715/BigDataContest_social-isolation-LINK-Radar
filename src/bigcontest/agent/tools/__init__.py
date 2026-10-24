@@ -38,6 +38,7 @@ SIGNAL_TOOLS = (
     "calc_winter_contraction",
     "calc_heat_response",
     "get_holiday_watch",
+    "get_winter_cells",
     "check_confounders",
     "classify_candidate_type",
     "assign_level",
@@ -76,6 +77,7 @@ _REAL = {
     "calc_winter_contraction": ("signal", "calc_winter_contraction"),
     "calc_heat_response": ("signal", "calc_heat_response"),
     "get_holiday_watch": ("signal", "get_holiday_watch"),
+    "get_winter_cells": ("signal", "get_winter_cells"),
     "check_confounders": ("signal", "check_confounders"),
     "get_access_gap": ("welfare", "get_access_gap"),
 }

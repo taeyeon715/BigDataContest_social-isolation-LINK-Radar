@@ -62,8 +62,8 @@ def get_structural_risk(ctx, candidates: list[Candidate]) -> list[StructuralRisk
         ref = StructuralRiskReference(
             candidate_id=c.candidate_id, city=c.city, adm_cd=c.adm_cd, policy_group=group, period_label="",
             source_path=SOURCE,
-            comparison_note=("이 칸 근거 축으로 대응 등급을 정했습니다 (rules-v2.0)." if v2 else
-                             f"대응 등급 {c.candidate_level or '미정'}은 rules-v1.1(동 단위 구조·접근성·시점)로 정했고, "
+            comparison_note=("이 칸 근거 축으로 대응 등급을 정했습니다." if v2 else
+                             f"대응 등급 {c.candidate_level or '미정'}은 동 단위 구조·접근성·시점으로 정했고, "
                              "칸 근거 축은 참고입니다."))
         if not c.adm_cd:
             ref.status = "not_applicable"

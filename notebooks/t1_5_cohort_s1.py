@@ -12,6 +12,10 @@
 
 from __future__ import annotations
 
+import os
+
+os.environ.setdefault("LINKRADAR_RULES", "v1.1")  # rules-v1.1 결과 재현 (bigcontest.rules.version)
+
 import copy
 import importlib.util
 import json
