@@ -78,6 +78,8 @@ STEPS: list[Step] = [
     Step("r3", (*PY, "notebooks/r3_rules_v2.py"), "interim", "reports/r3_규칙개정", "r2 다음. rules-v2.0 470칸 등급, v1.1 비교"),
     Step("r3b", (*PY, "notebooks/r3b_holiday_effect.py"), "interim", "reports/r3_규칙개정/공휴일_*.csv",
          "r3 다음. 공휴일 효과 1차 분석 (추석 1회 관측)"),
+    Step("r3c", (*PY, "notebooks/r3c_signal_check.py"), "interim", "reports/r3_규칙개정/신호_방향확인.csv, configs/signal_check.csv",
+         "신호 방향 확인 (강남 시민생활 기준)"),
     Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트·analysis CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]

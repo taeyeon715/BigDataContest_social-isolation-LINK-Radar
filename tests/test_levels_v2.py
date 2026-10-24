@@ -73,3 +73,21 @@ def test_card_alone_does_not_point_to_a_dong():
     d = decide_v2(f(axes={"C": True, "S": True, "V": True}))
     assert d.level == "Level 1" and "카드 신호만" in d.reason
     assert decide_v2(f(axes={"C": True, "W": True, "S": True})).level == "Level 3"
+
+
+def test_unverified_signal_blocks_level3_only():
+    full = {"H": True, "C": True, "S": True}
+    d = decide_v2(f(axes=full, unverified=["H"]))
+    assert d.level == "Level 2" and "CAP-SIGNAL-UNVERIFIED" in d.caps and "방향 미확인" in d.reason
+    # 방향 미확인 신호도 Level 2 근거로는 셈
+    assert decide_v2(f(axes={"H": True}, unverified=["H"])).level == "Level 2"
+    # 미확인 신호를 빼도 조건을 채우면 Level 3
+    assert decide_v2(f(axes={"H": True, "W": True, "S": True, "V": True}, unverified=["S"])).level == "Level 3"
+
+
+def test_signal_check_table_marks_young_cells():
+    from bigcontest.rules.signal_check import note, unverified
+
+    assert "H" in unverified("남", "20대") and unverified("남", "60대+") == [] and unverified("여", "60대+") == []
+    assert note("H", "남", "60대+", "강남") is None
+    assert "춘천은 강남 결과를 빌려 씀" in note("H", "남", "20대", "춘천")

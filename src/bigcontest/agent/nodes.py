@@ -1697,6 +1697,10 @@ def summary_sentences(cands: list[Candidate], evidence: list[ToolResult]) -> lis
         out.append(RESIDENCE_NOTE)
     if any(e.metric.endswith("(카드 데이터1 보조)") and e.status == "OK" for e in evidence):
         out.append(CARD1_NOTE)
+    capped = [c for c in cands if "CAP-SIGNAL-UNVERIFIED" in (c.rule_id or "")]
+    if capped:
+        out.append(f"한계: {len(capped)}곳은 그 성·연령에서 외부 기준과 방향이 확인되지 않은 신호가 있어 Level 2까지만 둠 "
+                   "(강남 시민생활 기준, 춘천은 같은 결과를 빌려 씀)")
     if any(e.metric == S.EXPECTED_METRIC and e.status == "EMPTY" for e in evidence):
         out.append(f"한계: {S.EXPECTED_PENDING}. 이탈 후보는 부분 판정")
     return out

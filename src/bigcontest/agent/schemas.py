@@ -338,6 +338,8 @@ class StructuralRiskCell(_Model):
     v: float | None = Field(default=None, ge=0, le=1)  # 경제 취약 비율 (수축)
     a_km: float | None = Field(default=None, ge=0)  # 안부·관계 거점 직선거리
     small: bool = False  # 칸 인구 100 미만 (근거 신뢰도 낮음)
+    unverified: list[Literal["H", "S"]] = Field(default_factory=list)  # 방향 미확인 신호 (Level 3 근거에서 뺌)
+    check_notes: list[str] = Field(default_factory=list)  # 펼쳐 볼 때 보이는 근거 한 줄씩
 
 
 class StructuralRiskReference(_Model):

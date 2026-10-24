@@ -3,6 +3,7 @@ import type { StructuralRiskReference } from '../api'
 // 후보 동 × 집단의 성·연령 칸 근거 축 (rules-v2.0, 기준일 계산). 연휴 주의·동절기 판정과 같은 값.
 const AXIS: Record<string, string> = { S: '혼자 사는 구조', H: '행동 고립', V: '경제 취약', A: '거점 원거리' }
 const num = (x: number | null, d = 2) => (x == null ? '—' : x.toFixed(d))
+const Unchecked = () => <span className="ml-1 text-xs text-caution">· 방향 미확인</span>
 
 export function StructuralRisk({ items, candidateId }: { items?: StructuralRiskReference[]; candidateId?: string }) {
   const refs = (items ?? []).filter((r) => !candidateId || r.candidate_id === candidateId)
@@ -18,9 +19,13 @@ export function StructuralRisk({ items, candidateId }: { items?: StructuralRiskR
           <tbody>{r.cells.map((c) => <tr key={`${c.sex}-${c.age_band}`} className="border-b border-line">
             <td className="py-2">{c.sex} {c.age_band}{c.small ? ' (작은 칸)' : ''}</td>
             <td className="font-semibold">{c.axes_on.length ? c.axes_on.map((a) => AXIS[a]).join(' + ') : '없음'}</td>
-            <td>{c.cell_type}</td><td>{num(c.s, 3)}</td><td>{num(c.h)}</td><td>{num(c.v, 3)}</td><td>{c.a_km == null ? '—' : `${c.a_km.toFixed(1)}km`}</td>
+            <td>{c.cell_type}</td><td>{num(c.s, 3)}{c.unverified?.includes('S') && <Unchecked />}</td><td>{num(c.h)}{c.unverified?.includes('H') && <Unchecked />}</td><td>{num(c.v, 3)}</td><td>{c.a_km == null ? '—' : `${c.a_km.toFixed(1)}km`}</td>
           </tr>)}</tbody>
         </table>
+        {r.cells.some((c) => c.check_notes?.length) && <details className="text-xs text-ink-600">
+          <summary className="cursor-pointer">방향 미확인 근거 보기</summary>
+          <ul className="mt-1 list-disc pl-4">{r.cells.flatMap((c) => (c.check_notes ?? []).map((n) => <li key={`${c.sex}-${c.age_band}-${n}`}>{c.sex} {c.age_band} {n}</li>))}</ul>
+        </details>}
       </>}
       {r.mapping_note && <p className="text-xs text-ink-600">{r.mapping_note}</p>}
       <p className="text-xs text-ink-600">{r.note}</p>

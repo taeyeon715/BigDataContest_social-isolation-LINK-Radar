@@ -71,6 +71,15 @@ def _cell_decisions(c: Candidate, ax: pd.DataFrame, group: str, card: dict, w: p
     return out
 
 
+def _unverified_note(r, d) -> str:
+    if "CAP-SIGNAL-UNVERIFIED" not in d.caps:
+        return ""
+    from bigcontest.rules.signal_check import AXIS_KO, unverified
+
+    names = "·".join(AXIS_KO[a] for a in unverified(r["sex"], r["age5"]) if a in d.axes_on)
+    return f" · {_label(r)}의 {names} 신호는 방향 미확인이라 Level 3 근거에서 뺌"
+
+
 def _label(r) -> str:
     return f"{r['sex']}성 {r['age5'].replace('+', ' 이상')}"
 
@@ -104,7 +113,7 @@ def relevel_scheduled(cands: list[Candidate], evidence: list[ToolResult], ds, as
         out.append(c.model_copy(update={
             "candidate_level": d.level, "rule_id": d.rule_id + "".join(f"+{x}" for x in d.caps),
             "rule_version": "rules-v2.0", "rule_checks": [],
-            "level_reason": f"칸 판정(가장 높은 칸 {_label(r)}): {why} + 예정된 트리거({c.trigger})"}))
+            "level_reason": f"칸 판정(가장 높은 칸 {_label(r)}): {why} + 예정된 트리거({c.trigger}){_unverified_note(r, d)}"}))
     return out + _new_scheduled(out, evidence, ds, ax, card, w, rules, as_of, req_group)
 
 
@@ -150,7 +159,7 @@ def _new_scheduled(cands, evidence, ds, ax, card, w, rules, as_of, req_group) ->
                 "evidence_ids": [i for i in t.evidence_ids if i in city_level],
                 "candidate_level": d.level, "rule_id": d.rule_id + "".join(f"+{x}" for x in d.caps),
                 "rule_version": "rules-v2.0", "rule_checks": [],
-                "level_reason": f"칸 판정(가장 높은 칸 {_label(r)}): {why} + 예정된 트리거({trig})"}))
+                "level_reason": f"칸 판정(가장 높은 칸 {_label(r)}): {why} + 예정된 트리거({trig}){_unverified_note(r, d)}"}))
     return out
 
 

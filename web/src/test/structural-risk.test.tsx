@@ -33,3 +33,11 @@ it('shows unavailable note without a table', () => {
   expect(screen.getByText('기준일에 공개된 달을 확인하지 못했습니다.')).toBeVisible()
   expect(screen.queryByRole('table')).toBeNull()
 })
+
+it('marks unverified signals briefly and keeps the detail folded', () => {
+  const cell = { ...reference.cells[0], age_band: '20대', unverified: ['H' as const], check_notes: ['행동 고립: 강남 22개 동 시민생활과 방향이 확인되지 않음 (순위상관 -0.01, p 0.51).'] }
+  render(<StructuralRisk items={[{ ...reference, cells: [cell] }]} />)
+  expect(screen.getByText('· 방향 미확인')).toBeVisible()
+  expect(screen.getByText('방향 미확인 근거 보기')).toBeVisible()
+  expect(screen.getByText(/순위상관 -0.01/)).not.toBeVisible()
+})

@@ -104,10 +104,14 @@ def cell_facts(row, trigger: str, rules: dict, card_gap: float | None = None) ->
         axes["C"] = card_gap <= float(watch_config(rules)["card_min_gap"])
         why["C"] = f"지난 연휴 의료 결제 40·50대 대비 {card_gap:+.0%}"
     conf, cwhy = "보통", ["가정한 공개 시점(simulated_replay)", "현재 원장 기준 접근성"]
+    from bigcontest.rules.signal_check import unverified
+
+    unver = [a for a in unverified(row["sex"], row["age5"]) if axes.get(a)]
     if row["s_small"]:
         conf = "낮음"
         cwhy.append(f"칸 인구 {int(row['pop']) if pd.notna(row['pop']) else 0}명 < {rules['unit']['small_cell']}")
-    return CellFacts("scheduled_access_review", "충족", [], trigger, axes, why, confidence=conf, confidence_why=cwhy)
+    return CellFacts("scheduled_access_review", "충족", [], trigger, axes, why, confidence=conf, confidence_why=cwhy,
+                     unverified=unver)
 
 
 def watch_cells(axes: pd.DataFrame, trigger: str, rules: dict | None = None,

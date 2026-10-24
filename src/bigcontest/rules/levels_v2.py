@@ -46,6 +46,7 @@ class CellFacts:
     deviation_drop: float | None = None
     confidence: str = "보통"  # 낮음 / 보통 / 높음
     confidence_why: list[str] = field(default_factory=list)
+    unverified: list[str] = field(default_factory=list)  # 방향 미확인 신호 (Level 3 근거에서 뺌)
 
 
 @dataclass
@@ -103,10 +104,15 @@ def decide_v2(f: CellFacts, rules: dict | None = None) -> DecisionV2:
         return DecisionV2("Level 1", "L1-TRIGGER-ONLY", f"{trig}. 동을 가리키는 통신 신호 없음, {what}", on)
     why = f"{_why(f, on)} + {trig}"
     d = DecisionV2("Level 2", "V2-L2-DATA-TRIGGER", why, on)
+    data3 = [a for a in data if a not in f.unverified]
+    ext3 = [a for a in ext if a not in f.unverified]
     if len(data) < lv["level3_min_data"]:
         d.caps.append("CAP-DATA-ONE")  # 신한·SK 신호 하나
     if len(ext) < lv["level3_min_external"]:
         d.caps.append("CAP-NO-EXTERNAL")  # 외부 확인 없음
+    if not d.caps and (len(data3) < lv["level3_min_data"] or len(ext3) < lv["level3_min_external"]):
+        d.caps.append("CAP-SIGNAL-UNVERIFIED")  # 방향 미확인 신호를 빼면 Level 3 조건 미달
+        d.reason += " · 방향 미확인 신호(" + "·".join(AXIS_NAME[a] for a in on if a in f.unverified) + ")는 Level 3 근거에서 뺌"
     if f.input_status != "충족":
         d.caps.append("CAP-PARTIAL")
     if not conf_ok:

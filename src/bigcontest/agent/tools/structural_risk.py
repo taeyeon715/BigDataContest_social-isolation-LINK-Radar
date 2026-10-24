@@ -32,13 +32,16 @@ def _num(x) -> float | None:
 def _cell(r, rules: dict) -> StructuralRiskCell:
     from bigcontest.holiday_watch import cell_facts
     from bigcontest.rules.levels_v2 import axes_on, cell_type
+    from bigcontest.rules.signal_check import note, unverified
 
     on = axes_on(cell_facts(r, "참고", rules))
+    unver = unverified(r["sex"], r["age5"])
     return StructuralRiskCell(sex=r["sex"], age_band=r["age5"], pop=None if pd.isna(r["pop"]) else int(r["pop"]),
                               axes_on=on, cell_type=cell_type(on), s=_num(r["s_eb"]),
                               h=_num(r["h"]) if r.get("h_state") == "observed" else None,
                               v=_num(r["v_eb"]) if r.get("v_state") == "observed" else None,
-                              a_km=_num(r["a_km"]), small=bool(r["s_small"]))
+                              a_km=_num(r["a_km"]), small=bool(r["s_small"]), unverified=unver,
+                              check_notes=[n for a in unver if (n := note(a, r["sex"], r["age5"], r["city"]))])
 
 
 def _group(ctx, c: Candidate) -> str | None:
