@@ -84,19 +84,21 @@ def test_d1_gangnam_structure_review(agent):
     assert st["waiting"] and v["route"] == "investigate"  # 끝점: 승인 대기
     assert final_guard(v) == PASS3
     by_adm = {c["adm_cd"]: c for c in v["candidates"] if c["candidate_type"] == "scheduled_access_review"}
-    # rules-v1.1: 구조 상위(도시 22개 동 전체 중 상위 30%, 1인세대 비율 0.35 이상)나 접근성 근거가 있는 동만 후보
-    assert len(by_adm) == 7 and all("R1 추석" in c["trigger"] for c in by_adm.values())
-    assert all(c["candidate_level"] == "Level 2" and c["rule_id"] == "L2-STRUCT-TRIGGER" for c in by_adm.values())
-    assert {"11230640", "11230520"} <= set(by_adm)  # 역삼1동·논현1동 (1인세대 비율 상위)
-    assert all("강남 22개 동 전체" in c["level_reason"] for c in by_adm.values())  # 순위 모집단
+    # rules-v2.0: 후보 동도 칸 판정(남성 40·50대)으로 정함. 통신 행동 고립 신호가 있으면 Level 2,
+    # 동 전체 1인세대 상위로만 들어온 동(삼성2동·일원1동)은 통신 신호가 없어 Level 1
+    assert len(by_adm) == 11 and all("R1 추석" in c["trigger"] for c in by_adm.values())
+    lv = {a: c["candidate_level"] for a, c in by_adm.items()}
+    assert sorted(a for a, x in lv.items() if x == "Level 1") == ["11230590", "11230730"]  # 삼성2동·일원1동
+    assert all(c["rule_id"].startswith("V2-L2-DATA-TRIGGER") for c in by_adm.values() if c["candidate_level"] == "Level 2")
+    assert lv["11230640"] == lv["11230520"] == "Level 2"  # 역삼1동·논현1동
+    assert all("칸 판정" in c["level_reason"] for c in by_adm.values())
     assert {c["event_id"] for c in by_adm.values()} == {"강남:R1:20251003"}
     assert all(c["event_opened_at"] == "2025-09-26" for c in by_adm.values())  # 트리거 당일(D-7) 생성
-    assert not any(c["candidate_level"] == "Level 3" for c in v["candidates"])  # 강남은 접근성 근거가 약함
+    assert not any(c["candidate_level"] == "Level 3" for c in v["candidates"])  # 중장년은 연휴 카드 근거가 없음 → 통신 신호 하나
     assert all(c["analysis_cohort"] == "40대·50대" for c in by_adm.values())
     t = text(v)
     assert "거리 공백 근거 약함" in t
     assert "시민생활" in t and "탐색적 참고" in t
-    assert "rules-v1.1" in t
     assert v["resources"] and all(r["operating_status"] == "확인 필요" for r in v["resources"])  # 가용성 확인 필요
     assert all(r["city"] == "강남" for r in v["resources"])
     # 공식 페이지로 확인일을 채운 외로움안녕120(전화형)이 추천에 들어감
@@ -131,11 +133,13 @@ def test_d2_chuncheon_winter_review(agent):
     cands = v["candidates"]
     # 동절기는 읍·면 60대 이상 칸 판정: 남산면·동산면은 통신 신호 2개(행동 고립 + 겨울 체류 감소) + 외부 확인이라 Level 3,
     # 남면·북산면은 통신 신호 하나라 Level 2. 동산면은 칸 판정으로 새로 든 면
-    assert len(cands) == 4 and all(c["trigger"].startswith("W 동절기") for c in cands)
+    assert len(cands) == 8 and all(c["trigger"].startswith("W 동절기") for c in cands)
     assert all(c["input_status"] == "충족" for c in cands)
-    lv = {c["adm_cd"]: (c["candidate_level"], c["rule_id"]) for c in cands}
-    assert lv == {"32010350": ("Level 2", "V2-L2-DATA-TRIGGER+CAP-DATA-ONE"), "32010360": ("Level 3", "V2-L3-DATA2-EXT1"),
-                  "32010390": ("Level 2", "V2-L2-DATA-TRIGGER+CAP-DATA-ONE"), "32010320": ("Level 3", "V2-L3-DATA2-EXT1")}
+    l3 = {c["adm_cd"] for c in cands if c["candidate_level"] == "Level 3"}
+    assert l3 == {"32010360", "32010320"} and all(c["rule_id"] == "V2-L3-DATA2-EXT1" for c in cands if c["adm_cd"] in l3)
+    # 나머지는 겨울 체류 감소(통신) 또는 행동 고립 하나 → Level 2 (외부 자료만으로는 오르지 않음)
+    assert all(c["candidate_level"] == "Level 2" and c["rule_id"].startswith("V2-L2-DATA-TRIGGER")
+               for c in cands if c["adm_cd"] not in l3)
     assert {c["event_id"] for c in cands} == {"춘천:W:2025"}
     t = text(v)
     assert "직선" in t and "춘천 읍·면 겨울 변화" in t

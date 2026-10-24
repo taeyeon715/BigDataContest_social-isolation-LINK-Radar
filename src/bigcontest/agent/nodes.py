@@ -1230,6 +1230,13 @@ def assign_level(state: dict) -> dict:
     cands = S.assign_level(_candidates(state), evidence, as_of=_as_of(state))
     cands = apply_holiday_watch(cands, evidence, _as_of(state))
     cands = apply_winter_cells(cands, evidence, _as_of(state))
+    if _backend(state) == "real":  # 남은 v1.1 판정을 rules-v2.0 칸 판정으로 (가짜 도구는 칸 근거가 없음)
+        from bigcontest.agent import v2_levels as V2
+        from bigcontest.agent.tools.datasource import open_datasource
+
+        ds, mode, req = open_datasource(state["snapshot_id"]), state["analysis_mode"], _req(state)
+        cands = V2.relevel_scheduled(cands, evidence, ds, _as_of(state), mode, req.group if req else None)
+        cands = V2.relevel_deviation(cands, ds, _as_of(state), mode)
     return {"candidates": _dump(cands)}
 
 

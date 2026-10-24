@@ -66,3 +66,10 @@ def test_types():
     assert cell_type(["H"]) == "관계 단절형"
     assert cell_type(["V"]) == "구조·경제 취약형"
     assert cell_type(["A"]) == "해당 없음"
+
+
+def test_card_alone_does_not_point_to_a_dong():
+    # 카드(C)는 도시 단위: 외부 확인이 있어도 통신 신호가 없으면 Level 1
+    d = decide_v2(f(axes={"C": True, "S": True, "V": True}))
+    assert d.level == "Level 1" and "카드 신호만" in d.reason
+    assert decide_v2(f(axes={"C": True, "W": True, "S": True})).level == "Level 3"

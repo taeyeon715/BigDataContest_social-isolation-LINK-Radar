@@ -128,7 +128,10 @@ def test_chuncheon_0926_medical_citation_opens_medical_envelope():
         assert eid in inv and eid not in base
         assert ev.value == 5 and "필요 유형 의료 접근" in ev.warnings[0]
         assert "위급 시 안내 0건" in ev.denominator
-        # 같은 동의 기본 추천 봉투(상위 5 + 위급 시 안내 2 = 7건)는 다른 ID 로 그대로 있음
+        # 기본 추천 봉투는 Level 2 이상 후보에만 (rules-v2.0: 이 세 면은 통신 신호가 없어 Level 1 → 기본 추천 없음)
         same_dong = [e for e in s["evidence"] if e["metric"] == "복지 자원 후보" and f"({item.adm_cd})" in e["applied_scope"]]
-        assert len(same_dong) == 1 and same_dong[0]["value"] == 5 and same_dong[0]["evidence_id"] != eid
-        assert "상위 5건 + 위급 시 안내 0건" in same_dong[0]["denominator"]
+        level = next(c["candidate_level"] for c in s["candidates"] if c.get("adm_cd") == item.adm_cd)
+        if level in ("Level 2", "Level 3"):
+            assert len(same_dong) == 1 and same_dong[0]["value"] == 5 and same_dong[0]["evidence_id"] != eid
+        else:
+            assert same_dong == []

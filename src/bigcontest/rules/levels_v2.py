@@ -7,7 +7,8 @@
 - 외부 확인(공공 통계·자원 원장): S 1인 비율(주민등록), V 경제 취약(수급 통계), A 거점 원거리(자원 원장)
 
 Level 3 = 예정된 트리거 + 제공 데이터 신호 2개 이상(서로 다른 신호) + 외부 확인 1개 이상 + 필수 근거 충족 + 신뢰도 보통 이상.
-제공 데이터 신호가 1개면 Level 2, 없으면 Level 1 (외부 확인만으로는 등급이 오르지 않는다).
+Level 2 이상에는 동을 가리키는 통신 신호(H 또는 W)가 하나는 있어야 한다. 카드(C)는 도시 단위라 '누구'만 정한다.
+통신 신호가 없으면 Level 1 (카드 신호만, 외부 확인만으로는 오르지 않는다).
 이탈(도시 × 코호트, 카드)은 Level 2 상한이고, 먼저 확인할 칸에 SK 신호가 있어야 Level 2.
 """
 
@@ -21,6 +22,7 @@ from bigcontest.contracts import load_yaml
 AXIS_NAME = {"H": "행동 고립", "W": "겨울 체류 감소", "C": "카드 결제 공백",
              "S": "혼자 사는 구조", "V": "경제 취약", "A": "거점 원거리"}
 DATA_AXES = ("H", "W", "C")  # 신한·SK
+DONG_AXES = ("H", "W")  # 동을 가리키는 통신 신호
 EXTERNAL_AXES = ("S", "V", "A")  # 공공 통계·자원 원장
 ORDER = DATA_AXES + EXTERNAL_AXES
 
@@ -96,9 +98,9 @@ def decide_v2(f: CellFacts, rules: dict | None = None) -> DecisionV2:
 
     # 예정된 점검
     trig = f"예정된 트리거({f.trigger})"
-    if not data:
-        what = f"외부 확인만({_why(f, ext)})" if ext else "근거 없음"
-        return DecisionV2("Level 1", "L1-TRIGGER-ONLY", f"{trig}. 신한·SK 신호 없음, {what}", on)
+    if not any(a in DONG_AXES for a in data):
+        what = "카드 신호만(동을 가리키지 않음)" if data else (f"외부 확인만({_why(f, ext)})" if ext else "근거 없음")
+        return DecisionV2("Level 1", "L1-TRIGGER-ONLY", f"{trig}. 동을 가리키는 통신 신호 없음, {what}", on)
     why = f"{_why(f, on)} + {trig}"
     d = DecisionV2("Level 2", "V2-L2-DATA-TRIGGER", why, on)
     if len(data) < lv["level3_min_data"]:
