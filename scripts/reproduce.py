@@ -80,6 +80,8 @@ STEPS: list[Step] = [
          "r3 다음. 공휴일 효과 1차 분석 (추석 1회 관측)"),
     Step("r3c", (*PY, "notebooks/r3c_signal_check.py"), "interim", "reports/r3_규칙개정/신호_방향확인.csv, configs/signal_check.csv",
          "신호 방향 확인 (강남 시민생활 기준)"),
+    Step("r3d", (*PY, "notebooks/r3d_impact.py"), "interim", "reports/r3_규칙개정/기대효과_v2.csv",
+         "r3c 다음. 기대효과: 기준일별 Level 3 칸 규모 (정기 감시 그래프)"),
     Step("check_no_raw", (*PY, "scripts/check_no_raw.py"), "none", "리포트·analysis CSV 원천 값 열 점검"),
 ]
 KEYS = [s.key for s in STEPS]
