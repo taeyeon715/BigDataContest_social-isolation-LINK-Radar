@@ -1,7 +1,7 @@
-"""Claude 응답 녹화·재생 (AG-10). 실제 호출은 한 번만 녹화하고, 테스트는 녹화본을 재생한다 (비용 0, 결과 고정).
+"""Gemini 응답 녹화·재생 (AG-10). 실제 호출은 한 번만 녹화하고, 테스트는 녹화본을 재생한다 (비용 0, 결과 고정).
 
-- 상태의 `llm` 값이 `replay:<파일>` 이면 `ReplayClient`, `record:<파일>` 이면 `RecordingClient` 를 AnthropicLLM 에 끼운다
-  (llm.get_llm). 그래서 프롬프트·구조화 출력·Pydantic 검증·sanitize 는 실제 Claude 때와 같은 코드를 지난다
+- 상태의 `llm` 값이 `replay:<파일>` 이면 `ReplayClient`, `record:<파일>` 이면 `RecordingClient` 를 GeminiLLM 에 끼운다
+  (llm.get_llm). 그래서 프롬프트·구조화 출력·Pydantic 검증·sanitize 는 실제 Gemini 때와 같은 코드를 지난다
 - 열쇠: 모델 ID + 시스템 프롬프트 + 사용자 입력(JSON)의 SHA-256. 프롬프트 판이나 입력이 바뀌면 녹화에 없음(miss) →
   LLMError → call_llm 이 규칙·템플릿으로 대신 (테스트는 miss 수를 봄). 프롬프트 판을 올리면 다시 녹화
 - 녹화본에는 열쇠·모델·프롬프트 해시·응답 글·토큰 수·stop_reason 만 둔다. API 키·요청 원문(질문)은 넣지 않는다
@@ -48,7 +48,7 @@ def load(path: str | Path) -> dict:
 
 
 class ReplayClient:
-    """녹화본에서 응답을 돌려주는 가짜 anthropic 클라이언트. 네트워크·키 없음."""
+    """녹화본에서 응답을 돌려주는 가짜 클라이언트 (messages.create 모양). 네트워크·키 없음."""
 
     def __init__(self, path: str | Path):
         self.path = _path(str(path))
@@ -69,7 +69,7 @@ class ReplayClient:
 
 
 class RecordingClient:
-    """실제 anthropic 클라이언트를 감싸 응답을 녹화한다 (scripts/llm_cassette.py record 가 씀)."""
+    """실제 Gemini 클라이언트를 감싸 응답을 녹화한다 (scripts/llm_cassette.py record 가 씀)."""
 
     _lock = threading.Lock()
 
@@ -77,14 +77,12 @@ class RecordingClient:
         self.path = _path(str(path))
         self.data = load(self.path)
         if inner is None:
-            import anthropic
-
-            from bigcontest.agent.llm import LLMInitError, _api_key, llm_config
+            from bigcontest.agent.llm import GeminiClient, LLMInitError, _api_key, llm_config
 
             key = _api_key()
             if not key:
-                raise LLMInitError("LLM_NO_API_KEY", "ANTHROPIC_API_KEY 없음")
-            inner = anthropic.Anthropic(api_key=key, max_retries=0, timeout=llm_config().get("timeout_s", 60))
+                raise LLMInitError("LLM_NO_API_KEY", "GEMINI_API_KEY 없음")
+            inner = GeminiClient(key, timeout=llm_config().get("timeout_s", 60))
         self.inner = inner
         self.messages = self
         self.used: set[str] = set()  # 이번 녹화에서 쓴 열쇠 (prune 이 나머지를 지움)

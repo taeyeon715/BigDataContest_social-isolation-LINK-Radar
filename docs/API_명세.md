@@ -1021,4 +1021,4 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 자원 조회 | 원장 v2 + `find_resources`와 같은 매칭·제외 규칙 (§3.12) |
 | 후속 확인 | `GET /followups`는 저장소의 검토 기록에서 (§3.16) |
 
-설정: `LINKRADAR_TOOLS`(real / stub), `LINKRADAR_LLM`(none / claude / 가짜 변형), 체크포인트는 `<상태 DB 이름>.agent.sqlite`. 그래프 실행은 작업자 스레드 1개에서 하고(`--workers 1`), `LINKRADAR_FAKE_DELAY=0`이면 요청 안에서 바로 돌립니다.
+설정: `LINKRADAR_TOOLS`(real / stub), `LINKRADAR_LLM`(none / gemini / 가짜 변형), 체크포인트는 `<상태 DB 이름>.agent.sqlite`. 그래프 실행은 작업자 스레드 1개에서 하고(`--workers 1`), `LINKRADAR_FAKE_DELAY=0`이면 요청 안에서 바로 돌립니다.

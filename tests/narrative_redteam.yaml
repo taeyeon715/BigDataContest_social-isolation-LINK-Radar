@@ -83,7 +83,7 @@
 - {id: ok-cohort-exact, kind: 정상, expect: PASS, sentence: "60대·70대·80대+ 대상 집단 근거입니다 [EV-20251020-TGT]."}
 
 # ---- 카드 거주지 한계 (G-03 오탐 회귀): 한계를 말하는 주의 문장은 통과, 거주지 단정·바꿔 말하기·부정 꼼수는 차단
-#   실제 Claude 실행(D2)에서 "고객 거주지는 강원까지만 …"이 '고객 거주'로 세 번 걸려 판단 보류로 끝났음
+#   실제 LLM 실행(D2)에서 "고객 거주지는 강원까지만 …"이 '고객 거주'로 세 번 걸려 판단 보류로 끝났음
 - {id: ok-res-caveat-sido, kind: 정상, expect: PASS, sentence: "고객 거주지는 강원까지만 알 수 있습니다."}
 - {id: ok-res-caveat-level, kind: 정상, expect: PASS, sentence: "카드 고객 거주지는 시도 단위까지만 나옵니다 [EV-20251020-DEV]."}
 - {id: ok-res-caveat-finer, kind: 정상, expect: PASS, sentence: "고객 거주지는 시군구·동 단위로는 알 수 없습니다."}

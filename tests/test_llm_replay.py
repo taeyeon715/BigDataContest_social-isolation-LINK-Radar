@@ -1,9 +1,9 @@
-"""녹화한 Claude 응답 재생 (AG-10). 키·네트워크·비용 없이 실제 Claude 응답 모양으로 그래프를 돌린다.
+"""녹화한 Gemini 응답 재생 (AG-10). 키·네트워크·비용 없이 실제 Gemini 응답 모양으로 그래프를 돌린다.
 
-녹화: uv run python scripts/llm_cassette.py record (프롬프트 판을 올릴 때만, 유료)
+녹화: uv run python scripts/llm_cassette.py record (프롬프트 판을 올릴 때만, 무료 등급)
 - 녹화 묶음(조사 1개·조회 1개·이어 묻기 3개)을 재생하면 녹화에 없는 요청이 0 (프롬프트·입력이 그대로)
 - 등급·순서·반증은 LLM 없이 돌린 것과 같음
-- 실제 Claude 가 고른 조사 질문·이유가 보고서 "추가로 확인한 것"에 들어감
+- 실제 Gemini 가 고른 조사 질문·이유가 보고서 "추가로 확인한 것"에 들어감
 - 녹화본에 API 키·질문 원문이 없음
 """
 
@@ -42,7 +42,7 @@ def _levels(v: dict) -> dict:
 
 def test_cassette_has_no_secrets_or_questions():
     raw = PATH.read_text(encoding="utf-8")
-    assert "sk-ant" not in raw and "ANTHROPIC" not in raw
+    assert "AIza" not in raw and "GEMINI_API_KEY" not in raw  # Google API 키 모양·이름 없음
     for _, q, _ in SMOKE_RUNS:
         assert q not in raw
     data = json.loads(raw)
@@ -55,7 +55,7 @@ def test_replay_has_no_misses(replayed):
     assert client.misses == 0 and client.hits == len(json.loads(PATH.read_text(encoding="utf-8"))["entries"])
     logs = [r for v in res for r in (v.get("llm_log") or (v.get("followup") or {}).get("llm_log") or [])]
     assert logs and all(r["ok"] for r in logs)
-    assert all(r["model_id"].startswith("claude-") for r in logs)
+    assert all(r["model_id"].startswith("gemini-") for r in logs)
     assert {r["slot"] for r in logs} >= {"classify", "choose_extra_tools", "investigate", "explain", "followup"}
 
 
@@ -66,7 +66,7 @@ def test_replay_levels_same_as_no_llm(replayed, plain):
         assert a["route"] == b["route"]
 
 
-def test_replay_investigation_picked_by_claude(replayed):
+def test_replay_investigation_picked_by_gemini(replayed):
     res, _ = replayed
     inv = res[0]["investigation"]
     assert inv["rounds"] and inv["rounds"][0]["source"] == "llm"
@@ -97,6 +97,6 @@ def test_miss_raises_llm_error(tmp_path):
 
     c = ReplayClient(PATH)
     with pytest.raises(LLMError):
-        c.create(model="claude-sonnet-5-5", system="다른 프롬프트", messages=[{"role": "user", "content": "x"}])
+        c.create(model="gemini-3.5-flash-lite", system="다른 프롬프트", messages=[{"role": "user", "content": "x"}])
     assert c.misses == 1
     assert request_key("m", "s", [{"content": "a"}]) != request_key("m", "s", [{"content": "b"}])

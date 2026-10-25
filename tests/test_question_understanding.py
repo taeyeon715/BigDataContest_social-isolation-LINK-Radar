@@ -4,8 +4,8 @@
 - 여러 동을 가리키는 줄임(역삼동)·도시와 맞지 않는 동(강남 남면)은 고르지 않고 선택지로 되묻는다
 - 기간 말("지난주", "이번 달", "추석 전", 날짜)은 periods.py 규칙 하나로 창을 정한다
 - LLM 은 규칙이 비운 동·기간 칸만 enum 값으로 채운다
-- llm_log 의 prompt_version 은 자리별 프롬프트 판(classify_v3), 설정 판(llm-v1)이 아님
-가짜 도구(stub) + LLM 없음 / 가짜 Claude 클라이언트. 네트워크 없음.
+- llm_log 의 prompt_version 은 자리별 프롬프트 판(classify_v3), 설정 판(llm-v2)이 아님
+가짜 도구(stub) + LLM 없음 / 가짜 Gemini 클라이언트. 네트워크 없음.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import pytest
 from bigcontest.agent import guard as G
 from bigcontest.agent import nodes
 from bigcontest.agent.graph import Agent, build_graph
-from bigcontest.agent.llm import AnthropicLLM, call_llm, classify_schema
+from bigcontest.agent.llm import GeminiLLM, call_llm, classify_schema
 from bigcontest.agent.periods import find_period, window
 from bigcontest.agent.places import cities_in, resolve_place
 from bigcontest.agent.state import initial_state
@@ -211,9 +211,9 @@ def _classify_out(route="investigate", **req):
 
 
 def _classify_with(monkeypatch, question, out, as_of="2025-10-20"):
-    llm = AnthropicLLM(client=FakeClient([out]))
+    llm = GeminiLLM(client=FakeClient([out]))
     monkeypatch.setattr(nodes, "_llm", lambda state: (llm, None))
-    st = initial_state("fill", "qa", as_of, question=question, tools_backend="stub", llm="claude")
+    st = initial_state("fill", "qa", as_of, question=question, tools_backend="stub", llm="gemini")
     st.update(nodes.intake(st))
     return {**st, **nodes.classify(st)}
 
@@ -252,11 +252,11 @@ def test_classify_schema_enums():
 
 
 def test_llm_log_prompt_version_is_slot_prompt():
-    """AG-08/AG-15: 기록의 프롬프트 판은 자리별 프롬프트 파일 이름 (설정 판 llm-v1 이 아님)."""
-    llm = AnthropicLLM(client=FakeClient([_classify_out(city="춘천")]))
+    """AG-08/AG-15: 기록의 프롬프트 판은 자리별 프롬프트 파일 이름 (설정 판 llm-v2 가 아님)."""
+    llm = GeminiLLM(client=FakeClient([_classify_out(city="춘천")]))
     _, rec = call_llm(llm, "classify", llm.classify, "춘천 어르신", None)
     assert rec["prompt_version"] == "classify_v3" and rec["prompt_version"] != llm.prompt_version
-    llm = AnthropicLLM(client=FakeClient([]))
+    llm = GeminiLLM(client=FakeClient([]))
     _, rec = call_llm(llm, "choose_extra_tools", llm.choose_extra_tools, {}, [], [])  # API 호출 없이 끝남
     assert rec["prompt_version"] == "choose_tools_v1"
 

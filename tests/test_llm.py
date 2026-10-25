@@ -1,4 +1,4 @@
-"""Claude 연결 (에이전트 설계 §8). 기본 테스트는 네트워크를 쓰지 않는다 (가짜 클라이언트).
+"""Gemini 연결 (에이전트 설계 §8). 기본 테스트는 네트워크를 쓰지 않는다 (가짜 클라이언트).
 실제 API 시험은 RUN_LLM_TESTS=1 일 때만 (호출 2~3회).
 
 - 구조화 출력 → Pydantic 검증, 실패하면 1회 재시도 뒤 규칙·템플릿으로 대신
@@ -15,7 +15,7 @@ import pytest
 
 from bigcontest.agent import guard as G
 from bigcontest.agent.llm import (
-    AnthropicLLM,
+    GeminiLLM,
     PROMPT_DIR,
     _api_key,
     call_llm,
@@ -55,45 +55,45 @@ def card() -> EvidenceCard:
 
 def test_config_models_prompts_and_pricing():
     cfg = llm_config()
-    assert cfg["models"]["supervisor"]["id"] == "claude-sonnet-5-5"
-    assert cfg["models"]["brief"]["id"] == "claude-haiku-5-5"
+    assert cfg["models"]["supervisor"]["id"] == "gemini-3.5-flash-lite"
+    assert cfg["models"]["brief"]["id"] == "gemini-3.5-flash-lite"
+    assert cfg["free_tier_only"] is True
     for slot in cfg["slots"].values():
         assert (PROMPT_DIR / f"{slot['prompt']}.md").exists()
         assert slot["temperature"] is None  # 샘플링 값은 보내지 않음
-    assert cost_usd("supervisor", 1_000_000, 1_000_000) == 12.0  # $2 + $10 (공식 가격표)
-    assert cost_usd("brief", 50_000, 0) == 0.005
-    assert cost_usd("brief", 200_000, 0) == 0.1  # 100K 넘는 프롬프트는 $0.50/MTok
+    assert cost_usd("supervisor", 1_000_000, 1_000_000) == 2.8  # $0.30 + $2.50 (공식 가격표, 무료 등급은 청구 없음)
+    assert cost_usd("brief", 50_000, 0) == 0.015
 
 
 def test_classify_structured_output():
     client = FakeClient([json.dumps({"route": "lookup", "request": {"city": "강남", "metric": "체류인구", "group": None,
                                      "age_min": 60, "age_max": 69, "sex": None, "time_of_day": "18_23"},
                                      "reason": "단순 조회"})])
-    llm = AnthropicLLM(client=client)
+    llm = GeminiLLM(client=client)
     out = llm.classify("강남 60대의 밤 활동은 어때?", None)
     assert out["route"] == "lookup" and out["request"]["time_of_day"] == "18_23"
     req = client.requests[0]
-    assert req["model"] == "claude-sonnet-5-5" and req["output_config"]["format"]["type"] == "json_schema"
+    assert req["model"] == "gemini-3.5-flash-lite" and req["output_config"]["format"]["type"] == "json_schema"
     assert "temperature" not in req
     rec = llm.calls[0]
-    assert rec["prompt_version"] == "classify_v3" and rec["input_tokens"] == 1000 and rec["cost_usd"] == 0.004
+    assert rec["prompt_version"] == "classify_v3" and rec["input_tokens"] == 1000 and rec["cost_usd"] == 0.0008
 
 
 def test_invalid_output_retries_once_then_falls_back():
-    llm = AnthropicLLM(client=FakeClient(['{"route": "maybe"}', "not json"]))
+    llm = GeminiLLM(client=FakeClient(['{"route": "maybe"}', "not json"]))
     out, rec = call_llm(llm, "classify", llm.classify, "질문", None)
     assert out is None and rec["attempts"] == 2 and not rec["ok"] and rec["api_calls"] == 2
     assert rec["fallback"] and rec["input_tokens"] == 2000  # 실패한 호출도 토큰·비용 기록
 
 
 def test_refusal_is_error():
-    llm = AnthropicLLM(client=FakeClient(["{}", "{}"], stop="refusal"))
+    llm = GeminiLLM(client=FakeClient(["{}", "{}"], stop="refusal"))
     out, rec = call_llm(llm, "classify", llm.classify, "질문", None)
     assert out is None and "refusal" in rec["error"]
 
 
 def test_tool_choice_is_whitelisted():
-    llm = AnthropicLLM(client=FakeClient([json.dumps({"tools": ["calc_holiday_gap"], "reason": "r"})]))
+    llm = GeminiLLM(client=FakeClient([json.dumps({"tools": ["calc_holiday_gap"], "reason": "r"})]))
     assert llm.choose_extra_tools({}, ["calc_holiday_gap", "get_mobility_layer"], []) == ["calc_holiday_gap"]
     schema = llm.calls  # 스키마 enum 이 available 로 묶임
     assert schema[0]["ok"]
@@ -106,7 +106,7 @@ def test_explain_drops_new_numbers_and_unknown_ids():
         "결제가 13% 줄었습니다.",  # 새 숫자
         "다른 근거도 봐야 합니다 [EV-20251015-CC-XXX].",  # 카드에 없는 ID
     ]
-    llm = AnthropicLLM(client=FakeClient([json.dumps({"sentences": lines})]))
+    llm = GeminiLLM(client=FakeClient([json.dumps({"sentences": lines})]))
     out = llm.explain(c, [], 1)
     assert out == lines[:1] and llm.calls[0]["dropped"] == 2
     # 남은 문장은 사실 검사를 통과 (근거 ID 인용만, 숫자 없음)
@@ -115,15 +115,15 @@ def test_explain_drops_new_numbers_and_unknown_ids():
     assert sanitize_sentences(["카드 근거 [EV-20251015-CC-DEV-CC-20F-20251007] 참고"], c)
 
 
-def test_explain_brief_uses_haiku():
+def test_explain_brief_uses_lite_model():
     client = FakeClient([json.dumps({"sentences": ["요약입니다."]})])
-    llm = AnthropicLLM(client=client)
+    llm = GeminiLLM(client=client)
     llm.explain(card(), [], 1, brief=True)
-    assert client.requests[0]["model"] == "claude-haiku-5-5" and llm.calls[0]["prompt_version"] == "brief_v3"
+    assert client.requests[0]["model"] == "gemini-3.5-flash-lite" and llm.calls[0]["prompt_version"] == "brief_v3"
 
 
 def test_api_key_never_logged():
-    llm = AnthropicLLM(client=FakeClient([json.dumps({"sentences": ["설명."]})]))
+    llm = GeminiLLM(client=FakeClient([json.dumps({"sentences": ["설명."]})]))
     llm.explain(card(), [], 1)
     key = _api_key()
     if key:
@@ -133,12 +133,12 @@ def test_api_key_never_logged():
 # ---------------------------------------------------------------- 실제 API (RUN_LLM_TESTS=1)
 
 live = pytest.mark.skipif(os.environ.get("RUN_LLM_TESTS") != "1" or not _api_key(),
-                          reason="RUN_LLM_TESTS=1 과 ANTHROPIC_API_KEY 가 있을 때만")
+                          reason="RUN_LLM_TESTS=1 과 GEMINI_API_KEY 가 있을 때만")
 
 
 @live
 def test_live_classify_and_explain():
-    llm = AnthropicLLM()
+    llm = GeminiLLM()
     out = llm.classify("추석 전에 춘천 어르신 어디부터 확인해야 해?", None)
     assert out["route"] == "investigate"
     lines = llm.explain(card(), [], 1)
@@ -168,7 +168,110 @@ def test_negated_caveat_exempt_only_in_template_sentences():
 
 def test_retry_sends_guard_feedback():
     client = FakeClient([json.dumps({"sentences": ["설명."]})])
-    llm = AnthropicLLM(client=client)
+    llm = GeminiLLM(client=client)
     llm.explain(card(), [], 2, feedback=["G-14: 지표를 다른 뜻으로 바꾸지 않았는가: 문장"])
     payload = json.loads(client.requests[0]["messages"][0]["content"])
     assert payload["guard_feedback"] == ["G-14: 지표를 다른 뜻으로 바꾸지 않았는가: 문장"]
+
+
+# ---------------------------------------------------------------- Gemini REST 어댑터 (네트워크 없음, 가짜 전송)
+
+
+def _gemini_client(handler):
+    import httpx
+
+    from bigcontest.agent.llm import GeminiClient
+
+    return GeminiClient("test-key-123", transport=httpx.MockTransport(handler))
+
+
+def test_gemini_request_body_and_header():
+    import httpx
+
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["url"], seen["key"], seen["body"] = str(req.url), req.headers.get("x-goog-api-key"), json.loads(req.content)
+        return httpx.Response(200, json={
+            "candidates": [{"content": {"parts": [{"text": "생각", "thought": True},
+                                                  {"text": json.dumps({"sentences": ["설명."]})}]},
+                            "finishReason": "STOP"}],
+            "usageMetadata": {"promptTokenCount": 700, "candidatesTokenCount": 40, "thoughtsTokenCount": 10}})
+
+    llm = GeminiLLM(client=_gemini_client(handler))
+    assert llm.explain(card(), [], 1) == ["설명."]
+    body = seen["body"]
+    assert seen["url"].endswith("/models/gemini-3.5-flash-lite:generateContent") and seen["key"] == "test-key-123"
+    gen = body["generationConfig"]
+    assert gen["responseMimeType"] == "application/json" and gen["responseJsonSchema"]["required"] == ["sentences"]
+    assert gen["maxOutputTokens"] == 4000 and gen["thinkingConfig"] == {"thinkingLevel": "medium"}
+    assert body["systemInstruction"]["parts"][0]["text"] and "temperature" not in gen
+    assert "test-key-123" not in json.dumps(body) and "test-key-123" not in json.dumps(llm.calls)
+    rec = llm.calls[0]
+    assert rec["input_tokens"] == 700 and rec["output_tokens"] == 50  # 생각 토큰도 출력에 합산
+
+
+def test_gemini_finish_reasons_and_errors():
+    import httpx
+
+    from bigcontest.agent.llm import gemini_response
+
+    assert gemini_response({"candidates": [{"finishReason": "MAX_TOKENS"}]}).stop_reason == "max_tokens"
+    assert gemini_response({"candidates": [{"finishReason": "SAFETY"}]}).stop_reason == "refusal"
+    assert gemini_response({"promptFeedback": {"blockReason": "SAFETY"}}).stop_reason == "refusal"
+    for status in (500, 503):
+        llm = GeminiLLM(client=_gemini_client(lambda req, s=status: httpx.Response(s, json={})))
+        out, rec = call_llm(llm, "classify", llm.classify, "질문", None)
+        assert out is None and f"API 오류 {status}" in rec["error"] and rec["attempts"] == 2
+
+    def boom(req):
+        raise httpx.ConnectTimeout("t")
+
+    llm = GeminiLLM(client=_gemini_client(boom))
+    out, rec = call_llm(llm, "classify", llm.classify, "질문", None)
+    assert out is None and "시간 초과" in rec["error"]
+
+
+def _quota_429(qid, delay="30s"):
+    import httpx
+
+    return httpx.Response(429, json={"error": {"status": "RESOURCE_EXHAUSTED", "details": [
+        {"violations": [{"quotaId": qid, "quotaValue": "20"}]}, {"retryDelay": delay}]}})
+
+
+def test_gemini_free_tier_limit_stops_calling():
+    """하루 무료 한도(429)를 한 번 받으면 같은 클라이언트로 더 부르지 않는다 (재시도·다른 모델 없음)."""
+    hits = []
+
+    def handler(req):
+        hits.append(1)
+        return _quota_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "58533s")
+
+    llm = GeminiLLM(client=_gemini_client(handler))
+    out, rec = call_llm(llm, "classify", llm.classify, "질문", None)
+    assert out is None and rec["fallback"] and len(hits) == 1  # 재시도는 네트워크로 가지 않음
+    out, _ = call_llm(llm, "followup_intent", llm.followup_intent, "질문")
+    assert out is None and len(hits) == 1 and llm.client.limited  # 하루 한도: 이 클라이언트는 멈춤
+
+
+def test_gemini_per_minute_limit_waits_once():
+    """분당 한도면 알려 준 시간만큼 기다렸다가 한 번 더 (60초 넘으면 기다리지 않음)."""
+    import httpx
+
+    from bigcontest.agent.llm import GeminiClient
+
+    replies = [_quota_429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "12s"),
+               httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(
+                   {"intent": "other", "reason": "r"})}]}, "finishReason": "STOP"}]})]
+    slept = []
+    client = GeminiClient("k", transport=httpx.MockTransport(lambda req: replies.pop(0)), sleep=slept.append)
+    llm = GeminiLLM(client=client)
+    assert llm.followup_intent("질문")["intent"] == "other" and slept == [13.0] and not client.limited
+
+
+def test_no_api_key_is_init_error(monkeypatch):
+    import bigcontest.agent.llm as L
+
+    monkeypatch.setattr(L, "_api_key", lambda: None)
+    llm, rec = L.get_llm_safe("gemini")
+    assert llm is None and rec["error_code"] == "LLM_NO_API_KEY"

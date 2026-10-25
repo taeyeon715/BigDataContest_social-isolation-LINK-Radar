@@ -1,4 +1,4 @@
-"""LLM 자리 (에이전트 설계 §8): 인터페이스, 규칙 기반 가짜(FakeLLM), Claude 연결(AnthropicLLM).
+"""LLM 자리 (에이전트 설계 §8): 인터페이스, 규칙 기반 가짜(FakeLLM), Gemini 연결(GeminiLLM).
 
 LLM 이 맡는 일
 - classify: 질문 → 경로(lookup / investigate / out_of_scope)
@@ -11,8 +11,8 @@ LLM 이 맡는 일
 
 등급·후보는 바꾸지 못한다. 호출마다 기록(모델 ID, 프롬프트 버전, 토큰, 비용, 소요 시간)을 남긴다.
 가짜 변형(variant)은 테스트가 "LLM 이 무엇을 골라도 등급이 같다", "틀린 사실을 Guard 가 잡는다"를 확인하는 데 쓴다.
-상태의 `llm` 값: none(LLM 없음) / 가짜 변형 이름 / claude (configs/llm.yaml 의 모델, ANTHROPIC_API_KEY 필요) /
-replay:<녹화 파일> (녹화한 Claude 응답을 재생, 키·네트워크 없음, cassette.py) / record:<녹화 파일> (실제 Claude 를 부르며 녹화).
+상태의 `llm` 값: none(LLM 없음) / 가짜 변형 이름 / gemini (configs/llm.yaml 의 모델, GEMINI_API_KEY 필요, 무료 등급) /
+replay:<녹화 파일> (녹화한 Gemini 응답을 재생, 키·네트워크 없음, cassette.py) / record:<녹화 파일> (실제 Gemini 를 부르며 녹화).
 """
 
 from __future__ import annotations
@@ -170,15 +170,15 @@ class FakeLLM:
 
 
 def get_llm(name: str | None) -> LLM | None:
-    """상태의 `llm` 값 → LLM. none/None 이면 LLM 없이 (규칙 기반·템플릿). claude 면 AnthropicLLM."""
+    """상태의 `llm` 값 → LLM. none/None 이면 LLM 없이 (규칙 기반·템플릿). gemini 면 GeminiLLM."""
     if not name or name == "none":
         return None
-    if name == "claude":
-        return AnthropicLLM()
+    if name == "gemini":
+        return GeminiLLM()
     if name.startswith("replay:") or name.startswith("record:"):
         from bigcontest.agent.cassette import client_for
 
-        return AnthropicLLM(client=client_for(name))
+        return GeminiLLM(client=client_for(name))
     return FakeLLM(name)
 
 
@@ -192,7 +192,7 @@ def get_llm_safe(name: str | None) -> tuple[LLM | None, dict | None]:
     except LLMError as e:
         code, msg = "LLM_INIT_FAILED", str(e)
     except ImportError:
-        code, msg = "LLM_SDK_MISSING", "anthropic SDK 를 불러오지 못함"
+        code, msg = "LLM_SDK_MISSING", "httpx 를 불러오지 못함"
     except (KeyError, TypeError, OSError) as e:
         code, msg = "LLM_CONFIG_ERROR", f"LLM 설정 오류 ({type(e).__name__})"
     return None, {"slot": "init", "model_id": name, "prompt_version": None, "ok": False, "attempts": 1,
@@ -204,7 +204,7 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
     """LLM 호출 한 번 (실패하면 1회 재시도, 그래도 실패하면 None → 규칙·템플릿). (결과, 호출 기록)."""
     if llm is None:
         return None, None
-    # 프롬프트 판: 자리별 프롬프트 파일 이름 (classify_v3 등). 설정 판(llm-v1)이 아님. 가짜 LLM 은 fake-v0
+    # 프롬프트 판: 자리별 프롬프트 파일 이름 (classify_v3 등). 설정 판(llm-v2)이 아님. 가짜 LLM 은 fake-v0
     slot_prompt = ((getattr(llm, "cfg", None) or {}).get("slots") or {}).get(slot, {}).get("prompt")
     record = {
         "slot": slot,
@@ -266,7 +266,7 @@ def call_llm(llm: LLM | None, slot: str, fn: Callable[..., Any], *args) -> tuple
     return result, record
 
 
-# ---------------------------------------------------------------- Claude (Anthropic API)
+# ---------------------------------------------------------------- Gemini (Google Gemini API, 무료 등급)
 
 import json  # noqa: E402
 import os  # noqa: E402
@@ -298,13 +298,13 @@ def prompt_text(name: str) -> str:
 
 
 def _api_key() -> str | None:
-    """ANTHROPIC_API_KEY (환경 변수, 없으면 .env). 값은 어디에도 기록하지 않는다."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
+    """GEMINI_API_KEY (환경 변수, 없으면 .env). 값은 어디에도 기록하지 않는다."""
+    key = os.environ.get("GEMINI_API_KEY")
     if key:
         return key
     env = ROOT / ".env"
     if env.exists():
-        m = re.search(r"^ANTHROPIC_API_KEY=(.*)$", env.read_text(encoding="utf-8"), re.M)
+        m = re.search(r"^GEMINI_API_KEY=(.*)$", env.read_text(encoding="utf-8"), re.M)
         if m and m.group(1).strip():
             return m.group(1).strip().strip("\"'")
     return None
@@ -496,8 +496,106 @@ def card_payload(card: EvidenceCard, candidates: list[dict], max_candidates: int
     }
 
 
-class AnthropicLLM:
-    """Claude 연결. 출력은 JSON 스키마 구조화 출력 → Pydantic 검증. 오류·검증 실패는 LLMError (call_llm 이 1회 재시도
+# Gemini 응답이 끝난 이유 → 공통 이름 (end_turn / max_tokens / refusal)
+_FINISH = {"STOP": "end_turn", "MAX_TOKENS": "max_tokens"}
+_THINKING = ("low", "medium")  # effort → thinkingLevel (Gemini 3.x)
+
+
+def gemini_body(max_tokens: int, system: str, messages: list[dict], output_config: dict | None) -> dict:
+    """messages.create 인자 → Gemini generateContent 본문. 키는 넣지 않는다 (헤더로만)."""
+    gen: dict = {"maxOutputTokens": max_tokens}
+    fmt = (output_config or {}).get("format") or {}
+    if fmt.get("type") == "json_schema":
+        gen["responseMimeType"] = "application/json"
+        gen["responseJsonSchema"] = fmt["schema"]
+    effort = (output_config or {}).get("effort")
+    if effort in _THINKING:
+        gen["thinkingConfig"] = {"thinkingLevel": effort}
+    return {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": m["content"]}]} for m in messages],
+        "generationConfig": gen,
+    }
+
+
+def gemini_response(data: dict) -> Any:
+    """Gemini 응답 JSON → (content, usage, stop_reason) 모양. 생각(thought) 조각은 버린다."""
+    from types import SimpleNamespace
+
+    cand = (data.get("candidates") or [{}])[0]
+    parts = (cand.get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+    blocked = (data.get("promptFeedback") or {}).get("blockReason")
+    stop = "refusal" if blocked else _FINISH.get(cand.get("finishReason", "STOP"), "refusal")
+    u = data.get("usageMetadata") or {}
+    out_tokens = int(u.get("candidatesTokenCount", 0) or 0) + int(u.get("thoughtsTokenCount", 0) or 0)
+    return SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=text)] if text else [],
+        usage=SimpleNamespace(input_tokens=int(u.get("promptTokenCount", 0) or 0), output_tokens=out_tokens),
+        stop_reason=stop,
+    )
+
+
+def _quota(r: Any) -> tuple[str, float | None]:
+    """429 응답 → (한도 종류 quotaId, 기다릴 초). 분당 한도면 Google 이 알려 준 대기 시간을 쓴다."""
+    try:
+        details = r.json()["error"].get("details") or []
+    except (ValueError, KeyError, AttributeError):
+        return "", None
+    qid = next((v.get("quotaId", "") for d in details for v in d.get("violations") or []), "")
+    delay = next((d["retryDelay"] for d in details if "retryDelay" in d), None)
+    try:
+        return qid, float(str(delay).rstrip("s")) if delay is not None else None
+    except ValueError:
+        return qid, None
+
+
+class GeminiClient:
+    """Gemini REST(generateContent)를 `messages.create(...)` 모양으로 감싼다. 무료 등급만 쓴다 (다른 모델로 넘기지 않음).
+    - 분당 한도(429, PerMinute)면 알려 준 시간(60초 이하)만큼 기다렸다가 한 번 더
+    - 하루 한도나 종류를 모르는 429 면 이 클라이언트는 더 부르지 않는다 → 규칙·템플릿으로 대신"""
+
+    BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+    MAX_WAIT_S = 60
+
+    def __init__(self, api_key: str, timeout: float = 60, transport: Any | None = None, sleep: Callable = time.sleep):
+        import httpx
+
+        self.messages = self
+        self.limited = False
+        self._sleep = sleep
+        self._http = httpx.Client(timeout=timeout, transport=transport, headers={"x-goog-api-key": api_key})
+
+    def create(self, *, model: str, max_tokens: int, system: str, messages: list[dict],
+               output_config: dict | None = None, **_: Any) -> Any:
+        import httpx
+
+        if self.limited:
+            raise LLMError("무료 한도 초과(429) 뒤라 부르지 않음")
+        body = gemini_body(max_tokens, system, messages, output_config)
+        for waited in (False, True):
+            try:
+                r = self._http.post(f"{self.BASE}/{model}:generateContent", json=body)
+            except httpx.TimeoutException:
+                raise LLMError("API 시간 초과") from None
+            except httpx.HTTPError:
+                raise LLMError("API 연결 오류") from None
+            if r.status_code != 429:
+                break
+            qid, delay = _quota(r)
+            if "PerMinute" in qid and delay is not None and delay <= self.MAX_WAIT_S and not waited:
+                self._sleep(delay + 1)
+                continue
+            if "PerMinute" not in qid:
+                self.limited = True
+            raise LLMError(f"API 오류 429 (무료 한도 초과{', 하루 한도' if 'PerDay' in qid else ''})")
+        if r.status_code != 200:
+            raise LLMError(f"API 오류 {r.status_code}")
+        return gemini_response(r.json())
+
+
+class GeminiLLM:
+    """Gemini 연결. 출력은 JSON 스키마 구조화 출력 → Pydantic 검증. 오류·검증 실패는 LLMError (call_llm 이 1회 재시도
     뒤 규칙·템플릿으로 대신). 호출마다 `calls` 에 모델 ID·프롬프트 버전·토큰·비용·소요 시간을 남긴다."""
 
     def __init__(self, client=None):
@@ -508,17 +606,13 @@ class AnthropicLLM:
         self.calls: list[dict] = []
         self.last_reason: str | None = None  # 마지막 호출의 판단 이유
         if client is None:
-            import anthropic
-
             key = _api_key()
             if not key:
-                raise LLMInitError("LLM_NO_API_KEY", "ANTHROPIC_API_KEY 없음")
-            client = anthropic.Anthropic(api_key=key, max_retries=0, timeout=cfg.get("timeout_s", 60))
+                raise LLMInitError("LLM_NO_API_KEY", "GEMINI_API_KEY 없음")
+            client = GeminiClient(key, timeout=cfg.get("timeout_s", 60))
         self.client = client
 
     def _call(self, slot: str, user: dict | str, schema: dict, out_model: type[BaseModel]) -> BaseModel:
-        import anthropic
-
         spec = self.cfg["slots"][slot]
         model_key = spec["model"]
         model = self.cfg["models"][model_key]["id"]
@@ -535,10 +629,6 @@ class AnthropicLLM:
                 messages=[{"role": "user", "content": content}],
                 output_config={"effort": spec["effort"], "format": {"type": "json_schema", "schema": schema}},
             )
-        except anthropic.APIStatusError as e:
-            raise LLMError(f"API 오류 {e.status_code}") from None
-        except anthropic.APIConnectionError:
-            raise LLMError("API 연결 오류") from None
         finally:
             rec["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
         usage = getattr(resp, "usage", None)

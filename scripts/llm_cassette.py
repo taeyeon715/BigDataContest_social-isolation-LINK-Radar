@@ -1,11 +1,11 @@
-"""Claude 응답 녹화 (AG-10). 실제 API 를 부르므로 프롬프트 판을 올릴 때만 손으로 돌린다 (테스트는 재생만).
+"""Gemini 응답 녹화 (AG-10). 실제 API 를 부르므로 프롬프트 판을 올릴 때만 손으로 돌린다 (테스트는 재생만, 무료 등급).
 
 실행: uv run python scripts/llm_cassette.py record [--max-cost 0.3]
 - 가짜 도구(stub) + 고정 기준일로 녹화 묶음(SMOKE)을 돌리며 `record:` LLM 으로 응답을 tests/fixtures/llm_cassettes/smoke_v1.json 에 저장
 - 녹화본에는 열쇠(입력 해시)·모델·응답 글·토큰 수만 들어간다. API 키·질문 원문은 넣지 않는다
 - 비용 합이 --max-cost 를 넘으면 그 뒤 호출은 예산 초과로 막힌다 (budget.run_budget)
 - 이미 녹화한 요청은 다시 부르지 않는다 (바뀐 프롬프트·입력만 비용). 끝나면 안 쓴 옛 응답을 지운다
-- 끝나면 호출 수·토큰·비용(USD, configs/llm.yaml 공식 가격)을 찍는다. 재사용한 응답의 토큰·비용도 합에 들어가므로
+- 끝나면 호출 수·토큰·비용(USD, configs/llm.yaml 공식 유료 가격. 무료 등급이라 실제 청구는 없음)을 찍는다. 재사용한 응답의 토큰·비용도 합에 들어가므로
   실제로 새로 쓴 비용은 이번 녹화의 새 응답 몫이다. 키 값은 찍지 않는다
 
 재생: 상태의 llm 값을 `replay:tests/fixtures/llm_cassettes/smoke_v1.json` 으로 (tests/test_llm_replay.py, scripts/eval_agent.py)

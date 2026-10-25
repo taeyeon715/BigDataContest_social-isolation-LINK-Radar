@@ -7,7 +7,7 @@
 사회적 고립 예방을 위한 복지 담당자용 AI 에이전트
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![Claude](https://img.shields.io/badge/Claude-API-D97757?logo=anthropic&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-API-4285F4?logo=googlegemini&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)
 ![FastAPI](https://img.shields.io/badge/FastAPI-React-009688?logo=fastapi&logoColor=white)
 
@@ -301,7 +301,7 @@ React 화면과 FastAPI를 연결하고, LangGraph로 **질문 해석·자료 �
 | 역할 | 구성 |
 |---|---|
 | 데이터 처리·분석 | Python, DuckDB, pandas, Parquet, statsmodels, LightGBM |
-| 에이전트 | LangGraph, Pydantic, Claude API |
+| 에이전트 | LangGraph, Pydantic, Gemini API (무료 등급) |
 | 서비스 | FastAPI, React, TypeScript, Vite, Tailwind CSS |
 | 지도·차트 | Leaflet, Recharts |
 | 상태·이력 | SQLite, LangGraph 체크포인트 |
@@ -332,7 +332,7 @@ React 화면과 FastAPI를 연결하고, LangGraph로 **질문 해석·자료 �
 | 제도 근거 | 「고독사 예방 및 관리에 관한 법률」의 고독사 위험자 발굴, 「사회보장급여의 이용·제공 및 수급권자 발굴에 관한 법률」의 위기가구 발굴 업무를 돕는 도구입니다 |
 | 개인정보 | 통신·카드 집계 자료와 공공 통계만 씁니다. 개인을 식별하거나 명단을 만들지 않고, 현장 확인 결과도 건수만 받습니다(10 미만은 숨김) |
 | 운영 부담 | 정기 감시 한 번에 도시마다 검토 배정 2건(검토 예산 K), 추석 7일 전 후보는 도시당 13~15건(Level 3 4건) |
-| 비용 | LLM 없이도 규칙 계산과 템플릿 보고서가 돌아갑니다. Claude를 쓰면 조사 1회 약 $0.03~0.06 ([LLM 활용](docs/LLM_사용.md)) |
+| 비용 | LLM 없이도 규칙 계산과 템플릿 보고서가 돌아갑니다. LLM은 Gemini 무료 등급만 써서 실제 청구가 없고, 무료 한도를 넘으면 규칙·템플릿으로 대신합니다 ([LLM 활용](docs/LLM_사용.md)) |
 
 ### 데이터로 계속 고치는 방법
 
@@ -406,7 +406,7 @@ uv run uvicorn api.main:app --reload --workers 1
 
 </details>
 
-Claude를 연결하려면 `ANTHROPIC_API_KEY`를 설정하고 `LINKRADAR_LLM=claude`로 실행합니다. LLM 없이도 규칙 계산과 템플릿 보고서를 사용할 수 있습니다. 원본 파일명·전체 분석 재현은 [재현 안내](REPRODUCE.md), API 설정은 [API 명세](docs/API_명세.md)에 있습니다.
+LLM(Gemini 무료 등급)을 연결하려면 `.env`에 `GEMINI_API_KEY`를 넣고 `LINKRADAR_LLM=gemini`로 실행합니다. LLM 없이도 규칙 계산과 템플릿 보고서를 사용할 수 있습니다. 원본 파일명·전체 분석 재현은 [재현 안내](REPRODUCE.md), API 설정은 [API 명세](docs/API_명세.md)에 있습니다.
 
 ### 정적 배포 (Vercel)
 

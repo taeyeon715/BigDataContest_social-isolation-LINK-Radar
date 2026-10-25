@@ -14,5 +14,5 @@
 | `need_types.yaml` | 필요 유형 사전과 원인 유형 → 자원 매칭 |
 | `resource_collect.yaml` | 자원 수집 호출 한도·재시도 |
 | `models.yaml` | 기대 활동 모델 설정과 채택 결정 (채택 기준은 비교 전에 고정) |
-| `llm.yaml` | Claude 모델 ID·가격·자리별 프롬프트 판 |
+| `llm.yaml` | Gemini 모델 ID·가격(무료 등급)·자리별 프롬프트 판 |
 | `prompts/` | LLM 프롬프트 (파일 이름에 판 번호. 쓰는 판은 `llm.yaml`이 정함) |

@@ -71,7 +71,6 @@
 |---|---|
 | fastapi, starlette, pydantic, uvicorn, httpx | MIT / BSD-3-Clause |
 | langgraph, langgraph-checkpoint-sqlite | MIT |
-| anthropic | MIT |
 | duckdb | MIT |
 | pandas, numpy, scipy, scikit-learn, statsmodels | BSD-3-Clause |
 | pyarrow | Apache-2.0 |

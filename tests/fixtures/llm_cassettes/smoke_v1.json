@@ -1,94 +1,94 @@
 {
  "entries": {
-  "3db22a01e4b2870d45f5bc4827c2d0f9": {
-   "input_tokens": 4343,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 311,
-   "stop_reason": "end_turn",
-   "system_sha": "58c9f3213ffe",
-   "text": "{\"sentences\":[\"이 질문은 기타로 분류되어, 이미 제시된 후보와 근거 카드를 읽는 순서만 보충합니다.\",\"먼저 [EV-20250926-STR-32010350]와 [EV-20250926-ACC-32010350]를 함께 보면 C-20250926-001이 구조 근거와 접근성 근거가 겹친 후보임을 알 수 있고, C-20250926-002는 [EV-20250926-STR-32010630]와 [EV-20250926-ACC-32010630]로 접근성 근거가 약한 점을 확인하면 됩니다.\",\"C-20250926-003의 결제 이탈은 [EV-20250926-DEV]와 [EV-20250926-EXP]에 담겼고, 이 카드는 가정한 공개 시점으로 재생한 결과라는 한계를 함께 두고 읽어야 합니다.\"]}"
-  },
-  "446df87c00e3ce59c8ac619d197ede0e": {
-   "input_tokens": 3515,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 339,
+  "12651f7ea5bd11207441f20e5c163c26": {
+   "input_tokens": 1072,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 124,
    "stop_reason": "end_turn",
    "system_sha": "f3d34db91825",
-   "text": "{\"sentences\":[\"남면은 1인세대 비율 근거가 있고, 관측 거점까지 직선거리 근거가 함께 있어 Level 3 후보로 올랐다 [EV-20250926-STR-32010350] [EV-20250926-ACC-32010350].\",\"효자1동은 1인세대 비율 근거가 있으나 관측 거점까지 거리 근거는 공백이 약해 Level 2에 머문다 [EV-20250926-STR-32010630] [EV-20250926-ACC-32010630].\",\"춘천 가맹점 80대+ 생필품 결제는 평소보다 줄었고, 공휴일 기대값과 도시 공통요인으로 설명되지 않아 반증을 통과했다 [EV-20250926-DEV] [EV-20250926-EXP].\",\"이 이탈은 도시 단위 신호라 먼저 확인할 동에 붙여도 Level 2까지만 둔다 [EV-20250926-DEV].\"]}"
+   "text": "{\"sentences\": [\"강남 역삼1동의 일인세대 비율은 [EV-20251020-STR-11230640]에 해당한다.\", \"강남 논현1동의 일인세대 비율은 [EV-20251020-STR-11230520]에 해당한다.\", \"강남 대치4동의 일인세대 비율은 [EV-20251020-STR-11230630]에 해당한다.\"]}"
   },
-  "58f47219e3023d75497c1d605a124655": {
-   "input_tokens": 4278,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 285,
+  "41006a037a5915500e8543b62e7bded9": {
+   "input_tokens": 1152,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 209,
+   "stop_reason": "end_turn",
+   "system_sha": "efdd682dc8c2",
+   "text": "{\n  \"picks\": [\n    {\n      \"key\": \"HOLIDAY_RECOVERY|춘천|\",\n      \"why\": \"연휴 전후 결제 데이터의 변화 양상을 미리 파악하여 현장 확인 시 참고하기 위함이다.\"\n    },\n    {\n      \"key\": \"MEDICAL_ACCESS|춘천|32010350\",\n      \"why\": \"연휴 기간 의료 기관 접근성을 확인하여 대상자의 의료 공백 여부를 파악하기 위함이다.\"\n    },\n    {\n      \"key\": \"STAY_CHANGE|춘천|\",\n      \"why\": \"생활권 내 체류 인구 구성 변화를 확인하여 활동량 변동의 원인을 유추하기 위함이다.\"\n    }\n  ],\n  \"reason\": \"현장 확인 전 연휴 관련 접근 공백과 체류 변화를 파악하여 지원의 타당성을 높이고자 한다.\"\n}"
+  },
+  "4786ac3a180a3869da8fafc9eae7f470": {
+   "input_tokens": 2909,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 53,
    "stop_reason": "end_turn",
    "system_sha": "58c9f3213ffe",
-   "text": "{\"sentences\":[\"먼저 C-20250926-001 대응안의 기한인 연휴 전날까지를 기준으로, 관측 거점이 멀다는 근거 [EV-20250926-ACC-32010350]에 맞춰 전화 안부 상담부터 이어 보면 좋습니다.\",\"남면 행정복지센터는 자격 확인이 필요하다고 되어 있으니, 전화 안부 상담에서 확인된 내용을 바탕으로 센터 연계 자격을 따로 확인하는 순서가 자연스럽습니다.\",\"C-20250926-003은 도시 단위 이탈이라 먼저 확인할 동부터 같은 두 자원으로 안부를 묻되, 동별 결제 변화는 이 실행의 근거 카드로는 알 수 없음입니다.\"]}"
+   "text": "{\n  \"sentences\": [\n    \"남면 행정복지센터와 전화 안부 상담을 활용할 수 있습니다.\",\n    \"전화형이나 찾아가는 서비스를 먼저 확인한 뒤 방문 대상을 추립니다.\"\n  ]\n}"
   },
-  "6ab47f057efd34b2a26c5ceeffdabaa6": {
-   "input_tokens": 1648,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 193,
-   "stop_reason": "end_turn",
-   "system_sha": "efdd682dc8c2",
-   "text": "{\"picks\":[{\"key\":\"STAY_CHANGE|춘천|\",\"why\":\"먼저 볼 동이 속한 생활권에서 체류 인구 구성이 달라졌는지 현장 확인 전에 파악해 두면 방문 우선순위를 정하는 데 도움이 됩니다.\"}],\"reason\":\"목록에서 아직 확인하지 않은 질문은 체류 변화 하나뿐이며, 이탈 후보의 먼저 볼 동을 현장 확인 전에 보완하는 데 가장 유용합니다.\"}"
-  },
-  "a1024f1cc9f38c19412c75260f276b43": {
-   "input_tokens": 918,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 115,
-   "stop_reason": "end_turn",
-   "system_sha": "3013272173a8",
-   "text": "{\"tools\":[\"calc_heat_response\",\"calc_holiday_gap\"],\"reason\":\"춘천 고령층의 7~9월 카드결제를 추석 전 시점으로 보므로 폭염일 고령층 생필품 결제와 지난 연휴 전후 결제 변화가 설명에 가장 도움이 된다.\"}"
-  },
-  "a8a8eacda11557dab742f96043a910ed": {
-   "input_tokens": 2041,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 367,
-   "stop_reason": "end_turn",
-   "system_sha": "efdd682dc8c2",
-   "text": "{\"picks\":[{\"key\":\"HOLIDAY_RECOVERY|춘천|\",\"why\":\"연휴 중과 뒤에 결제가 평소 수준으로 돌아왔는지 알면 이탈 후보가 연휴 영향인지 현장 확인 전에 가늠할 수 있습니다.\"},{\"key\":\"MEDICAL_ACCESS|춘천|32010630\",\"why\":\"효자1동은 먼저 볼 동이면서 이탈 후보와 연결되어 있어 연휴 중 문을 여는 의료 자원이 가까운지 미리 알면 도움이 됩니다.\"},{\"key\":\"MEDICAL_ACCESS|춘천|32010350\",\"why\":\"남면도 먼저 볼 동이므로 연휴 동안의 의료 접근 공백 여부를 담당자가 미리 알아 두면 좋습니다.\"}],\"reason\":\"연휴 앞뒤 접근 공백과 회복 여부를 우선 확인하도록 골랐고, 체류 구성은 한도 때문에 제외했습니다.\"}"
-  },
-  "ae151d588890143e246370aadd87601e": {
-   "input_tokens": 1786,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 238,
-   "stop_reason": "end_turn",
-   "system_sha": "f3d34db91825",
-   "text": "{\"sentences\":[\"강남 역삼1동의 1인세대 비율은 구조 지표로, 시간에 따른 방향은 없습니다 [EV-20251020-STR-11230640].\",\"강남 논현1동과 대치4동의 1인세대 비율도 같은 구조 지표로 나란히 볼 수 있습니다 [EV-20251020-STR-11230520] [EV-20251020-STR-11230630].\",\"이번 카드에는 후보가 없어 동별 비교용 참고 자료로만 읽습니다.\",\"이 결과는 가짜 도구(stub) 고정값을 쓴 재생 분석이라 실제 분석 결과로 보지 않습니다.\"]}"
-  },
-  "b63b21a3f931c9219269c19d158170b9": {
-   "input_tokens": 3640,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 138,
+  "7dd3187c5b8ea72583611365c61c94de": {
+   "input_tokens": 812,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 89,
    "stop_reason": "end_turn",
    "system_sha": "8ffbd9cc93d2",
-   "text": "{\"route\":\"investigate\",\"request\":{\"city\":\"춘천\",\"metric\":\"카드결제\",\"group\":\"고령층\",\"age_min\":null,\"age_max\":null,\"sex\":null,\"time_of_day\":null,\"adm_names\":null,\"period\":\"추석 전\"},\"reason\":\"추석 전 춘천 고령층을 어디부터 확인할지 묻는 점검 질문이므로 investigate 로 분류한다.\"}"
+   "text": "{\"route\":\"investigate\",\"request\":{\"city\":\"춘천\",\"metric\":\"카드결제\",\"group\":\"고령층\",\"age_min\":null,\"age_max\":null,\"sex\":null,\"time_of_day\":null,\"adm_names\":null,\"period\":\"추석 전\"},\"reason\":\"추석 전에 춘천의 고령층을 어디부터 확인해야 하는지 묻는 조사 질문입니다.\"}"
   },
-  "d278885f33fa56efc29356cb8b9b6fe2": {
-   "input_tokens": 3733,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 249,
+  "9c305ffcd5c384d231667d398d0cbfc8": {
+   "input_tokens": 2500,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 221,
+   "stop_reason": "end_turn",
+   "system_sha": "f3d34db91825",
+   "text": "{\"sentences\": [\"춘천 남면의 1인세대 비율은 [EV-20250926-STR-32010350], 효자1동의 1인세대 비율은 [EV-20250926-STR-32010630], 퇴계동의 1인세대 비율은 [EV-20250926-STR-32010670]이다.\", \"춘천시 가맹점의 강원 거주 80대+ 생필품 결제는 평소 대비 감소하였다 [EV-20250926-DEV].\", \"춘천의 체류인구 중 60+ 비중은 [EV-20250926-MOB]이다.\", \"반증은 공휴일 기대값 및 도시 공통요인으로 설명되지 않아 통과되었다 [C-20250926-003].\"]}"
+  },
+  "9f8fe0fa0e9723ecfdfefd8d9368acbd": {
+   "input_tokens": 3134,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 35,
    "stop_reason": "end_turn",
    "system_sha": "58c9f3213ffe",
-   "text": "{\"sentences\":[\"남면 후보 C-20250926-001 은 1인세대 비율 근거 [EV-20250926-STR-32010350], 관측 거점까지 직선거리 근거 [EV-20250926-ACC-32010350], 추석 연휴를 앞둔 예정된 트리거가 함께 있어 Level 3 으로 매겨졌습니다.\",\"구조 근거와 접근성 근거가 모두 기준을 넘었고, 예정된 점검 트리거가 겹친 점이 이 등급의 이유입니다.\",\"접근성 근거는 현재 원장 기준이라 과거 당시 상황이 확인된 것은 아니라는 점을 함께 보셔야 합니다.\"]}"
+   "text": "{\n  \"sentences\": [\n    \"이번 실행의 근거 카드에 기록된 후보와 사실 관계를 참고하여 주시기 바랍니다.\"\n  ]\n}"
   },
-  "da2ae841255d76ea103e397502febe04": {
-   "input_tokens": 506,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 91,
+  "a85ddf23a1ede91365d034114ffc94b1": {
+   "input_tokens": 802,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 126,
+   "stop_reason": "end_turn",
+   "system_sha": "8ffbd9cc93d2",
+   "text": "{\n  \"route\": \"lookup\",\n  \"request\": {\n    \"city\": \"강남\",\n    \"metric\": \"1인세대비율\",\n    \"group\": null,\n    \"age_min\": null,\n    \"age_max\": null,\n    \"sex\": null,\n    \"time_of_day\": null,\n    \"adm_names\": null,\n    \"period\": null\n  },\n  \"reason\": \"강남 지역의 1인세대 비율 상위 동을 묻는 단순 조회 질문이다.\"\n}"
+  },
+  "b8b5cb1bd053188169ac061ef9848bfa": {
+   "input_tokens": 930,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 98,
+   "stop_reason": "end_turn",
+   "system_sha": "efdd682dc8c2",
+   "text": "{\n  \"picks\": [\n    {\n      \"key\": \"MEDICAL_ACCESS|춘천|32010630\",\n      \"why\": \"연휴 기간 인근의 비상 진료 기관과 약국 접근성을 미리 확인하여 공백을 방지합니다\"\n    }\n  ],\n  \"reason\": \"연휴 기간 의료 자원 접근성을 추가로 파악하여 대상자의 안전을 확보합니다\"\n}"
+  },
+  "bffa0f94b65669bfd432d1f29dd51970": {
+   "input_tokens": 144,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 35,
    "stop_reason": "end_turn",
    "system_sha": "c34b3c19421f",
-   "text": "{\"intent\":\"other\",\"reason\":\"담당자에게 전달할 한 줄 요약을 요청하는 것으로, 등급 근거나 자원 연결, 기간 비교, 자료 한계 중 어느 쪽에도 해당하지 않는다.\"}"
+   "text": "{\"intent\": \"other\", \"reason\": \"사용자가 질문에 대한 요약이나 전달용 형태를 요구하므로 그 밖의 분류에 해당한다.\"}"
   },
-  "da552e904774968ae28f99c212964097": {
-   "input_tokens": 3618,
-   "model": "claude-sonnet-5-5",
-   "output_tokens": 120,
+  "c272dcb8e289e3370514bd919c421f8e": {
+   "input_tokens": 2496,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 97,
    "stop_reason": "end_turn",
-   "system_sha": "8ffbd9cc93d2",
-   "text": "{\"route\":\"lookup\",\"request\":{\"city\":\"강남\",\"metric\":\"1인세대비율\",\"group\":null,\"age_min\":null,\"age_max\":null,\"sex\":null,\"time_of_day\":null,\"adm_names\":null,\"period\":null},\"reason\":\"강남의 1인세대 비율 상위 동 순위를 묻는 단순 조회 질문이다.\"}"
+   "system_sha": "58c9f3213ffe",
+   "text": "{\"sentences\": [\"후보 C-20250926-001 은 구조 취약성 상위 조건과 관측 거점까지 직선거리 조건 그리고 예정된 트리거 조건이 함께 있어서 Level 3 입니다 [EV-20250926-STR-32010350] [EV-20250926-ACC-32010350].\"]}"
+  },
+  "fa7fb32291a7219be92b586ece5d9c9d": {
+   "input_tokens": 429,
+   "model": "gemini-3.5-flash-lite",
+   "output_tokens": 40,
+   "stop_reason": "end_turn",
+   "system_sha": "3013272173a8",
+   "text": "{\"tools\": [\"calc_holiday_gap\"], \"reason\": \"추석 연휴 기간의 카드 결제 변화를 분석하기 위해 연휴 결제 격차 도구를 선택합니다.\"}"
   }
  },
- "recorded_at": "2026-10-14T05:32:17+00:00",
+ "recorded_at": "2026-10-25T14:46:01+00:00",
  "version": 1
 }

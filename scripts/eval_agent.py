@@ -1,4 +1,4 @@
-"""에이전트 품질 지표 표 (AG-08~10). 비용 0: 가짜 도구 + LLM 없음 / 가짜 LLM / 녹화한 Claude 응답 재생.
+"""에이전트 품질 지표 표 (AG-08~10). 비용 0: 가짜 도구 + LLM 없음 / 가짜 LLM / 녹화한 Gemini 응답 재생.
 
 실행: uv run python scripts/eval_agent.py [--llm none fake replay]
 - 골든 질문 20개: 경로·대상·끝점 정확도. 이어 묻기 골든 15개: 종류·상태 정확도
@@ -67,13 +67,13 @@ def main() -> int:
         if llm == "replay":
             path = "tests/fixtures/llm_cassettes/smoke_v1.json"
             if (ROOT / path).exists():
-                ms["claude(재생)"] = replay_metrics(path)
+                ms["gemini(재생)"] = replay_metrics(path)
             continue
         ms[llm] = run_golden(llm)["metrics"]
     print("## 품질 지표\n")
     print(table(ms))
-    if "claude(재생)" in ms:
-        m = ms["claude(재생)"]
+    if "gemini(재생)" in ms:
+        m = ms["gemini(재생)"]
         print(f"\n녹화 재생: 맞음 {m['replay_hits']} · 녹화에 없음 {m['replay_misses']} · "
               f"Guard 전에 뺀 이유 {m.get('dropped_reason_codes') or '-'}")
     print("\n## Guard 처치 전후 (G-11·G-06, 가짜 도구 + 가짜 LLM)\n")

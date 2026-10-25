@@ -7,7 +7,7 @@
 - LLM 경로 뒤집기(fake_flip_route): 낮추기는 무시, 올리기만 받음, llm_log 에 의견 차이 기록
 - LLM 에 보내는 질문의 개인정보 가리기, G-08 작은 칸을 비율의 분모에도
 - 대상 조건 보존, 틀린 등급·방향 설명(전체 그래프), 이중 부정,
-  Claude 초기화 실패 시 규칙·템플릿으로 진행
+  Gemini 초기화 실패 시 규칙·템플릿으로 진행
 요약 줄은 `pytest -s` 로 볼 수 있다 (예: "적대 문장 32개 중 32개 차단").
 """
 
@@ -23,7 +23,7 @@ import yaml
 from bigcontest.agent import guard as G
 from bigcontest.agent import nodes
 from bigcontest.agent.graph import Agent, build_graph
-from bigcontest.agent.llm import AnthropicLLM, sanitize_sentences
+from bigcontest.agent.llm import GeminiLLM, sanitize_sentences
 from bigcontest.agent.schemas import EvidenceCard, Report, ToolResult
 from bigcontest.agent.state import card_dict, initial_state, report_dict
 
@@ -167,7 +167,7 @@ def test_question_masked_before_llm():
     out = json.dumps({"route": "out_of_scope", "request": {k: None for k in (
         "city", "metric", "group", "age_min", "age_max", "sex", "time_of_day")}, "reason": "r"})
     client = FakeClient([out])
-    llm = AnthropicLLM(client=client)
+    llm = GeminiLLM(client=client)
     llm.classify(q, None)
     sent = client.requests[0]["messages"][0]["content"]
     assert "010-1234-5678" not in sent and "김철수" not in sent
@@ -312,13 +312,13 @@ def test_template_negation_exempt_but_double_negation_not(base):
 # ---------------------------------------------------------------- LLM 초기화 실패
 
 
-def test_claude_init_failure_falls_back(agent, monkeypatch):
+def test_gemini_init_failure_falls_back(agent, monkeypatch):
     import bigcontest.agent.llm as L
 
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr(L, "_api_key", lambda: None)
     st = agent.start("init-fail", "qa", "2025-09-26", question="이번 추석 전에 춘천 어르신 어디부터 확인해야 해?",
-                     llm="claude")
+                     llm="gemini")
     v = st["values"]
     assert st["waiting"] and v["route"] == "investigate"  # 규칙·템플릿으로 끝까지
     inits = [r for r in v["llm_log"] if r["slot"] == "init"]
@@ -326,7 +326,7 @@ def test_claude_init_failure_falls_back(agent, monkeypatch):
     assert "템플릿" in inits[0]["fallback"] and not inits[0]["ok"]
     assert v["report"]["narrative"] is None
     # 조회 경로도
-    st = agent.start("init-fail-2", "qa", AS_OF, question="강남 1인세대 비율 상위 동은?", llm="claude")
+    st = agent.start("init-fail-2", "qa", AS_OF, question="강남 1인세대 비율 상위 동은?", llm="gemini")
     assert st["values"]["path"][-1] == "answer"
 
 

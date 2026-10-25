@@ -13,7 +13,7 @@
 환경 변수
 - LINKRADAR_BACKEND: fake / real (기본 fake)
 - LINKRADAR_TOOLS: real 백엔드의 도구 real / stub (기본 real = 고정 dev 스냅샷의 실제 도구)
-- LINKRADAR_LLM: real 백엔드의 LLM none / claude / 가짜 변형 이름 (기본 none = 규칙·템플릿)
+- LINKRADAR_LLM: real 백엔드의 LLM none / gemini / 가짜 변형 이름 (기본 none = 규칙·템플릿)
 - LINKRADAR_STATE_DB: SQLite 경로 (기본 fake 는 data/state/linkradar_fake.sqlite, real 은 data/state/linkradar.sqlite).
   real 의 그래프 체크포인트는 같은 폴더의 <이름>.agent.sqlite
 - LINKRADAR_FAKE_DELAY: 가짜 실행이 끝나는 데 걸리는 초 (기본 1.5). real 에서 0 이면 그래프를 요청 안에서 바로 돌림
