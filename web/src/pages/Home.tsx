@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError, CITIES, type CandidateLevel, type City, type HomeCandidate, type HomeResponse } from '../api'
 import { DongMap, LEVEL_FILL, LevelLegend } from '../components/DongMap'
-import { Card, ErrorBox, LevelBadge, Loading, TypeChip } from '../components/ui'
+import { ErrorBox, LevelBadge, Loading } from '../components/ui'
 import { PRESETS } from '../lib/filters'
+import { LIMIT_MESSAGE } from '../lib/geminiChat'
 import {
   DATA_FROM,
   DATA_TO,
   EXAMPLE_QUESTIONS,
   STATIC_MODE,
-  loadHome,
-  loadIndex,
   askGemini,
   geminiLimited,
+  loadHome,
+  loadIndex,
   localAnswer,
   markGeminiLimited,
   sameDayLastData,
@@ -20,10 +21,10 @@ import {
   todayKST,
   upcomingEvents,
 } from '../lib/home'
-import { LIMIT_MESSAGE } from '../lib/geminiChat'
-import { LEVEL_LEGEND, LEVEL_NAME, plainText } from '../lib/labels'
+import { LEVEL_NAME, plainText } from '../lib/labels'
 
-// 첫 화면: ① 요약 → ② 먼저 볼 곳 지도 → ③ 근거 → ④ 질문. '오늘 기준'은 작년 같은 날의 결과다 (자료는 2025년 7~12월).
+// 첫 화면: ① 요약 → ② 먼저 볼 곳 지도 → ③ 근거 → ④ 에이전트에게 묻기.
+// '오늘 기준'은 작년 같은 날의 결과다 (자료는 2025년 7~12월).
 type Loaded = { as_of: string; data: Partial<Record<City, HomeResponse>>; error: string | null }
 
 const RANK: Record<string, number> = { 'Level 3': 3, 'Level 2': 2, '판단 보류': 1, 'Level 1': 1, 'Level 0': 0 }
@@ -49,6 +50,25 @@ function l3Names(h: HomeResponse | undefined): string[] {
   return h ? h.areas.filter((a) => a.level === 'Level 3').map((a) => a.adm_nm) : []
 }
 
+/** ①~④ 섹션: 번호 배지 + 큰 굵은 제목 + 한 줄 설명 */
+function Section({ no, title, desc, right, children, testId }: { no: string; title: string; desc?: string; right?: ReactNode; children: ReactNode; testId?: string }) {
+  return (
+    <section className="card p-6 sm:p-8" data-testid={testId}>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-black text-white">{no}</span>
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">{title}</h2>
+            {desc && <p className="mt-0.5 text-sm text-ink-600">{desc}</p>}
+          </div>
+        </div>
+        {right}
+      </header>
+      {children}
+    </section>
+  )
+}
+
 export default function Home() {
   const [params, setParams] = useSearchParams()
   const today = todayKST()
@@ -70,19 +90,23 @@ export default function Home() {
     setParams(p, { replace: true })
   }
   const events = upcomingEvents(today)
+  const pill = (on: boolean) => `rounded-pill px-4 py-1.5 text-sm font-semibold transition ${on ? 'bg-ink-900 text-white shadow-card' : 'bg-white/70 text-ink-900 hover:bg-white'}`
 
   return (
     <>
-      <div className="bg-hero px-4 pb-24 pt-8 text-white sm:px-6">
-        <div className="mx-auto flex max-w-[1240px] flex-col gap-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h1 className="text-2xl font-bold">한눈에 보기</h1>
-            <div className="text-sm" data-testid="basis-line">
+      <div className="bg-hero px-4 pb-28 pt-10 sm:px-6">
+        <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-brand-700">LINK-Radar · 사회적 고립 예방 에이전트</div>
+              <h1 className="mt-1 text-4xl font-black tracking-tight text-ink-900">한눈에 보기</h1>
+            </div>
+            <div className="rounded-pill bg-white/70 px-4 py-2 text-sm font-semibold text-ink-900" data-testid="basis-line">
               {explicit ? (
                 <>기준일 {as_of} 결과</>
               ) : todayData ? (
                 <>
-                  오늘 {today} · 작년 같은 날({todayData}) 기준 결과{as_of !== todayData ? ` (가장 가까운 계산일 ${as_of})` : ''}
+                  오늘 {today} · 작년 같은 날({todayData}) 기준{as_of !== todayData ? ` · 계산일 ${as_of}` : ''}
                 </>
               ) : (
                 <>오늘 {today} · 작년 같은 시기 자료가 없어 마지막 날({as_of}) 결과</>
@@ -90,28 +114,28 @@ export default function Home() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button className={`rounded-pill px-3 py-1 text-sm font-semibold ${!explicit ? 'bg-white text-brand-700' : 'border border-white/70'}`} onClick={() => set({ as_of: null })}>
+            <button className={pill(!explicit)} onClick={() => set({ as_of: null })}>
               오늘 기준
             </button>
             {PRESETS.map((p) => (
-              <button key={p.label} className={`rounded-pill px-3 py-1 text-sm ${explicit === p.as_of ? 'bg-white text-brand-700' : 'border border-white/70 hover:bg-ink-900/30'}`} onClick={() => set({ as_of: p.as_of })}>
+              <button key={p.label} className={pill(explicit === p.as_of)} onClick={() => set({ as_of: p.as_of })}>
                 {p.label}
               </button>
             ))}
             {STATIC_MODE ? (
-              <select aria-label="기준일" className="rounded-md px-2 py-1 text-sm text-ink-900" value={as_of} onChange={(e) => set({ as_of: e.target.value })}>
+              <select aria-label="기준일" className="rounded-pill border-0 bg-white/70 px-3 py-1.5 text-sm font-semibold text-ink-900" value={as_of} onChange={(e) => set({ as_of: e.target.value })}>
                 {(dates ?? []).map((d) => (
                   <option key={d}>{d}</option>
                 ))}
               </select>
             ) : (
-              <input type="date" aria-label="기준일" className="rounded-md px-2 py-1 text-sm text-ink-900" min={DATA_FROM} max={DATA_TO} value={as_of} onChange={(e) => e.target.value && set({ as_of: e.target.value })} />
+              <input type="date" aria-label="기준일" className="rounded-pill border-0 bg-white/70 px-3 py-1.5 text-sm font-semibold text-ink-900" min={DATA_FROM} max={DATA_TO} value={as_of} onChange={(e) => e.target.value && set({ as_of: e.target.value })} />
             )}
           </div>
           <LevelGuide />
         </div>
       </div>
-      <div className="mx-auto -mt-16 flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-10 sm:px-6">
+      <div className="mx-auto -mt-16 flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 sm:px-6">
         {ready ? <Body as_of={as_of} city={city} setCity={(c) => set({ city: c })} events={events} goDate={(d) => set({ as_of: d })} /> : <Loading />}
       </div>
     </>
@@ -119,30 +143,58 @@ export default function Home() {
 }
 
 const GUIDE: { level: CandidateLevel; todo: string }[] = [
-  { level: 'Level 3', todo: '연휴·계절 점검 시기에 행동 신호 2개 이상 + 공공 자료 확인. 기존 돌봄 명단에서 먼저 현장 확인' },
-  { level: 'Level 2', todo: '동을 가리키는 행동 신호 1개, 또는 다른 원인으로 설명되지 않는 결제 변화. 담당자가 근거를 보고 결정' },
-  { level: 'Level 1', todo: '신호가 약하거나 다른 원인으로 설명됨. 다음 기준일과 비교' },
+  { level: 'Level 3', todo: '점검 시기 + 행동 신호 2개 + 공공 자료 확인. 먼저 현장 확인' },
+  { level: 'Level 2', todo: '행동 신호 1개. 담당자가 근거를 보고 결정' },
+  { level: 'Level 1', todo: '신호가 약하거나 다른 원인. 다음 기준일과 비교' },
   { level: 'Level 0', todo: '점검 시기가 아님. 정기 모니터링' },
-  { level: '판단 보류', todo: '필수 자료가 없거나 다른 원인 확인이 끝나지 않음. 자료를 더 모아 다시 판단' },
+  { level: '판단 보류', todo: '자료가 부족함. 더 모아 다시 판단' },
 ]
 
 /** 맨 위 등급 설명: 요약의 'Level 3 n개 동'을 읽는 법 */
 function LevelGuide() {
   return (
-    <div className="rounded-2xl bg-white/70 p-4" data-testid="level-guide">
-      <div className="mb-2 text-sm font-bold text-ink-900">등급 읽는 법 · 위험 점수가 아니라 먼저 확인할 순서입니다</div>
-      <ul className="grid gap-2 text-xs text-ink-800 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="rounded-card bg-white/75 p-5 backdrop-blur-sm" data-testid="level-guide">
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-lg font-extrabold text-ink-900">등급 읽는 법</span>
+        <span className="text-sm text-ink-600">위험 점수가 아니라 먼저 확인할 순서입니다</span>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {GUIDE.map((g) => (
-          <li key={g.level} className="flex flex-col gap-1">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm" style={{ background: LEVEL_FILL[g.level] }} />
-              <b className="text-ink-900">{g.level}</b>
-              {g.level !== '판단 보류' && <span>{LEVEL_NAME[g.level]}</span>}
+          <li key={g.level} className="flex gap-3 rounded-xl bg-white p-3">
+            <span className="w-1.5 shrink-0 rounded-full" style={{ background: LEVEL_FILL[g.level] }} />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-base font-extrabold text-ink-900">
+                {g.level}
+                {g.level !== '판단 보류' && <span className="ml-1.5 text-sm font-bold text-ink-600">{LEVEL_NAME[g.level]}</span>}
+              </span>
+              <span className="text-xs leading-relaxed text-ink-600">{g.todo}</span>
             </span>
-            <span>{g.todo}</span>
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** 연휴 주의 문장: 첫 줄은 제목, 나머지는 '근거·할 일·관측 한계' 칸 */
+function WatchBox({ lines }: { lines: string[] }) {
+  const [head, ...rest] = lines
+  const i = head.indexOf(': ')
+  return (
+    <div className="mt-6 rounded-2xl border-l-4 border-brand-500 bg-brand-50 p-5" data-testid="home-watch">
+      <div className="text-sm font-bold text-brand-700">{i > 0 ? head.slice(0, i) : head}</div>
+      {i > 0 && <div className="mt-1 text-lg font-extrabold text-ink-900">{plainText(head.slice(i + 2))}</div>}
+      <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[5.5rem_1fr]">
+        {rest.map((l) => {
+          const j = l.indexOf(': ')
+          return (
+            <div key={l} className="contents">
+              <dt className="font-bold text-ink-800">{j > 0 ? l.slice(0, j) : ''}</dt>
+              <dd className="text-ink-800">{plainText(j > 0 ? l.slice(j + 2) : l)}</dd>
+            </div>
+          )
+        })}
+      </dl>
     </div>
   )
 }
@@ -151,13 +203,15 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
   const h = useHome(as_of)
   const home = h.data[city]
   const [sel, setSel] = useState<string | null>(null)
-  useEffect(() => setSel(null), [as_of, city])
+  useEffect(() => {
+    setSel(null)
+  }, [as_of, city])
   const picked = useMemo(() => {
     if (!home) return [] as HomeCandidate[]
     const first = home.areas.filter((a) => a.level || a.deviation_first)
       .sort((a, b) => (RANK[b.level ?? ''] ?? -1) - (RANK[a.level ?? ''] ?? -1))[0]?.adm_cd
     const adm = sel ?? first
-    if (!adm) return home.candidates.filter((c) => !c.adm_cd)  // 도시 단위 후보 (카드 이탈 경보 등)
+    if (!adm) return home.candidates.filter((c) => !c.adm_cd) // 도시 단위 후보 (카드 이탈 경보 등)
     return home.candidates.filter((c) => c.adm_cd === adm || c.check_first_adm.includes(adm))
   }, [home, sel])
   if (h.error) return <ErrorBox error={new ApiError(0, 'LOAD_FAILED', h.error)} />
@@ -167,36 +221,51 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
     .sort((a, b) => (RANK[b.level ?? ''] ?? -1) - (RANK[a.level ?? ''] ?? -1))
   const anyL3 = CITIES.some((c) => l3Names(h.data[c]).length > 0)
   const next = events.find((e) => e.analog)
+  const placeOf = (c: HomeCandidate | undefined) => c?.adm_nm ?? (c ? `${city} 전체` : city)
 
   return (
     <>
       {/* ① 요약 */}
-      <Card title="① 요약">
-        <div className="grid gap-4 md:grid-cols-3" data-testid="home-summary">
+      <Section no="1" title="요약" desc="두 도시에서 먼저 볼 동과 다가오는 일정" testId="home-summary-card">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1.1fr]" data-testid="home-summary">
           {CITIES.map((c) => {
             const d = h.data[c]
             const names = l3Names(d)
+            const on = c === city
             return (
-              <button key={c} className={`rounded-2xl border p-4 text-left transition ${c === city ? 'border-brand-500 bg-brand-50' : 'border-line hover:border-brand-400'}`} onClick={() => setCity(c)}>
-                <div className="text-sm font-bold text-ink-900">{c}</div>
-                <div className="mt-1 text-2xl font-black text-ink-900">Level 3 {names.length}개 동</div>
-                <div className="text-xs text-ink-600">Level 2 {d?.summary.counts['Level 2'] ?? 0} · 판단 보류 {d?.summary.counts['판단 보류'] ?? 0}</div>
-                <div className="mt-2 text-sm text-ink-800">{names.length ? names.join(' · ') : '먼저 볼 동(Level 3) 없음'}</div>
+              <button key={c} className={`rounded-2xl border-2 p-5 text-left transition ${on ? 'border-brand-500 bg-brand-50' : 'border-line hover:border-brand-400'}`} onClick={() => setCity(c)}>
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-extrabold text-ink-900">{c}</span>
+                  {on && <span className="chip bg-brand-600 text-white">지도에 표시 중</span>}
+                </div>
+                <div className="mt-3 text-sm font-bold text-ink-600">Level 3 먼저 볼 동</div>
+                <div className="text-5xl font-black leading-tight text-ink-900">
+                  {names.length}
+                  <span className="ml-1 text-xl font-extrabold">개 동</span>
+                </div>
+                <div className="mt-1 text-sm text-ink-600">
+                  Level 2 {d?.summary.counts['Level 2'] ?? 0}건 · 판단 보류 {d?.summary.counts['판단 보류'] ?? 0}건
+                </div>
+                <div className="mt-3 min-h-[1.5rem] text-sm font-semibold text-ink-900">{names.length ? names.join(' · ') : '먼저 볼 동 없음'}</div>
               </button>
             )
           })}
-          <div className="rounded-2xl border border-line p-4">
-            <div className="text-sm font-bold text-ink-900">다가오는 일정</div>
-            <ul className="mt-2 flex flex-col gap-2 text-sm">
+          <div className="rounded-2xl bg-canvas p-5">
+            <div className="text-lg font-extrabold text-ink-900">다가오는 일정</div>
+            <ul className="mt-3 flex flex-col gap-3">
               {events.slice(0, 3).map((e) => (
-                <li key={e.name}>
-                  <span className="font-semibold">{e.name}</span> D-{e.dDay} ({e.start.slice(5).replace('-', '/')}~{e.end.slice(5).replace('-', '/')})
+                <li key={e.name} className="flex items-center justify-between gap-2">
+                  <span>
+                    <span className="mr-2 rounded-lg bg-white px-2 py-0.5 text-sm font-black text-brand-700">D-{e.dDay}</span>
+                    <span className="font-bold text-ink-900">{e.name}</span>
+                    <span className="ml-1 text-xs text-ink-600">{e.start.slice(5).replace('-', '/')}~{e.end.slice(5).replace('-', '/')}</span>
+                  </span>
                   {e.analog ? (
-                    <button className="ml-2 text-xs text-brand-700 underline" onClick={() => goDate(e.analog!)}>
-                      작년 이맘때 보기
+                    <button className="shrink-0 text-xs font-bold text-brand-700 hover:underline" onClick={() => goDate(e.analog!)}>
+                      작년 이맘때 →
                     </button>
                   ) : (
-                    <span className="ml-2 text-xs text-ink-600">작년 같은 시기 자료 없음</span>
+                    <span className="shrink-0 text-xs text-ink-400">작년 자료 없음</span>
                   )}
                 </li>
               ))}
@@ -204,66 +273,68 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
           </div>
         </div>
         {!anyL3 && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-brand-50 p-4 text-sm text-ink-900" data-testid="home-next">
-            <span>이 기준일에는 두 도시 모두 먼저 볼 동(Level 3)이 없습니다.{next ? ` 다가오는 ${next.name}(D-${next.dDay})에 대비해 작년 같은 시기 결과를 보세요.` : ''}</span>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ink-900 p-5 text-white" data-testid="home-next">
+            <span className="text-base font-semibold">
+              이 기준일에는 두 도시 모두 먼저 볼 동이 없습니다.{next ? ` ${next.name}(D-${next.dDay})에 대비해 작년 같은 시기를 보세요.` : ''}
+            </span>
             {next && (
-              <button className="btn-primary px-4" onClick={() => goDate(next.analog!)}>
+              <button className="rounded-pill bg-white px-5 py-2 text-sm font-bold text-ink-900 hover:bg-brand-50" onClick={() => goDate(next.analog!)}>
                 작년 {next.analog!.slice(5).replace('-', '/')} 결과 보기
               </button>
             )}
           </div>
         )}
-        {home.summary.holiday_watch.length > 0 && (
-          <ul className="mt-4 flex flex-col gap-1 rounded-xl bg-canvas p-4 text-sm text-ink-800" data-testid="home-watch">
-            {home.summary.holiday_watch.map((l) => (
-              <li key={l}>{plainText(l)}</li>
-            ))}
-          </ul>
-        )}
-        {home.summary.triggers.length > 0 && <div className="mt-3 text-xs text-ink-600">이 기준일의 점검 시점: {home.summary.triggers.map((t) => t.name).join(' · ')}</div>}
-      </Card>
+        {home.summary.holiday_watch.length > 0 && <WatchBox lines={home.summary.holiday_watch} />}
+      </Section>
 
       {/* ② 먼저 볼 곳 지도 */}
-      <Card title={`② 먼저 볼 곳 · ${city}`}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <Section
+        no="2"
+        title={`먼저 볼 곳 · ${city}`}
+        desc="동을 누르면 아래에 근거가 열립니다"
+        right={
           <div className="flex rounded-pill bg-canvas p-1" role="group" aria-label="도시">
             {CITIES.map((c) => (
-              <button key={c} className={`rounded-pill px-4 py-1 text-sm font-semibold ${c === city ? 'bg-brand-600 text-white' : 'text-ink-800'}`} onClick={() => setCity(c)} aria-pressed={c === city}>
+              <button key={c} className={`rounded-pill px-5 py-1.5 text-sm font-bold ${c === city ? 'bg-brand-600 text-white' : 'text-ink-800'}`} onClick={() => setCity(c)} aria-pressed={c === city}>
                 {c}
               </button>
             ))}
           </div>
-          <LevelLegend />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="h-[460px] overflow-hidden rounded-2xl border border-line" data-testid="home-map">
+        }
+      >
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="h-[480px] overflow-hidden rounded-2xl border border-line" data-testid="home-map">
             <DongMap city={city} areas={home.areas} selected={sel} onSelect={setSel} />
           </div>
-          <ol className="flex max-h-[460px] flex-col gap-2 overflow-y-auto" data-testid="home-rank">
-            {ranked.length === 0 && (
-              <li className="text-sm text-ink-600">
-                이 기준일에는 동을 가리키는 후보가 없습니다.{home.candidates.length > 0 ? ' 아래 근거에 도시 단위 후보를 보여 줍니다.' : ''}
-              </li>
-            )}
-            {ranked.map((a, i) => (
-              <li key={a.adm_cd}>
-                <button className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${sel === a.adm_cd ? 'border-brand-500 bg-brand-50' : 'border-line hover:bg-canvas'}`} onClick={() => setSel(a.adm_cd)}>
-                  <span>
-                    {i + 1}. {a.adm_nm}
-                  </span>
-                  {a.level ? <LevelBadge level={a.level} /> : <span className="chip bg-deviation-soft text-deviation-ink">이탈 경보 먼저 볼 동</span>}
-                </button>
-              </li>
-            ))}
-          </ol>
+          <div className="flex flex-col gap-3">
+            <div className="text-sm font-bold text-ink-600">확인 순서</div>
+            <ol className="flex max-h-[448px] flex-col gap-2 overflow-y-auto pr-1" data-testid="home-rank">
+              {ranked.length === 0 && (
+                <li className="rounded-xl bg-canvas p-4 text-sm text-ink-600">
+                  동을 가리키는 후보가 없습니다.{home.candidates.length > 0 ? ' 아래 근거에 도시 단위 후보를 보여 줍니다.' : ''}
+                </li>
+              )}
+              {ranked.map((a, i) => (
+                <li key={a.adm_cd}>
+                  <button className={`flex w-full items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left ${sel === a.adm_cd ? 'border-brand-500 bg-brand-50' : 'border-transparent bg-canvas hover:border-line'}`} onClick={() => setSel(a.adm_cd)}>
+                    <span className="w-6 text-center text-sm font-black text-ink-400">{i + 1}</span>
+                    <span className="flex-1 text-base font-bold text-ink-900">{a.adm_nm}</span>
+                    {a.level ? <LevelBadge level={a.level} /> : <span className="chip bg-deviation-soft text-deviation-ink">이탈 경보</span>}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
-        <div className="mt-3 text-xs text-ink-600">{LEVEL_LEGEND} 개인이나 동네가 위험하다는 뜻이 아닙니다.</div>
-      </Card>
+        <div className="mt-4">
+          <LevelLegend />
+        </div>
+      </Section>
 
       {/* ③ 근거 */}
-      <Card title="③ 근거">
+      <Section no="3" title={`근거 · ${placeOf(picked[0])}`} desc="왜 이 등급인지, 담당자가 할 일, 연결할 수 있는 곳">
         {picked.length === 0 ? (
-          <div className="text-sm text-ink-600">지도나 목록에서 동을 고르면 그 동의 근거가 보입니다.</div>
+          <div className="rounded-xl bg-canvas p-5 text-sm text-ink-600">지도나 목록에서 동을 고르면 그 동의 근거가 보입니다.</div>
         ) : (
           <div className="flex flex-col gap-4" data-testid="home-evidence">
             {picked.map((c) => (
@@ -271,127 +342,235 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
             ))}
           </div>
         )}
-      </Card>
+      </Section>
 
-      {/* ④ 질문 */}
-      <Chat home={home} picked={picked[0] ?? null} as_of={as_of} city={city} />
+      {/* ④ 에이전트에게 묻기 */}
+      <AgentChat home={home} picked={picked[0] ?? null} as_of={as_of} city={city} place={placeOf(picked[0])} />
     </>
+  )
+}
+
+function Fact({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-canvas px-4 py-3">
+      <div className="text-xs font-bold text-ink-600">{label}</div>
+      <div className="mt-0.5 text-base font-extrabold text-ink-900">{value}</div>
+    </div>
   )
 }
 
 function EvidenceCard({ c, city, as_of }: { c: HomeCandidate; city: City; as_of: string }) {
   return (
-    <div className="rounded-2xl border border-line p-4">
+    <article className="rounded-2xl border border-line p-5">
       <div className="flex flex-wrap items-center gap-2">
         <LevelBadge level={c.candidate_level} withName />
-        <TypeChip type={c.candidate_type} />
-        <span className="font-bold text-ink-900">{c.adm_nm ?? `${city} 전체`}</span>
-        <span className="text-sm text-ink-600">{c.group ?? c.analysis_cohort}</span>
-        {c.selected_for_review && <span className="chip bg-brand-50 text-brand-700">이번 검토 배정 {c.queue_rank}순위</span>}
+        <span className="text-xl font-extrabold text-ink-900">{c.adm_nm ?? `${city} 전체`}</span>
+        <span className="text-base font-semibold text-ink-600">{c.group ?? c.analysis_cohort}</span>
+        <span className="chip bg-canvas text-ink-600">{c.candidate_type === 'scheduled_access_review' ? '예정된 점검' : '예상 밖 이탈'}</span>
+        {c.selected_for_review && <span className="chip bg-brand-50 text-brand-700">이번 검토 {c.queue_rank}순위</span>}
       </div>
-      <p className="mt-2 text-sm text-ink-800">{plainText(c.level_reason ?? '')}</p>
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-600">
-        <span>할 일: {c.response_type ?? '—'}</span>
-        <span>근거 신뢰도: {c.evidence_confidence ?? '—'}</span>
-        {c.input_status !== '충족' && <span>빠진 근거: {c.missing_inputs.join(', ')}</span>}
-        {c.counter_reason && !(c.level_reason ?? '').includes(c.counter_reason) && <span>다른 원인 확인: {plainText(c.counter_reason)}</span>}
+      <p className="mt-3 text-base leading-relaxed text-ink-800">{plainText(c.level_reason ?? '')}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <Fact label="담당자가 할 일" value={c.response_type ?? '—'} />
+        <Fact label="근거 신뢰도" value={c.evidence_confidence ?? '—'} />
+        <Fact label="빠진 근거" value={c.input_status === '충족' ? '없음' : c.missing_inputs.join(', ')} />
       </div>
+      {c.counter_reason && !(c.level_reason ?? '').includes(c.counter_reason) && <p className="mt-3 text-sm text-ink-600">다른 원인 확인: {plainText(c.counter_reason)}</p>}
       {c.resources.length > 0 && (
-        <div className="mt-3">
-          <div className="text-xs font-semibold text-ink-600">먼저 연결할 수 있는 곳</div>
-          <ul className="mt-1 flex flex-wrap gap-2 text-sm">
+        <div className="mt-4">
+          <div className="text-sm font-bold text-ink-800">먼저 연결할 수 있는 곳</div>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-3">
             {c.resources.map((r) => (
-              <li key={r.name} className="rounded-xl bg-canvas px-3 py-1">
-                {r.name} <span className="text-xs text-ink-600">{r.resource_type}{r.distance_km != null ? ` · ${r.distance_km.toFixed(1)}km` : ''}{r.phone_based ? ' · 전화' : ''}</span>
+              <li key={r.name} className="rounded-xl border border-line px-4 py-3">
+                <div className="font-bold text-ink-900">{r.name}</div>
+                <div className="text-xs text-ink-600">
+                  {r.resource_type}
+                  {r.distance_km != null ? ` · ${r.distance_km.toFixed(1)}km` : ''}
+                  {r.phone_based ? ' · 전화' : ''}
+                </div>
               </li>
             ))}
           </ul>
         </div>
       )}
       {!STATIC_MODE && (
-        <Link to={`/candidates/${c.candidate_id}?as_of=${as_of}&city=${encodeURIComponent(city)}`} className="mt-3 inline-block text-sm font-semibold text-brand-700 underline">
+        <Link to={`/candidates/${c.candidate_id}?as_of=${as_of}&city=${encodeURIComponent(city)}`} className="mt-4 inline-block text-sm font-bold text-brand-700 hover:underline">
           후보 상세·조사 열기 →
         </Link>
       )}
-    </div>
+    </article>
   )
 }
 
-type Msg = { who: 'me' | 'bot'; lines: string[]; note?: string }
+// ---- ④ 에이전트에게 묻기: 어떤 근거를 보고 답하는지 보이고, 답을 만드는 단계를 보여 준다
+type Msg = { who: 'me' | 'bot'; lines: string[]; note?: string; sources?: string[] }
+const STEPS = ['근거 카드 불러오는 중', '등급 이유·자원 확인 중', '답 작성 중']
 
-function Chat({ home, picked, as_of, city }: { home: HomeResponse; picked: HomeCandidate | null; as_of: string; city: City }) {
+function AgentAvatar({ small = false }: { small?: boolean }) {
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-card ${small ? 'h-8 w-8' : 'h-12 w-12'}`} aria-hidden>
+      <svg viewBox="0 0 24 24" className={small ? 'h-4 w-4' : 'h-6 w-6'} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4L12 3z" />
+        <path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z" />
+      </svg>
+    </span>
+  )
+}
+
+function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; picked: HomeCandidate | null; as_of: string; city: City; place: string }) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState(0)
   const [msgs, setMsgs] = useState<Msg[]>([])
-  useEffect(() => setMsgs([]), [as_of, city])
+  const end = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    setMsgs([])
+  }, [as_of, city])
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [msgs, busy])
+  useEffect(() => {
+    if (!busy) return
+    setStep(0)
+    const t = window.setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 900)
+    return () => window.clearInterval(t)
+  }, [busy])
+  const limited = STATIC_MODE && geminiLimited()
+  const engine = STATIC_MODE ? (limited ? '오늘 무료 한도 소진 · 근거 카드 답' : 'Gemini 2.5 Flash-Lite · 무료 등급') : '에이전트 질의응답 API'
+  const sources = [`${as_of} ${city}`, place, ...(picked?.candidate_level ? [picked.candidate_level] : []), ...(picked?.resources.length ? [`자원 ${picked.resources.length}곳`] : [])]
+
   const ask = async (question: string) => {
     if (!question.trim() || busy) return
     setMsgs((m) => [...m, { who: 'me', lines: [question] }])
     setQ('')
+    setBusy(true)
+    let bot: Msg
     if (STATIC_MODE) {
       if (geminiLimited()) {
-        setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: LIMIT_MESSAGE }])
-        return
-      }
-      setBusy(true)
-      const r = await askGemini({ question, as_of: home.as_of, city, adm_cd: picked?.adm_cd ?? picked?.check_first_adm[0] ?? null })
-      setBusy(false)
-      if (r.status === 'ok') {
-        setMsgs((m) => [...m, { who: 'bot', lines: r.lines, note: `Gemini(무료 등급)가 이 화면 근거만 보고 쓴 답${r.dropped ? ` · 근거에 없는 숫자가 든 문장 ${r.dropped}개 뺌` : ''}` }])
+        bot = { who: 'bot', lines: localAnswer(question, home, picked), note: LIMIT_MESSAGE }
       } else {
-        if (r.status === 'limit') markGeminiLimited()
-        setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: r.status === 'limit' ? r.message : `근거 카드에서 찾은 답 (${r.message})` }])
+        const r = await askGemini({ question, as_of: home.as_of, city, adm_cd: picked?.adm_cd ?? picked?.check_first_adm[0] ?? null })
+        if (r.status === 'ok') {
+          bot = { who: 'bot', lines: r.lines, sources, note: r.dropped ? `근거에 없는 숫자가 든 문장 ${r.dropped}개를 뺐습니다` : undefined }
+        } else {
+          if (r.status === 'limit') markGeminiLimited()
+          bot = { who: 'bot', lines: localAnswer(question, home, picked), sources, note: r.status === 'limit' ? r.message : `근거 카드에서 찾은 답 (${r.message})` }
+        }
       }
-      return
+    } else {
+      try {
+        const r = await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city })
+        const lines = r.status === 'answered' && r.answer ? r.answer.split('\n').filter(Boolean) : [r.abstain_reason ?? '답을 보류했습니다.', ...(r.needed_data.length ? [`필요한 자료: ${r.needed_data.join(', ')}`] : [])]
+        bot = { who: 'bot', lines, sources, note: '사실 검사를 통과한 문장만 보여 줍니다' }
+      } catch (e) {
+        bot = { who: 'bot', lines: localAnswer(question, home, picked), sources, note: `에이전트에 묻지 못해 근거 카드에서 찾은 답 (${e instanceof ApiError ? e.message : '오류'})` }
+      }
     }
-    setBusy(true)
-    try {
-      const r = await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city })
-      const lines = r.status === 'answered' && r.answer ? r.answer.split('\n').filter(Boolean) : [r.abstain_reason ?? '답을 보류했습니다.', ...(r.needed_data.length ? [`필요한 자료: ${r.needed_data.join(', ')}`] : [])]
-      setMsgs((m) => [...m, { who: 'bot', lines, note: '에이전트 답 (사실 검사 통과 문장만)' }])
-    } catch (e) {
-      setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: `에이전트에 묻지 못해 근거 카드에서 찾은 답 (${e instanceof ApiError ? e.message : '오류'})` }])
-    } finally {
-      setBusy(false)
-    }
+    setMsgs((m) => [...m, bot])
+    setBusy(false)
   }
+
   return (
-    <Card title="④ 질문하기">
-      <div className="flex max-h-[360px] flex-col gap-3 overflow-y-auto" data-testid="home-chat">
+    <section className="overflow-hidden rounded-card bg-ink-900 text-white shadow-lift" data-testid="home-chat-card">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 p-6 sm:px-8">
+        <div className="flex items-center gap-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-black">4</span>
+          <AgentAvatar />
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight">LINK 에이전트에게 묻기</h2>
+            <p className="mt-0.5 flex items-center gap-2 text-sm text-ink-200">
+              <span className={`inline-block h-2 w-2 rounded-full ${limited ? 'bg-ink-400' : 'animate-pulse bg-okay-soft'}`} />
+              {engine}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs" aria-label="참고하는 근거">
+          <span className="text-ink-200">참고하는 근거</span>
+          {sources.map((s) => (
+            <span key={s} className="rounded-pill bg-white/10 px-2.5 py-1 font-semibold">
+              {s}
+            </span>
+          ))}
+        </div>
+      </header>
+
+      <div className="flex max-h-[420px] min-h-[200px] flex-col gap-4 overflow-y-auto p-6 sm:px-8" data-testid="home-chat">
         {msgs.length === 0 && (
-          <div className="text-sm text-ink-600">
-            고른 동과 이 기준일 근거에 대해 물어보세요. 등급은 질문으로 바뀌지 않습니다.{STATIC_MODE ? ' 질문은 Gemini(무료 등급)로 보내지니 이름·연락처 같은 개인정보는 적지 마세요.' : ''}
+          <div className="flex gap-3">
+            <AgentAvatar small />
+            <div className="rounded-2xl rounded-tl-sm bg-white/10 px-4 py-3 text-sm leading-relaxed">
+              <b>{place}</b>의 근거 카드를 읽고 있어요. 왜 먼저 봐야 하는지, 어떤 자원을 연결할지 물어보세요.
+              <div className="mt-1 text-xs text-ink-200">
+                등급은 질문으로 바뀌지 않습니다.{STATIC_MODE ? ' 질문은 Gemini로 보내지니 이름·연락처 같은 개인정보는 적지 마세요.' : ''}
+              </div>
+            </div>
           </div>
         )}
-        {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${m.who === 'me' ? 'self-end bg-brand-600 text-white' : 'self-start bg-canvas text-ink-900'}`}>
-            {m.lines.map((l, j) => (
-              <div key={j}>{l}</div>
-            ))}
-            {m.note && <div className="mt-1 text-xs text-ink-600">{m.note}</div>}
+        {msgs.map((m, i) =>
+          m.who === 'me' ? (
+            <div key={i} className="max-w-[80%] self-end rounded-2xl rounded-tr-sm bg-brand-600 px-4 py-3 text-sm font-semibold">
+              {m.lines[0]}
+            </div>
+          ) : (
+            <div key={i} className="flex max-w-[90%] gap-3">
+              <AgentAvatar small />
+              <div className="rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm leading-relaxed text-ink-900">
+                {m.lines.map((l, j) => (
+                  <p key={j}>{l}</p>
+                ))}
+                {(m.sources?.length || m.note) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2 text-xs text-ink-600">
+                    {m.sources?.map((s) => (
+                      <span key={s} className="rounded-pill bg-canvas px-2 py-0.5 font-semibold">
+                        {s}
+                      </span>
+                    ))}
+                    {m.note && <span>{m.note}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          ),
+        )}
+        {busy && (
+          <div className="flex gap-3" role="status">
+            <AgentAvatar small />
+            <ol className="flex flex-col gap-1 rounded-2xl rounded-tl-sm bg-white/10 px-4 py-3 text-sm">
+              {STEPS.map((s, i) => (
+                <li key={s} className={`flex items-center gap-2 ${i <= step ? 'text-white' : 'text-ink-400'}`}>
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${i < step ? 'bg-okay-soft' : i === step ? 'animate-ping bg-brand-400' : 'bg-ink-400'}`} />
+                  {s}
+                </li>
+              ))}
+            </ol>
           </div>
-        ))}
-        {busy && <div className="self-start text-sm text-ink-600">근거를 확인하는 중…</div>}
+        )}
+        <div ref={end} />
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {EXAMPLE_QUESTIONS.map((x) => (
-          <button key={x} className="rounded-pill border border-line px-3 py-1 text-xs text-ink-800 hover:bg-canvas" onClick={() => ask(x)} disabled={busy}>
-            {x}
+
+      <div className="border-t border-white/10 p-6 sm:px-8">
+        <div className="mb-3 flex flex-wrap gap-2">
+          {EXAMPLE_QUESTIONS.map((x) => (
+            <button key={x} className="rounded-pill border border-white/20 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50" onClick={() => ask(x)} disabled={busy}>
+              {x}
+            </button>
+          ))}
+        </div>
+        <form
+          className="flex items-center gap-2 rounded-2xl bg-white p-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void ask(q)
+          }}
+        >
+          <input className="flex-1 bg-transparent px-3 py-2 text-base text-ink-900 outline-none placeholder:text-ink-400" placeholder={`예: ${place}은 왜 먼저 봐야 해?`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="질문" maxLength={300} />
+          <button className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40" disabled={busy || !q.trim()} aria-label="보내기">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
           </button>
-        ))}
+        </form>
       </div>
-      <form
-        className="mt-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void ask(q)
-        }}
-      >
-        <input className="field flex-1" placeholder="예: 효자2동은 왜 먼저 봐야 해?" value={q} onChange={(e) => setQ(e.target.value)} aria-label="질문" />
-        <button className="btn-primary px-5" disabled={busy || !q.trim()}>
-          보내기
-        </button>
-      </form>
-    </Card>
+    </section>
   )
 }

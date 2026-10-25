@@ -14,10 +14,10 @@ import { HUB_LABEL, HUB_NOTE, HUB_SHORT, candidatePlace, groupOf, isAdminOffice,
 import { useAsync } from '../lib/useAsync'
 
 // 구조 취약성 5단계 (한 색상 밝음 → 진함). 행동 신호는 테두리로 따로 표시.
-const STEPS = ['#DCE6FC', '#B1C6F5', '#7FA0EC', '#4F78DC', '#2449AE']
+const STEPS = ['#F2EBDA', '#DED6C1', '#CFC6B1', '#B7B09E', '#8A8270']
 const SIGNAL = {
-  '예정된 점검': { color: '#008F8A', dash: undefined as string | undefined, weight: 3.5 },
-  '이탈 경보(공유 맥락)': { color: '#7A5BC7', dash: '4 4', weight: 3 },
+  '예정된 점검': { color: '#5E5747', dash: undefined as string | undefined, weight: 3.5 },
+  '이탈 경보(공유 맥락)': { color: '#4A4438', dash: '4 4', weight: 3 },
   없음: { color: '#FFFFFF', dash: undefined as string | undefined, weight: 1 },
 } as const
 
@@ -29,7 +29,7 @@ function stepOf(v: number | null, sorted: number[]): number {
 
 const resourceIcon = L.divIcon({
   className: '',
-  html: '<div style="width:10px;height:10px;background:#14171F;border:2px solid #fff;border-radius:2px;box-shadow:0 0 0 1px #14171F"></div>',
+  html: '<div style="width:10px;height:10px;background:#2B2720;border:2px solid #fff;border-radius:2px;box-shadow:0 0 0 1px #2B2720"></div>',
   iconSize: [10, 10],
   iconAnchor: [5, 5],
 })
@@ -227,9 +227,9 @@ export default function MapPage() {
                         center={[c.lat, c.lon]}
                         radius={sel === a.adm_cd ? 15 : 11}
                         pathOptions={{
-                          fillColor: st < 0 ? '#F2F4F8' : STEPS[st],
+                          fillColor: st < 0 ? '#F4EFE3' : STEPS[st],
                           fillOpacity: 0.95,
-                          color: st < 0 && a.behavior_signal === '없음' ? '#8A91A3' : sig.color,
+                          color: st < 0 && a.behavior_signal === '없음' ? '#8E8777' : sig.color,
                           weight: sig.weight,
                           dashArray: st < 0 && a.behavior_signal === '없음' ? '3 3' : sig.dash,
                         }}
@@ -330,10 +330,10 @@ export default function MapPage() {
             <div className="h-72" role="img" aria-label="행정동별 1인세대 비율(가로)과 안부·관계 거점까지 직선거리(세로) 산점도. 같은 값은 행정동 표에 있습니다.">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
-                  <CartesianGrid stroke="#E3E7EF" />
-                  <XAxis type="number" dataKey="x" name="1인세대 비율" domain={['auto', 'auto']} tick={{ fontSize: 12, fill: '#4A5163' }}
-                    label={{ value: '1인세대 비율 (구조 취약성)', position: 'insideBottom', offset: -12, fontSize: 12, fill: '#4A5163' }} />
-                  <YAxis type="number" dataKey="y" name="직선거리" unit="km" tick={{ fontSize: 12, fill: '#4A5163' }} width={56} />
+                  <CartesianGrid stroke="#DED6C1" />
+                  <XAxis type="number" dataKey="x" name="1인세대 비율" domain={['auto', 'auto']} tick={{ fontSize: 12, fill: '#5C5649' }}
+                    label={{ value: '1인세대 비율 (구조 취약성)', position: 'insideBottom', offset: -12, fontSize: 12, fill: '#5C5649' }} />
+                  <YAxis type="number" dataKey="y" name="직선거리" unit="km" tick={{ fontSize: 12, fill: '#5C5649' }} width={56} />
                   <ZAxis range={[90, 90]} />
                   <Tooltip cursor={{ strokeDasharray: '3 3' }}
                     formatter={(v, n) => [n === '직선거리' ? `${v}km` : v, n]}
@@ -349,9 +349,9 @@ export default function MapPage() {
                       ) : null
                     }} />
                   <Legend verticalAlign="top" height={28} iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                  <Scatter name="예정된 점검" data={scatter('예정된 점검')} fill="#008F8A" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
-                  <Scatter name="이탈 경보(공유 맥락)" data={scatter('이탈 경보(공유 맥락)')} fill="#7A5BC7" stroke="#fff" strokeWidth={2} shape="diamond" isAnimationActive={false} />
-                  <Scatter name="신호 없음" data={scatter('없음')} fill="#8A91A3" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
+                  <Scatter name="예정된 점검" data={scatter('예정된 점검')} fill="#5E5747" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
+                  <Scatter name="이탈 경보(공유 맥락)" data={scatter('이탈 경보(공유 맥락)')} fill="#4A4438" stroke="#fff" strokeWidth={2} shape="diamond" isAnimationActive={false} />
+                  <Scatter name="신호 없음" data={scatter('없음')} fill="#8E8777" stroke="#fff" strokeWidth={2} isAnimationActive={false} />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>

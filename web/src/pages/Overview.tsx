@@ -11,7 +11,7 @@ import { followState, useFollowUps } from '../lib/followups'
 import { TYPE_LABEL, candidatePlace, daysBetween, groupOf, plainText } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
 
-const TYPE_COLOR: Record<CandidateType, string> = { scheduled_access_review: '#008F8A', unexpected_activity_deviation: '#7A5BC7' }
+const TYPE_COLOR: Record<CandidateType, string> = { scheduled_access_review: '#5E5747', unexpected_activity_deviation: '#9C9482' }
 
 /** 종류별 범위를 더한 전체 범위. 한 종류라도 범위가 없으면(null) 전체 범위도 없음 */
 function totalRange(o: OverviewResponse) {

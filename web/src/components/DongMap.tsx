@@ -9,13 +9,13 @@ import { CITY_CENTER } from '../map/centroids'
 // 먼저 볼 곳 지도: 행정동 경계를 그 동 후보의 가장 높은 등급 색으로 칠한다 (척도는 Level 하나, 위험 점수 아님).
 // 경계: vuski/admdongkor ver20250701 (CC BY 4.0, 원천 통계청 SGIS), public/data/dong_boundaries.json
 export const LEVEL_FILL: Record<CandidateLevel, string> = {
-  'Level 3': '#1F5FA8',
-  'Level 2': '#5E9BD9',
-  'Level 1': '#B9D3F0',
-  'Level 0': '#DCE3EE',
-  '판단 보류': '#9AA1AE',
+  'Level 3': '#5E5747',
+  'Level 2': '#9C9482',
+  'Level 1': '#CFC6B1',
+  'Level 0': '#EBE2CC',
+  '판단 보류': '#B7B09E',
 }
-const NONE_FILL = '#F4F6FA'
+const NONE_FILL = '#FAF7EF'
 const ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · 행정동 경계 <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noreferrer">vuski/admdongkor</a> (통계청 SGIS, CC BY 4.0)'
 
@@ -64,7 +64,7 @@ export function DongMap({ city, areas, selected, onSelect }: Props) {
     return {
       fillColor: a?.level ? LEVEL_FILL[a.level] : NONE_FILL,
       fillOpacity: a?.level ? 0.8 : 0.5,
-      color: sel ? '#14171F' : a?.deviation_first ? '#7A5BC7' : '#FFFFFF',
+      color: sel ? '#2B2720' : a?.deviation_first ? '#4A4438' : '#FFFDF8',
       weight: sel ? 3 : a?.deviation_first ? 2.5 : 1,
       dashArray: a?.deviation_first && !sel ? '4 3' : undefined,
     }
@@ -106,7 +106,7 @@ export function LevelLegend() {
         </span>
       ))}
       <span className="flex items-center gap-1">
-        <span className="inline-block h-3 w-5 rounded-sm border-2 border-dashed" style={{ borderColor: '#7A5BC7' }} />
+        <span className="inline-block h-3 w-5 rounded-sm border-2 border-dashed" style={{ borderColor: '#4A4438' }} />
         카드 이탈 경보의 먼저 볼 동
       </span>
     </div>

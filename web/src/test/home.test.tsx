@@ -82,8 +82,8 @@ describe('Home page', () => {
       </MemoryRouter>,
     )
     const summary = await screen.findByTestId('home-summary')
-    expect(within(summary).getByText('Level 3 1개 동')).toBeInTheDocument()
-    expect(within(summary).getByText('먼저 볼 동(Level 3) 없음')).toBeInTheDocument() // 강남
+    expect(within(summary).getByText('효자2동')).toBeInTheDocument()
+    expect(within(summary).getByText('먼저 볼 동 없음')).toBeInTheDocument() // 강남
     expect(screen.getByTestId('basis-line')).toHaveTextContent('기준일 2025-09-26 결과')
     expect(screen.getByTestId('level-guide')).toHaveTextContent('위험 점수가 아니라 먼저 확인할 순서')
     expect(screen.getByTestId('home-watch')).toHaveTextContent('연휴 주의 지역')

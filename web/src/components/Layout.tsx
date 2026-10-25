@@ -202,7 +202,7 @@ export default function Layout() {
   }, [])
   return (
     <RunCtx.Provider value={{ runId, setRunId }}>
-      <div className="flex min-h-screen flex-col md:flex-row md:bg-[linear-gradient(to_right,#FFFFFF_84px,transparent_84px)] print:block print:bg-none">
+      <div className="flex min-h-screen flex-col md:flex-row md:bg-[linear-gradient(to_right,#FFFDF8_84px,transparent_84px)] print:block print:bg-none">
         <Sidebar query={query} />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="flex flex-1 flex-col">
