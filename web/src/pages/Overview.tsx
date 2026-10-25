@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Candidate, type CandidateType, type OverviewResponse, type ReleasedCandidate } from '../api'
 import { FollowUpBadge } from '../components/CandidateCard'
+import { HolidayWatch } from '../components/HolidayWatch'
 import { PageBody, PageHero } from '../components/Layout'
 import { OutcomeSummaryCard } from '../components/OutcomeSummary'
 import { AsyncBlock, Badge, Card, Empty, ErrorBox, LevelBadge, Loading, SelectedBadge, TimeLabelBar, TypeChip } from '../components/ui'
@@ -223,6 +224,7 @@ export default function Overview() {
             </div>
           </Card>
         )}
+        {o?.holiday_watch?.length ? <HolidayWatch lines={o.holiday_watch} /> : null}
         {o && <NoticeBar o={o} query={query} />}
         {o && <TimeLabelBar label={o.time_label} />}
         <div className="grid gap-5 lg:grid-cols-2">

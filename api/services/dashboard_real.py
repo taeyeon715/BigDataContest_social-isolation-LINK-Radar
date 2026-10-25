@@ -44,7 +44,9 @@ from bigcontest.agent import nodes
 from bigcontest.agent.tools import signal as S
 from bigcontest.agent.tools.common import city_of_evidence, req_with_city
 from bigcontest.rules import candidates as RC
-from bigcontest.rules import load_rules, rules_version
+from bigcontest.rules import load_rules
+from bigcontest.rules import rules_version as _v11_version
+from bigcontest.rules import version as RV
 
 from api.auth import DEV_IDENTITY, Identity
 from api.errors import ApiError
@@ -70,6 +72,15 @@ def cand_key(c: Candidate) -> tuple:
 def _codes(trigger: str | None) -> list[str]:
     return [code for part in (trigger or "").split(";") if (code := RC.trigger_code(part.strip()))]
 
+
+
+def rules_version() -> str:
+    """화면에 표시할 규칙 판 (에이전트 기본 rules-v2.0, LINKRADAR_RULES=v1.1 이면 v1.1)."""
+    if RV.active() == "v1.1":
+        return _v11_version()
+    from bigcontest.rules.levels_v2 import load_rules_v2
+
+    return load_rules_v2()["version"]
 
 class RealDashboard:
     def __init__(self, runs: AgentRunService):
@@ -188,12 +199,13 @@ class RealDashboard:
             codes = _codes(old.trigger)
             if codes and not set(codes) & now_codes:
                 return f"트리거 기간이 끝남 ({old.trigger})"
-            return "트리거는 이어지지만 이번 기준일 근거로는 이 동이 진입 조건(구조 상위·접근성)을 넘지 않음"
+            return "트리거는 이어지지만 이번 기준일 근거로는 이 동에 Level 2 이상인 성·연령 칸이 없음"
         if old.analysis_cohort not in now_dev:
             return f"이번 기준일에는 {old.analysis_cohort} 결제 이탈 경보가 없음"
         return "이번 기준일 근거로는 후보가 되지 않음"
 
     def overview(self, as_of: date, city: str, mode: str, who: Identity) -> OverviewResponse:
+        """현황: 트리거, 후보 수(임계값 범위), 7일 전 대비 새로 생긴·해제된 후보, 연휴 주의 블록."""
         rid = self.monitoring_run(as_of, city, mode, who)
         cands = self._candidates(rid, city)
         evidence = self._evidence(rid, city)
@@ -222,7 +234,8 @@ class RealDashboard:
             triggers=triggers, candidate_counts=self._count_ranges(rid, city, cands), new_candidate_ids=new_ids,
             released_candidate_ids=[r.candidate_id for r in released], released_candidates=released,
             compared_as_of=compared, monitoring_run_id=rid, rule_version=rules_version(),
-            time_label=ASSUMED_AVAILABILITY_LABEL if mode == "simulated_replay" else None)
+            time_label=ASSUMED_AVAILABILITY_LABEL if mode == "simulated_replay" else None,
+            holiday_watch=nodes.holiday_watch_lines(evidence))
 
     # ------------------------------------------------------------------ 지도
 

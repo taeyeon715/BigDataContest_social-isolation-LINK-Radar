@@ -96,7 +96,7 @@ protective:  # 보호 자원 칸 (src/bigcontest/resources/protective.py)
       label: 경로당
       subtypes: [경로당]
       city_counts: 경로당  # 동별 목록이 없을 때 external/resources/protective/경로당_시군집계.csv 의 같은 시설 수
-      note: 강남은 서울시 경로당 현황(2025-06 말) 행정동 배정
+      note: {강남: 서울시 경로당 현황(2025-06 말)의 행정동 배정}  # 도시마다 다른 출처 설명
     더위·한파 쉼터:
       label: 무더위·한파 쉼터
       subtypes: [무더위쉼터 안내, 한파쉼터 안내]

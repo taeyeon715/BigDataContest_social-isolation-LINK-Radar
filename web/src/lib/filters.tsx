@@ -21,9 +21,9 @@ export function useFilters() {
   return { city, as_of, set, query }
 }
 
-/** 시연용 바로가기 (docs/화면_설계.md §5) */
+/** 시연용 바로가기: 추석 7일 전, 추석 뒤 춘천 이어 보기, 동절기 춘천 읍·면 */
 export const PRESETS: { label: string; city: City; as_of: string }[] = [
   { label: '추석 D-7 (9/26)', city: '춘천', as_of: '2025-09-26' },
-  { label: '추석 뒤 (10/13)', city: '강남', as_of: '2025-10-13' },
-  { label: '동절기 (11/14)', city: '춘천', as_of: '2025-11-14' },
+  { label: '추석 뒤 (10/13)', city: '춘천', as_of: '2025-10-13' },
+  { label: '동절기 (12/20)', city: '춘천', as_of: '2025-12-20' },
 ]

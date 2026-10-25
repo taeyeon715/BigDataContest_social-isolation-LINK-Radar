@@ -66,7 +66,8 @@ export function PrintReport({
   const roundLines = report.round_changes ?? []
   const rounds = roundLines.length > 0 ? roundChangesView(roundLines) : null
   // 회차 비교 문장은 사실 목록에서 빼고 따로 (화면과 같게)
-  const facts = report.fact_sentences.filter((s) => !roundLines.includes(s) && !isActionSentence(s, actions.map((a) => a.action_plan?.text ?? '')))
+  const watchLines = report.holiday_watch ?? []
+  const facts = report.fact_sentences.filter((s) => !roundLines.includes(s) && !watchLines.includes(s) && !isActionSentence(s, actions.map((a) => a.action_plan?.text ?? '')))
   const exp = report.level_explanations?.find((e) => e.candidate_id === candidate?.candidate_id) ?? report.level_explanations?.[0]
   const fake = snapshotId.startsWith('snap-fake')
   // 보고서 문장의 코드: 자원 코드 → 이름, 입력 코드 → 한국어, [EV-…] → "(근거 n)" (화면과 같은 함수, FE-09)
@@ -166,6 +167,16 @@ export function PrintReport({
           <ul className="list-disc pl-5 text-sm">
             {rounds.items.map((l) => (
               <li key={l}>{text(l)}</li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {watchLines.length > 0 && (
+        <Section title="연휴 주의 지역">
+          <ul className="list-disc pl-5 text-sm">
+            {watchLines.map((l) => (
+              <li key={l}>{l}</li>
             ))}
           </ul>
         </Section>

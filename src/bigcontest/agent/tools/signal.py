@@ -1316,7 +1316,7 @@ def assign_queue(candidates: list[Candidate], evidence: list[ToolResult], k: int
 
 # ---------------------------------------------------------------- 연휴 주의 지역 (rules-v2.0 holiday_watch, R-3b)
 
-WATCH_METRIC = "연휴 주의 칸 근거 축 수"
+WATCH_METRIC = "연휴 주의 칸 선 신호 수"
 WATCH_SUMMARY_METRIC = "연휴 주의 동 수"
 WATCH_CARD_METRIC = "지난 연휴 60대 이상 의료 결제 40·50대 대비"
 
@@ -1350,7 +1350,7 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
         label = f"{city} {names[r['adm_cd']]['adm_nm']} ({r['adm_cd']}) {r['sex']}성 60대 이상"
         out.append(envelope(
             ctx, f"HW-{r['adm_cd']}-{'M' if r['sex'] == '남' else 'F'}", "tel_age", metric=WATCH_METRIC,
-            value=int(r["n_axes"]), unit="축", n_obs=int(r["pop"]), denominator="칸 주민등록 인구",
+            value=int(r["n_axes"]), unit="개", n_obs=int(r["pop"]), denominator="칸 주민등록 인구",
             measured_grain="행정동 × 성 × 연령", applied_scope=label, interpretation_status="계산 재현",
             value_state="observed", warnings=[f"선 축 {'+'.join(r['axes_on'])} ({r['cell_type']})", r["reason"], *note],
             **time))
@@ -1377,7 +1377,7 @@ def get_holiday_watch(ctx) -> list[ToolResult]:
 
 # ---------------------------------------------------------------- 동절기 칸 (rules-v2.0 W, 춘천 읍·면 60대 이상)
 
-WINTER_CELL_METRIC = "동절기 칸 근거 축 수"
+WINTER_CELL_METRIC = "동절기 칸 선 신호 수"
 
 
 def get_winter_cells(ctx) -> list[ToolResult]:
@@ -1403,10 +1403,10 @@ def get_winter_cells(ctx) -> list[ToolResult]:
     out = []
     for _, r in cells.iterrows():
         label = f"{city} {ds.adm_index[r['adm_cd']]['adm_nm']} ({r['adm_cd']}) {r['sex']}성 60대 이상"
-        wtxt = "겨울 변화 미관측" if r["w60"] is None or pd.isna(r["w60"]) else f"60+ 겨울/여름 {r['w60']:+.1%}"
+        wtxt = "겨울 체류 변화 미관측" if r["w60"] is None or pd.isna(r["w60"]) else f"60대 이상 겨울 체류 여름 대비 {r['w60']:+.1%}"
         out.append(envelope(
             ctx, f"WC-{r['adm_cd']}-{'M' if r['sex'] == '남' else 'F'}", "tel_age", metric=WINTER_CELL_METRIC,
-            value=int(r["n_axes"]), unit="축", n_obs=int(r["pop"]), denominator="칸 주민등록 인구",
+            value=int(r["n_axes"]), unit="개", n_obs=int(r["pop"]), denominator="칸 주민등록 인구",
             measured_grain="행정동 × 성 × 연령", applied_scope=label, interpretation_status="계산 재현",
             value_state="observed", warnings=[f"{r['level']} ({r['rule_id']}{'+' + '+'.join(r['caps']) if r['caps'] else ''})",
                                               f"선 축 {'+'.join(r['axes_on']) or '없음'} ({r['cell_type']})", wtxt,

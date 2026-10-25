@@ -85,6 +85,11 @@ def _adm() -> dict[str, dict]:
 
 
 # ------------------------------------------------------------ 보호 자원 칸
+def _note(note, city: str) -> str | None:
+    """묶음 설명. 도시마다 출처가 다르면 {도시: 설명}으로 적는다."""
+    return note.get(city) if isinstance(note, dict) else note
+
+
 def _item(r: dict, scope: str) -> dict:
     return {"resource_id": r["resource_id"], "name": r["name"], "subtype": r["subtype"],
             "address": r.get("address") or None, "phone": r.get("phone") or None,
@@ -118,7 +123,7 @@ def protective_for(led: pd.DataFrame, city: str, adm_cd: str | None = None) -> d
              "city_total": int(len(spatial)) if len(spatial) else None,
              "items": [_item(r, "동") for r in in_dong.head(MAX_ITEMS).to_dict("records")]
              + [_item(r, "도시") for r in city_level.to_dict("records")],
-             "status": "수집", "note": spec.get("note")}
+             "status": "수집", "note": _note(spec.get("note"), city)}
         cc = city_counts().get(city) if spec.get("city_counts") else None
         if len(spatial) == 0 and cc and cc.get("facility") == spec.get("city_counts"):
             g["city_total"] = int(cc["total"])

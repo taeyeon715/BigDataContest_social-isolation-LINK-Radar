@@ -735,6 +735,7 @@ class OverviewResponse(_Model):
     compared_as_of: date | None = None  # 새로 생긴/해제된 후보를 비교한 기준일 (7일 전, 자료 기간 밖이면 없음)
     monitoring_run_id: str | None = None  # 실제 그래프: 이 화면이 읽은 정기 감시 실행 (후보 ID 는 이 실행의 것)
     rule_version: str | None = None
+    holiday_watch: list[str] = Field(default_factory=list)  # 연휴 주의 블록 (보고서 Report.holiday_watch 와 같은 문장)
 
 
 class MapArea(_Model):

@@ -41,7 +41,7 @@ function Legend2D() {
         위험지도가 아닙니다. 두 축을 합친 점수는 없습니다.
       </div>
       <div>
-        <div className="mb-1 font-semibold text-ink-600">채우기 = 구조 취약성 (1인세대 비율, 도시 안 5단계)</div>
+        <div className="mb-1 font-semibold text-ink-600">채우기 = 동 전체 1인세대 비율 (주민등록, 도시 안 5단계 · 등급 근거 아님)</div>
         <div className="flex items-center gap-1">
           <span className="text-ink-600">낮음</span>
           {STEPS.map((c) => (

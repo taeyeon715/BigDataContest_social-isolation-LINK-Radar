@@ -7,6 +7,7 @@
 """
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
 
@@ -20,9 +21,17 @@ R2 = ROOT / "reports" / "r2_위험도결과"
 
 
 def _load(name, path):
+    """노트북은 맨 위에서 LINKRADAR_RULES=v1.1 을 정한다. 다른 시험에 새지 않게 불러온 뒤 되돌린다."""
+    before = os.environ.get("LINKRADAR_RULES")
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        if before is None:
+            os.environ.pop("LINKRADAR_RULES", None)
+        else:
+            os.environ["LINKRADAR_RULES"] = before
     return mod
 
 

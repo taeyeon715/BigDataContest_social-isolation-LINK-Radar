@@ -14,7 +14,7 @@ const reference: StructuralRiskReference = {
 it('shows as-of months, axes and distinction from official level', () => {
   render(<StructuralRisk items={[reference]} candidateId="C-1" />)
   expect(screen.getByText(/주민등록 8월, 통신 7·8월/)).toBeVisible()
-  expect(screen.getByText('혼자 사는 구조 + 경제 취약')).toBeVisible()
+  expect(screen.getByText('혼자 사는 구조, 경제 취약')).toBeVisible()
   expect(screen.getByText('구조·경제 취약형')).toBeVisible()
   expect(screen.getByText('0.20')).toBeVisible()
   expect(screen.getByText(/60~64세/)).toBeVisible()

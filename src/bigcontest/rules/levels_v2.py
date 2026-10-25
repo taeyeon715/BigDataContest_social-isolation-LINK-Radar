@@ -1,15 +1,13 @@
-"""rules-v2.0 등급 판정 (configs/rules_v2.yaml levels). LLM 과 무관하고 결정적이다.
+"""rules-v2.0 등급 판정. 칸(동 × 성 × 연령) 하나의 사실(CellFacts)을 받아 등급을 낸다.
 
-입력은 칸(동 × 성 × 연령) 하나의 사실(`CellFacts`)이다. 판단 보류·반증·이탈 크기·트리거 순서는 v1.1 levels.decide 와 같다.
+신호는 두 종류로 센다.
+- 신한·SK 신호: H 행동 고립, W 읍·면 겨울 체류 감소, C 지난 연휴 카드 결제 공백
+- 공공 자료 확인: S 1인 비율(주민등록), V 경제 취약(수급 통계), A 거점 원거리(자원 원장)
 
-근거는 두 갈래로 센다.
-- 제공 데이터 신호(신한카드·SK 통신): H 행동 고립(SK), W 겨울 체류 감소(SK, 읍·면), C 카드 근거(신한, 그 성·연령)
-- 외부 확인(공공 통계·자원 원장): S 1인 비율(주민등록), V 경제 취약(수급 통계), A 거점 원거리(자원 원장)
-
-Level 3 = 예정된 트리거 + 제공 데이터 신호 2개 이상(서로 다른 신호) + 외부 확인 1개 이상 + 필수 근거 충족 + 신뢰도 보통 이상.
-Level 2 이상에는 동을 가리키는 통신 신호(H 또는 W)가 하나는 있어야 한다. 카드(C)는 도시 단위라 '누구'만 정한다.
-통신 신호가 없으면 Level 1 (카드 신호만, 외부 확인만으로는 오르지 않는다).
-이탈(도시 × 코호트, 카드)은 Level 2 상한이고, 먼저 확인할 칸에 SK 신호가 있어야 Level 2.
+Level 3는 트리거가 있고, 서로 다른 신한·SK 신호가 2개 이상, 공공 자료 확인이 1개 이상이며, 필수 근거가 다 있고
+신뢰도가 보통 이상일 때다. Level 2 이상이 되려면 동을 가리키는 통신 신호(H 또는 W)가 있어야 한다.
+카드는 도시 단위라 어느 연령인지만 정하고, 카드나 공공 자료만으로는 Level 1이다.
+판단 보류·반증·이탈 크기 규칙은 v1.1(levels.decide)과 같다. 카드 이탈 후보는 Level 2까지다.
 """
 
 from __future__ import annotations
@@ -120,6 +118,34 @@ def decide_v2(f: CellFacts, rules: dict | None = None) -> DecisionV2:
     if not d.caps:
         return DecisionV2("Level 3", "V2-L3-DATA2-EXT1", why, on)
     return d
+
+
+# ---------------------------------------------------------------- 등급 사유 문장 (화면·보고서)
+
+CAP_TEXT = {"CAP-DATA-ONE": "신한·SK 신호가 하나뿐", "CAP-NO-EXTERNAL": "공공 자료 확인 없음",
+            "CAP-PARTIAL": "필수 근거 일부 없음", "CAP-CONF-LOW": "칸 인구가 적어 값이 흔들림",
+            "CAP-SIGNAL-UNVERIFIED": "방향 미확인 신호를 빼면 조건 미달"}
+
+
+def cells_text(items: list[tuple[str, str, str, list[str]]]) -> str:
+    """[(성, 연령, 등급, 선 신호)] → '남녀 60대 이상 Level 3(행동 고립, 카드 결제 공백)'. 남녀가 같으면 합친다."""
+    def one(who, age, level, on):
+        return f"{who} {age.replace('+', ' 이상')} {level}({', '.join(AXIS_NAME[a] for a in on) or '선 신호 없음'})"
+
+    if len(items) == 2 and items[0][2:] == items[1][2:] and {items[0][0], items[1][0]} == {"남", "여"}:
+        return one("남녀", *items[0][1:])
+    return ", ".join(one(f"{sex}성", age, lv, on) for sex, age, lv, on in items)
+
+
+def trigger_text(trigger: str | None) -> str:
+    """'R1 추석 연휴 D-7 (10/03~10/09)' → '점검 시점: 추석 연휴 D-7 (10/03~10/09)'."""
+    t = (trigger or "").strip()
+    return "점검 시점: " + (t.split(" ", 1)[1] if t[:1] in "RW" and " " in t else t or "없음")
+
+
+def why_not3(caps: list[str]) -> str:
+    names = [CAP_TEXT[c] for c in caps if c in CAP_TEXT]
+    return f"Level 3가 아닌 이유: {', '.join(names)}" if names else ""
 
 
 def cell_type(on: list[str]) -> str:

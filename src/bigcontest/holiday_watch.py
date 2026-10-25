@@ -1,11 +1,7 @@
-"""연휴 주의 지역 (configs/rules_v2.yaml holiday_watch, reports/r3_규칙개정/README.md 8절 R-3b). LLM 과 무관하고 결정적이다.
+"""연휴 주의 지역과 동절기 칸 판정.
 
-연휴에 실제로 끊기는 연령(카드, 도시 단위)을 규칙으로 두고, 그 연령 칸(동 × 성) 중 근거 축이 2개 이상인 칸을
-rules-v2.0 등급 판정(levels_v2.decide_v2)으로 고른 뒤 동으로 묶는다.
-- 어느 연령: holiday_watch.target_ages (R-3b, 2025 추석 1회 관측)
-- 어느 동: S(1인 비율)·H(행동 고립)·V(경제 취약)·A(거점 거리) 축 (cells·stay·vulnerability)
-- 언제: 연휴 전 lead_days(운영 가정) ~ 연휴 끝, 그리고 follow_up_days 가 있는 도시는 연휴 뒤까지
-- 참고 근거: 기준일에 볼 수 있는 지난 연휴의 카드 값 (`card_gap`). 등급 입력은 아님
+연휴에 결제가 끊기는 연령(지금은 60대 이상, 2025 추석 1회 관측)의 칸만 보고, 그중 Level 3인 칸을 동으로 묶는다.
+카드 신호는 기준일에 결제를 다 볼 수 있는 지난 연휴의 값이다. 기준은 configs/rules_v2.yaml holiday_watch.
 """
 
 from __future__ import annotations
@@ -21,7 +17,7 @@ from bigcontest.rules.levels_v2 import CellFacts, cell_type, decide_v2, load_rul
 from bigcontest.stay import h_axis
 from bigcontest.vulnerability import v_axis
 
-# 칸 연령 → 거점 거리를 잰 정책 집단 (경로당·노인맞춤돌봄은 고령층 자원). R-3 r3_rules_v2.py 와 같음
+# 칸 연령별로 거점 거리를 잰 정책 집단 (경로당·노인맞춤돌봄은 고령층 자원)
 AGE_GROUP = {"60대+": "고령층", "50대": "중장년 남성 1인가구", "40대": "중장년 남성 1인가구",
              "30대": "청년 남성", "20대": "청년 남성"}
 CARD_AGES = {"60대+": ["60대", "70대", "80대+"]}
@@ -65,8 +61,8 @@ def holiday_phase(blocks: list[tuple[date, date, str]], as_of: date, city: str, 
 def cell_axes(pop: pd.DataFrame, one: pd.DataFrame, tel_age: pd.DataFrame, tel_time: pd.DataFrame, res_month: int,
               tel_months: list[int], as_of: date, access_km: dict[tuple[str, str], float] | None = None,
               ages: list[str] | None = None, rules: dict | None = None) -> pd.DataFrame:
-    """칸(동 × 성 × 연령)마다 S·H·V·A. res_month·tel_months 는 기준일에 쓸 수 있던 달 (시간 계약은 부르는 쪽).
-    access_km: (adm_cd, 정책 집단) → 안부·관계 거점 직선거리."""
+    """칸마다 S·H·V·A 값. 달은 부르는 쪽이 기준일에 쓸 수 있던 달로 넘긴다.
+    access_km 은 (동 코드, 정책 집단)별 안부·관계 거점 직선거리."""
     rules = rules or load_rules_v2()
     ax = rules["axes"]
     s = s_axis(pop, one, res_month, ax["top_share"])
@@ -87,8 +83,8 @@ def cell_axes(pop: pd.DataFrame, one: pd.DataFrame, tel_age: pd.DataFrame, tel_t
 
 
 def cell_facts(row, trigger: str, rules: dict, card_gap: float | None = None) -> CellFacts:
-    """칸 하나 → 등급 판정 입력. card_gap: 그 도시·성의 연휴 연령 카드 값(40·50대 대비, card_gap 의 rel).
-    holiday_watch.card_min_gap 보다 낮으면 C(카드) 신호. None 이면 카드 신호를 세지 않는다."""
+    """칸 하나의 판정 입력. card_gap 은 그 도시·성의 지난 연휴 카드 값(40·50대 대비)이고,
+    card_min_gap 보다 낮으면 카드 신호가 선다. None 이면 카드 신호를 세지 않는다."""
     axes = {"S": bool(row["s_top"]), "A": bool(row["a_top"])}
     why = {"S": f"1인 비율 {row['s_eb']:.3f}, 같은 성·연령 {int(row['s_rank'])}/{int(row['s_n'])}위"
            if pd.notna(row["s_eb"]) else ""}
@@ -116,8 +112,8 @@ def cell_facts(row, trigger: str, rules: dict, card_gap: float | None = None) ->
 
 def watch_cells(axes: pd.DataFrame, trigger: str, rules: dict | None = None,
                 card: dict[str, float] | None = None) -> pd.DataFrame:
-    """주의 연령 칸마다 등급을 정하고 Level 3 칸만 돌려준다 (근거 축 많은 순 → 칸 인구 큰 순).
-    card: 성(남·여) → 기준일에 볼 수 있는 지난 연휴의 카드 값 (없으면 카드 신호 없음 → Level 3 불가)."""
+    """주의 연령 칸의 등급을 정하고 Level 3 칸만 돌려준다. 선 신호가 많은 칸, 인구가 많은 칸 순.
+    card 는 성별 지난 연휴 카드 값. 없으면 카드 신호가 없어 Level 3가 나오지 않는다."""
     rules = rules or load_rules_v2()
     ages = watch_config(rules)["target_ages"]
     card = card or {}
@@ -137,15 +133,15 @@ def watch_cells(axes: pd.DataFrame, trigger: str, rules: dict | None = None,
 
 
 def dongs_of(cells: pd.DataFrame) -> list[str]:
-    """칸 → 동 (처음 나온 순서, 중복 없음)."""
+    """칸 목록의 동 코드 (처음 나온 순서, 중복 없음)."""
     return list(dict.fromkeys(cells["adm_cd"]))
 
 
-# ---------------------------------------------------------------- 참고 근거: 지난 연휴의 카드 값
+# ---------------------------------------------------------------- 지난 연휴의 카드 값
 
 
 def card_periods(blocks: list[tuple[date, date, str]], holiday_names: dict, cutoff: date) -> list[tuple[date, date, str]]:
-    """기준일에 결제를 다 볼 수 있는 지난 연휴·공휴일 (끝 ≤ cutoff). 연휴 묶음과 묶음 밖 하루 공휴일."""
+    """cutoff 까지 끝난 연휴와 하루짜리 공휴일."""
     out = [(s, e, n) for s, e, n in blocks if e <= cutoff]
     inside = {d for s, e, _ in blocks for d in pd.date_range(s, e).date}
     for ts, n in holiday_names.items():
@@ -157,8 +153,8 @@ def card_periods(blocks: list[tuple[date, date, str]], holiday_names: dict, cuto
 
 def card_gap(card2: pd.DataFrame, city: str, period: tuple[date, date, str], holidays: list,
              rules: dict | None = None) -> pd.DataFrame:
-    """지난 연휴 하나: 주의 연령의 의료 결제가 같은 성 40·50대보다 평소 대비 얼마나 더 줄었나 (비율, −0.3 = 30% 더 줄어듦).
-    평소 값 = 연휴 시작 전 card_base_weeks 주의 같은 요일 평균 (공휴일 제외). 기준일 뒤 날은 쓰지 않는다."""
+    """연휴 동안 주의 연령의 의료 결제가 같은 성 40·50대보다 평소 대비 얼마나 더 줄었나 (−0.3 이면 30% 더 줄어듦).
+    평소 값은 연휴 전 card_base_weeks 주의 같은 요일 평균이고 공휴일은 뺀다."""
     c = watch_config(rules)
     start, end, _ = period
     days = pd.date_range(start, end)
@@ -185,20 +181,20 @@ def card_gap(card2: pd.DataFrame, city: str, period: tuple[date, date, str], hol
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------- 동절기 칸 (rules-v2.0 설계 3절: W → 춘천 읍·면 60대 이상 칸)
+# ---------------------------------------------------------------- 동절기 칸 (춘천 읍·면 60대 이상)
 
 WINTER_AGES = ["60대+"]
 
 
 def winter_facts(row, w: pd.Series | None, trigger: str, rules: dict) -> CellFacts:
-    """동절기 칸 하나. 그 읍·면 주민형 격자 60+ 겨울/여름 변화(SK)가 rules winter.decline 미만이면 W 신호.
-    겨울 달이 아직 없으면 필수 근거 결측(부분 판정), 격자가 적어 읍·면 전체 값이면 공유 맥락 표시."""
+    """동절기 칸 하나. 그 읍·면 60대 이상의 겨울 체류가 여름보다 기준 이상 줄었으면 겨울 신호가 선다.
+    겨울 달이 아직 없으면 부분 판정, 격자가 적어 읍·면 전체 값을 썼으면 신뢰도 사유에 적는다."""
     f = cell_facts(row, trigger, rules)
     if w is None or pd.isna(w.get("w_ok")):
         f.input_status, f.missing_inputs = "부분 판정", ["읍·면 겨울 체류 변화 (겨울 달 공개 전)"]
     else:
         f.axes["W"] = bool(w["w_ok"])
-        f.axis_why["W"] = f"60+ 겨울/여름 {w['w60']:+.1%}"
+        f.axis_why["W"] = f"60대 이상 겨울 체류 여름 대비 {w['w60']:+.1%}"
         if bool(w["shared"]):
             f.confidence_why.append("겨울 체류: 읍·면 전체 값(공유 맥락)")
     return f
@@ -206,7 +202,7 @@ def winter_facts(row, w: pd.Series | None, trigger: str, rules: dict) -> CellFac
 
 def winter_cells(axes: pd.DataFrame, w: pd.DataFrame, eupmyeon: set[str], trigger: str,
                  rules: dict | None = None) -> pd.DataFrame:
-    """춘천 읍·면 60대 이상 칸마다 동절기 등급 (levels_v2.decide_v2). 모든 칸을 돌려준다 (Level 1·2·3)."""
+    """춘천 읍·면 60대 이상 칸마다 동절기 등급. Level 1~3 모든 칸을 돌려준다."""
     rules = rules or load_rules_v2()
     wk = w.set_index("adm_cd") if len(w) else pd.DataFrame()
     rows = []

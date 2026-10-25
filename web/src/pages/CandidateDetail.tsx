@@ -22,6 +22,7 @@ import { ApprovalPanel, approvalBlock, preChecks, regenerating, type ShownReport
 import { FollowupPanel } from '../components/FollowupPanel'
 import { ClaimsBox, EvidenceTable } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
+import { HolidayWatch } from '../components/HolidayWatch'
 import { PrintReport, type PrintJudgement } from '../components/PrintReport'
 import { ActionPlanView, CandidateContext, CheckAreasView, DecisionTrace, EventTimeline, ExtraChecks, HeatStageLabel, LevelExplain, MorningChecklistView } from '../components/ReportParts'
 import { ResourcePanel, type JudgementDraft } from '../components/ResourcePanel'
@@ -560,7 +561,8 @@ export default function CandidateDetail() {
   const exp = rep?.level_explanations?.find((e) => e.candidate_id === id) ?? null
   const trace = run?.decision_trace?.length ? run.decision_trace : (rep?.decision_trace ?? [])
   const roundLines = rep?.round_changes ?? []
-  const facts = rep ? rep.fact_sentences.filter((s) => !roundLines.includes(s) && !isActionSentence(s, shownActions.map((a) => a.action_plan?.text ?? ''))) : []
+  const watchLines = rep?.holiday_watch ?? []
+  const facts = rep ? rep.fact_sentences.filter((s) => !roundLines.includes(s) && !watchLines.includes(s) && !isActionSentence(s, shownActions.map((a) => a.action_plan?.text ?? ''))) : []
   const rounds = roundLines.length > 0 ? roundChangesView(roundLines) : null
   const regen = run ? regenerating(run) : false
   const moreCandidates = (run?.candidates ?? []).map((c) => ({ candidate_id: c.candidate_id, label: `${c.candidate_level ?? '등급 전'} · ${candidatePlace(c)}` }))
@@ -945,6 +947,7 @@ export default function CandidateDetail() {
                           </ul>
                         </div>
                       )}
+                      {watchLines.length > 0 && <div className="mb-4"><HolidayWatch lines={watchLines} compact /></div>}
                       <div className="text-xs font-semibold text-ink-600">핵심 사실 (근거 카드에서 만든 문장 · 근거 이름을 누르면 근거 표로)</div>
                       <ul className="mt-1 list-disc pl-5" data-testid="facts">
                         {facts.map((s) => (

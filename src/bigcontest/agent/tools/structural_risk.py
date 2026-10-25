@@ -13,16 +13,16 @@ from bigcontest.agent.schemas import Candidate, StructuralRiskCell, StructuralRi
 from bigcontest.agent.tools import report as R
 from bigcontest.agent.tools.datasource import open_datasource
 
-SOURCE = "rules-v2.0 칸 근거 축 (기준일에 공개된 주민등록·통신·수급 통계·자원 원장)"
+SOURCE = "rules-v2.0 성·연령별 신호 (기준일에 공개된 주민등록·통신·수급 통계·자원 원장)"
 GROUPS = {
     "고령층": (["남", "여"], ["60대+"], "65세 이상 대상에 60대 이상 칸을 대응해 60~64세가 포함됩니다."),
     "중장년 남성 1인가구": (["남"], ["40대", "50대"], "40~64세 남성 대상에 남성 40·50대 칸을 대응해 60~64세가 빠집니다. 실제 1인 여부는 알 수 없습니다."),
     "50~69세 남성": (["남"], ["50대", "60대+"], "남성 50대·60대 이상 칸을 대응해 70세 이상도 포함됩니다."),
     "청년 남성": (["남"], ["20대", "30대"], "20~34세 대상에 남성 20·30대 칸을 대응해 35~39세가 포함됩니다."),
 }
-CITY_NOTE = "도시 단위 후보에는 동별 칸 근거 축을 붙이지 않습니다."
-READ_NOTE = ("S·H·V는 같은 도시·성·연령 칸 안 상대 순위로 세운 축입니다(상위 1/3). 연령 간 위험 수준·실제 고립 확률·"
-             "개인 판정으로 읽지 않습니다.")
+CITY_NOTE = "도시 단위 후보에는 동별 성·연령 신호를 붙이지 않습니다."
+READ_NOTE = ("S·H·V는 같은 도시·성·연령 안의 순위입니다(상위 1/3이면 섬). 연령끼리 위험 수준을 비교하거나 "
+             "실제 고립 확률·개인 판정으로 읽지 않습니다.")
 
 
 def _num(x) -> float | None:
@@ -65,9 +65,9 @@ def get_structural_risk(ctx, candidates: list[Candidate]) -> list[StructuralRisk
         ref = StructuralRiskReference(
             candidate_id=c.candidate_id, city=c.city, adm_cd=c.adm_cd, policy_group=group, period_label="",
             source_path=SOURCE,
-            comparison_note=("이 칸 근거 축으로 대응 등급을 정했습니다." if v2 else
+            comparison_note=("등급은 이 표의 신호에 연휴 카드 신호(60대 이상)·겨울 체류 신호(읍·면)를 더해 정했습니다." if v2 else
                              f"대응 등급 {c.candidate_level or '미정'}은 동 단위 구조·접근성·시점으로 정했고, "
-                             "칸 근거 축은 참고입니다."))
+                             "이 표는 참고입니다."))
         if not c.adm_cd:
             ref.status = "not_applicable"
             ref.note = CITY_NOTE
@@ -77,12 +77,12 @@ def get_structural_risk(ctx, candidates: list[Candidate]) -> list[StructuralRisk
             if not loaded:
                 ax, loaded = axes_at(open_datasource(ctx.snapshot_id), ctx.as_of, ctx.analysis_mode), True
             if ax is None:
-                ref.note = "기준일에 공개된 주민등록·통신 달을 확인하지 못해 칸 근거 축을 표시하지 않습니다."
+                ref.note = "기준일에 공개된 주민등록·통신 달을 확인하지 못해 성·연령별 신호를 표시하지 않습니다."
             else:
                 sexes, ages, mapping = GROUPS[group]
                 rows = ax.df[(ax.df["adm_cd"] == c.adm_cd) & ax.df["sex"].isin(sexes) & ax.df["age5"].isin(ages)]
                 if len(rows) != len(sexes) * len(ages):
-                    ref.note = "대응하는 성·연령 칸이 없거나 중복돼 칸 근거 축을 표시하지 않습니다."
+                    ref.note = "대응하는 성·연령 칸이 없거나 중복돼 성·연령별 신호를 표시하지 않습니다."
                 else:
                     ref.cells = [_cell(r, rules) for _, r in rows.sort_values(["sex", "age5"]).iterrows()]
                     ref.status = "available"

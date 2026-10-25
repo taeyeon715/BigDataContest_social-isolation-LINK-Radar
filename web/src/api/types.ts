@@ -122,6 +122,7 @@ export interface OverviewResponse {
   compared_as_of?: string | null
   monitoring_run_id?: string | null
   rule_version?: string | null
+  holiday_watch?: string[] // 연휴 주의 블록 (주의 지역 / 근거 / 할 일 / 관측 한계)
 }
 
 export interface MapArea {
@@ -608,6 +609,7 @@ export interface Report {
   round_changes?: string[]
   review_ids?: string[]
   investigation?: Investigation | null // 조사 루프에서 추가로 확인한 것 (등급·반증 입력 아님)
+  holiday_watch?: string[] // 연휴 주의 블록 (fact_sentences 맨 앞에도 들어 있음)
 }
 
 /** 조사 루프에서 확인한 질문 하나 */

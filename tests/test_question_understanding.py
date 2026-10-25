@@ -170,7 +170,7 @@ def test_period_word_does_not_change_investigate_levels(agent):
     asked = agent.start("qu-p1", "qa", "2025-09-26", question="지난주 춘천 어르신 어디부터 확인해야 해?")["values"]
     lv = lambda v: {c["candidate_id"]: c["candidate_level"] for c in v["candidates"]}  # noqa: E731
     assert lv(asked) == lv(base)
-    assert any("조사 등급에 쓰지 않음" in s for s in asked["report"]["fact_sentences"])
+    assert any("등급 계산에 쓰지 않음" in s for s in asked["report"]["fact_sentences"])
 
 
 def test_d4_supported_card1_path_stub(agent):

@@ -91,7 +91,7 @@ def test_d1_gangnam_structure_review(agent):
     assert sorted(a for a, x in lv.items() if x == "Level 1") == ["11230590", "11230730"]  # 삼성2동·일원1동
     assert all(c["rule_id"].startswith("V2-L2-DATA-TRIGGER") for c in by_adm.values() if c["candidate_level"] == "Level 2")
     assert lv["11230640"] == lv["11230520"] == "Level 2"  # 역삼1동·논현1동
-    assert all("칸 판정" in c["level_reason"] for c in by_adm.values())
+    assert all("점검 시점" in c["level_reason"] for c in by_adm.values())
     assert {c["event_id"] for c in by_adm.values()} == {"강남:R1:20251003"}
     assert all(c["event_opened_at"] == "2025-09-26" for c in by_adm.values())  # 트리거 당일(D-7) 생성
     assert not any(c["candidate_level"] == "Level 3" for c in v["candidates"])  # 중장년은 연휴 카드 근거가 없음 → 통신 신호 하나
@@ -185,9 +185,10 @@ def test_d3_city_common_drop_is_not_rejected(agent):
     assert cs and all(c["candidate_type"] == "unexpected_activity_deviation" for c in cs)
     assert not any(c["counter_result"] == "기각" for c in cs)
     held = [c for c in cs if c["candidate_level"] == "판단 보류"]
-    assert len(held) == 5 and all("확인 필요" in c["counter_reason"] for c in held)
-    # 9/19 60대 남성 경보는 창 평균 하락이 절대 최소값(10%) 미만 → Level 1 (rules-v1.1)
-    assert [c["rule_id"] for c in cs if c["candidate_level"] == "Level 1"] == ["L1-DEV-SMALL"]
+    # rules-v2.0 경보 기준(7일 중 4일)에서는 60대·70대·80대+ 남녀 6개 경보가 모두 추석 뒤에 나고 도시 공통 변화라 보류.
+    # v1.1 에서 Level 1(작은 이탈)이던 9/19 60대 남성 경보는 4일 기준에 걸리지 않음
+    assert len(held) == 6 and all("확인 필요" in c["counter_reason"] for c in held)
+    assert not [c for c in cs if c["candidate_level"] == "Level 1"]
     assert final_guard(v) == PASS3
 
 

@@ -47,7 +47,7 @@ def test_cells_are_v2_axes_and_candidate_untouched(monkeypatch):
     assert "참고" in ref.comparison_note  # v1.1 후보 → 축은 참고
     assert c.model_dump() == before
     v2 = sr.get_structural_risk(ctx(), [candidate(rule_id="V2-L3-HOLIDAY-WATCH")])[0]
-    assert v2.comparison_note.startswith("이 칸 근거 축으로")
+    assert v2.comparison_note.startswith("등급은 이 표의 신호에")
 
 
 def test_no_published_months_and_city_candidates_show_nothing(monkeypatch):

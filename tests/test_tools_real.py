@@ -129,8 +129,8 @@ def test_real_rejected_alarm_and_no_future_leak():
     conf = {r.metric: r for r in S.check_confounders(c)}
     assert conf["반증: 공휴일 기대값"].value == "기각"
     assert conf["반증: 강수"].value in ("설명 일부", "통과", "판정 불가")  # 강수는 기각에 쓰지 않음
-    # 경보 직후 기준일(자료는 10/07 까지): 연휴 뒤 회복을 아직 못 봄 → 검토 중
-    early = {r.metric: r.value for r in S.check_confounders(ctx("춘천", "2025-10-10", age_min=20, age_max=29, sex="여"))}
+    # 경보 직후 기준일(자료는 10/09 까지, 7일 중 4일 기준이라 경보는 10/12부터): 연휴 뒤 회복을 아직 못 봐서 검토 중
+    early = {r.metric: r.value for r in S.check_confounders(ctx("춘천", "2025-10-12", age_min=20, age_max=29, sex="여"))}
     assert early["반증: 공휴일 기대값"] == "검토 중"
 
 

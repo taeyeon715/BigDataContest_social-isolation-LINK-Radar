@@ -47,6 +47,7 @@ from bigcontest.contracts import grain_contract
 from bigcontest.contracts.grain import check_request_contract
 from bigcontest.contracts.inputs import required_tools
 from bigcontest.contracts.time import Provenance, availability, check_time_contract
+from bigcontest.rules import levels_v2 as V2T
 
 # 예전 이름 (테스트·API 가 씀). 값은 configs/rules.yaml 임계값 (rules-v1.1)
 STUB_LEVEL_RULES = S.STUB_LEVEL_RULES
@@ -1230,7 +1231,7 @@ def assign_level(state: dict) -> dict:
     cands = S.assign_level(_candidates(state), evidence, as_of=_as_of(state))
     cands = apply_holiday_watch(cands, evidence, _as_of(state))
     cands = apply_winter_cells(cands, evidence, _as_of(state))
-    if _backend(state) == "real":  # 남은 v1.1 판정을 rules-v2.0 칸 판정으로 (가짜 도구는 칸 근거가 없음)
+    if _backend(state) == "real":  # 가짜 도구에는 칸 값이 없어 실제 자료일 때만 칸 판정
         from bigcontest.agent import v2_levels as V2
         from bigcontest.agent.tools.datasource import open_datasource
 
@@ -1249,7 +1250,7 @@ def watch_summaries(evidence: list[ToolResult]) -> list[ToolResult]:
 
 
 def watch_cells_of(evidence: list[ToolResult]) -> dict[str, dict[str, list[ToolResult]]]:
-    """연휴 주의 기간인 도시 → 주의 동 → 그 동의 주의 칸 근거 (get_holiday_watch)."""
+    """도시별, 동별 연휴 주의 칸 근거."""
     out: dict[str, dict[str, list[ToolResult]]] = {city_of_evidence(e): {} for e in watch_summaries(evidence)}
     for e in evidence:
         if e.metric == S.WATCH_METRIC and e.status == "OK":
@@ -1261,22 +1262,26 @@ def _holiday_scheduled(c: Candidate) -> bool:
     return c.candidate_type == "scheduled_access_review" and (c.trigger or "")[:2] in HOLIDAY_TRIGGERS
 
 
+def _cell_of(e: ToolResult, level: str) -> tuple[str, str, str, list[str]]:
+    """칸 근거(연휴 주의·동절기) → (성, 연령, 등급, 선 신호). 경고 칸에 '선 축 H+C+S (유형)'."""
+    who = e.applied_scope.split(") ")[-1]  # '여성 60대 이상'
+    on = next((w.split()[2] for w in e.warnings if w.startswith("선 축 ")), "없음")
+    return who[0], "60대+", level, [] if on == "없음" else on.split("+")
+
+
 def _watch_update(c: Candidate, cells: list[ToolResult]) -> dict:
-    """주의 동 후보 → Level 3 (rules-v2.0 holiday_watch). 등급 사유에 칸마다 선 축."""
+    """주의 동 후보는 Level 3."""
     from bigcontest.holiday_watch import watch_config
 
-    axes = "; ".join(f"{e.applied_scope.split(') ')[-1]} {e.warnings[0]}" for e in cells)
+    who = V2T.cells_text(sorted((_cell_of(e, "Level 3") for e in cells), key=lambda x: x[0]))
     return {"candidate_level": "Level 3", "rule_id": "V2-L3-HOLIDAY-WATCH", "rule_version": "rules-v2.0 holiday_watch",
             "rule_checks": [], "evidence_confidence": "보통",
-            "level_reason": f"연휴 주의 목록: {axes} + 예정된 트리거({c.trigger}). "
-                            f"연휴에 끊기는 연령 근거는 {watch_config()['observed']}"}
+            "level_reason": f"{who}. {V2T.trigger_text(c.trigger)}. 연휴 연령 근거는 {watch_config()['observed']}"}
 
 
 def apply_holiday_watch(cands: list[Candidate], evidence: list[ToolResult], as_of: date) -> list[Candidate]:
-    """연휴 트리거(R1·R2·R3) 후보를 연휴 주의 목록에 맞춘다 (rules_v2.yaml holiday_watch).
-    - 주의 동(60대 이상 칸 근거 축 2개 이상)의 고령층 후보 → Level 3. 그 동 후보가 없으면 같은 트리거로 새로 만든다
-    - 목록 밖 연휴 후보의 Level 3 → Level 2 상한 (CAP-HOLIDAY-WATCH)
-    주의 기간이 아닌 도시는 그대로."""
+    """연휴 트리거 후보를 연휴 주의 목록에 맞춘다. 주의 동의 고령층 후보는 Level 3이고, 그 동에 후보가 없으면
+    같은 트리거로 새로 만든다. 목록에 없는 동의 Level 3는 Level 2로 내린다. 주의 기간이 아닌 도시는 그대로."""
     watch = watch_cells_of(evidence)
     if not watch:
         return cands
@@ -1289,8 +1294,7 @@ def apply_holiday_watch(cands: list[Candidate], evidence: list[ToolResult], as_o
             elif c.candidate_level == "Level 3":
                 c = c.model_copy(update={
                     "candidate_level": "Level 2", "rule_id": f"{c.rule_id}+{CAP_HOLIDAY_WATCH}",
-                    "level_reason": f"{c.level_reason or ''} · 연휴 주의 목록 밖(연휴에 끊기는 연령의 근거 축 2개 이상 칸이 "
-                                    "아님) → Level 2 상한 [rules-v2.0 holiday_watch]"})
+                    "level_reason": f"{c.level_reason or ''} · 연휴 주의 목록에 없는 동이라 Level 2까지"})
         out.append(c)
     city_level = {e.evidence_id for e in evidence if _adm_of(e) is None}
     used = {c.candidate_id for c in out}
@@ -1317,7 +1321,7 @@ LEVEL_RANK = {"Level 1": 1, "Level 2": 2, "Level 3": 3}
 
 
 def winter_cells_of(evidence: list[ToolResult]) -> dict[str, list[tuple[ToolResult, str, str]]]:
-    """동절기 칸 근거 → 동 → [(근거, 등급, 규칙 id)] (get_winter_cells 경고 칸 첫 줄 'Level 3 (V2-...)')."""
+    """동별 동절기 칸 [(근거, 등급, 규칙 id)]. 등급은 근거 경고 칸 첫 줄('Level 3 (V2-...)')에서 읽는다."""
     out: dict[str, list[tuple[ToolResult, str, str]]] = {}
     for e in evidence:
         if e.metric == S.WINTER_CELL_METRIC and e.status == "OK":
@@ -1328,19 +1332,21 @@ def winter_cells_of(evidence: list[ToolResult]) -> dict[str, list[tuple[ToolResu
 
 
 def _winter_update(c: Candidate, cells: list[tuple[ToolResult, str, str]]) -> dict:
+    """그 읍·면 60대 이상 남녀 칸 중 높은 등급을 후보 등급으로."""
     e, level, rid = max(cells, key=lambda x: (LEVEL_RANK[x[1]], x[0].value))
-    why = "; ".join(f"{x[0].applied_scope.split(') ')[-1]} {x[1]}, {x[0].warnings[1]}, {x[0].warnings[2]}" for x in cells)
+    who = V2T.cells_text(sorted((_cell_of(x[0], x[1]) for x in cells), key=lambda x: x[0]))
+    parts = [who, e.warnings[2], V2T.trigger_text(c.trigger)]
+    if level != "Level 3":
+        parts.append(V2T.why_not3(rid.split("+")[1:]))
     return {"candidate_level": level, "rule_id": rid if rid.startswith("V2-") else f"V2-{rid}",
             "rule_version": "rules-v2.0", "rule_checks": [],
             "evidence_ids": list(dict.fromkeys([*c.evidence_ids, *(x[0].evidence_id for x in cells)])),
-            "level_reason": f"동절기 칸(읍·면 60대 이상, 칸 중 가장 높은 등급): {why} + 예정된 트리거({c.trigger})"}
+            "level_reason": ". ".join(p for p in parts if p)}
 
 
 def apply_winter_cells(cands: list[Candidate], evidence: list[ToolResult], as_of: date) -> list[Candidate]:
-    """동절기 트리거(W) 후보를 rules-v2.0 칸 판정에 맞춘다 (설계 3절).
-    - 고령층 후보: 그 읍·면 60대 이상 칸(남·여) 중 가장 높은 등급. 겨울 체류 감소가 아니면 칸 판정이 Level 2 상한
-    - 다른 집단 후보: Level 1 (동절기 트리거는 60대 이상 칸만)
-    - Level 3 칸이 있는 읍·면에 고령층 후보가 없으면 같은 트리거로 새로 만든다"""
+    """동절기 후보를 읍·면 60대 이상 칸 판정에 맞춘다. 고령층 후보는 남녀 칸 중 높은 등급, 다른 집단은 Level 1.
+    Level 3 칸이 있는 읍·면에 고령층 후보가 없으면 같은 트리거로 새로 만든다."""
     win = winter_cells_of(evidence)
     if not win:
         return cands
@@ -1354,7 +1360,7 @@ def apply_winter_cells(cands: list[Candidate], evidence: list[ToolResult], as_of
             else:
                 c = c.model_copy(update={
                     "candidate_level": "Level 1", "rule_id": "V2-L1-WINTER-AGE", "rule_version": "rules-v2.0",
-                    "rule_checks": [], "level_reason": "동절기 점검은 읍·면 60대 이상 칸에만 건다 [rules-v2.0 동절기]"})
+                    "rule_checks": [], "level_reason": "동절기 점검은 읍·면 60대 이상만 대상"})
         out.append(c)
     tmpl = next((c for c in out if c.city == "춘천" and (c.trigger or "").startswith("W") and R.group_key(c) == "고령층"),
                 None)
@@ -1376,7 +1382,7 @@ def apply_winter_cells(cands: list[Candidate], evidence: list[ToolResult], as_of
 
 
 def _join_dongs(names: list[str]) -> str:
-    """['논현1동', '논현2동'] → '논현1·2동' (같은 이름에 번호만 다른 동을 묶음)."""
+    """번호만 다른 동을 묶어 쓴다. 예: 논현1동, 논현2동은 논현1·2동."""
     groups: dict[str, list[str]] = {}
     for n in names:
         m = re.match(r"^(\D+?)(\d+)동$", n)
@@ -1384,8 +1390,35 @@ def _join_dongs(names: list[str]) -> str:
     return "·".join(f"{k}{'·'.join(v)}동" if v[0] else k for k, v in groups.items())
 
 
+EXT_SOURCE = {"S": ("1인 비율", "주민등록"), "V": ("경제 취약", "수급 통계"), "A": ("거점 거리", "자원 원장")}
+
+
+def _watch_basis(evidence: list[ToolResult], cfg: dict) -> str:
+    """연휴 블록 근거 줄: 지난 연휴 카드 값(도시·성)과 주의 칸에 실제로 선 공공 자료."""
+    card: dict[str, list[str]] = {}
+    name = None
+    for e in evidence:
+        if e.metric == S.WATCH_CARD_METRIC and e.status == "OK" and isinstance(e.value, (int, float)):
+            sex = "남" if (e.analysis_cohort or "").endswith("남성") else "여"
+            card.setdefault(city_of_evidence(e), []).append(f"{sex} {e.value:+.0f}%")
+            name = name or (e.warnings[0].removesuffix(" 연휴") if e.warnings else None)
+    ext = []
+    for e in evidence:
+        if e.metric == S.WATCH_METRIC and e.status == "OK":
+            ext += [a for a in _cell_of(e, "")[3] if a in EXT_SOURCE and a not in ext]
+    if not card:
+        head = cfg["card_basis"]
+    else:
+        vals = ", ".join(f"{city} {'·'.join(v)}" for city, v in sorted(card.items(), key=lambda x: CITIES.index(x[0])))
+        head = f"지난 연휴({name})에 60대 이상 의료 결제가 40·50대보다 더 줄었음({vals}, 신한카드)"
+    ext.sort(key=list(EXT_SOURCE).index)
+    tail = (f", 이 동들의 60대 이상은 같은 성·연령 안에서 동네에 오래 머무는 편(행동 고립, SK 통신)이고 "
+            f"{' 또는 '.join(EXT_SOURCE[a][0] for a in ext)}이 높음({'·'.join(EXT_SOURCE[a][1] for a in ext)})") if ext else ""
+    return head + tail
+
+
 def holiday_watch_lines(evidence: list[ToolResult]) -> list[str]:
-    """연휴 주의 블록 (템플릿): 주의 지역 / 근거 / 할 일 / 관측 한계. 연휴 주의 기간이 아니면 빈 목록."""
+    """연휴 주의 블록 네 줄(주의 지역, 근거, 할 일, 관측 한계). 연휴 주의 기간이 아니면 빈 목록."""
     from bigcontest.holiday_watch import watch_config
 
     summ = watch_summaries(evidence)
@@ -1394,6 +1427,7 @@ def holiday_watch_lines(evidence: list[ToolResult]) -> list[str]:
     cfg = watch_config()
     label = summ[0].warnings[0]  # 예: "2025 추석 연휴 전 (10/03~10/09)"
     head = label.split(" 연휴 ")[0]
+    days_ = label[label.find("(") + 1:label.rfind(")")]
     parts, n_cells, n_dongs, follow = [], 0, 0, []
     for e in sorted(summ, key=lambda e: CITIES.index(city_of_evidence(e))):
         city = city_of_evidence(e)
@@ -1408,12 +1442,14 @@ def holiday_watch_lines(evidence: list[ToolResult]) -> list[str]:
     where = ", ".join(parts)
     after = " 연휴 뒤 " in label
     title = f"{head} 연휴 뒤 이어서 볼 지역" if after else f"{head} 연휴 주의 지역"
-    card_basis = cfg["follow_up_card_basis"] if after else cfg["card_basis"]
     todo = ", ".join(cfg["follow_up_actions"]) if after else (
         ", ".join(cfg["actions"]) + (". " + ". ".join(follow) if follow else ""))
-    lines = [f"{title}: {where}의 60대 이상 (Level 3, 주의 칸 {n_cells}개, {n_dongs}개 동, {label})" if parts
-             else f"{title}: 근거 축 2개 이상인 60대 이상 칸 없음 ({label})",
-             f"근거: {card_basis} + {cfg['cell_basis']}",
+    basis = _watch_basis(evidence, cfg)
+    if after:
+        basis += f". {cfg['follow_up_card_basis']}"
+    lines = [f"{title}: {where}의 60대 이상 (Level 3, {n_dongs}개 동 {n_cells}칸, 연휴 {days_})" if parts
+             else f"{title}: Level 3인 60대 이상 칸 없음 (연휴 {days_})",
+             f"근거: {basis}",
              f"할 일: {todo}",
              f"관측 한계: 연휴에 끊기는 연령은 {cfg['observed']}이라 아직 검증 전 ({cfg['confirm']})"]
     return lines
@@ -1458,10 +1494,10 @@ def scope_sentences(state: dict) -> list[str]:
         out.append(head + (f" ({ps['kept']}건)" if ps["kept"] else ". 이 기준일에 이 동 후보는 없음"))
     if req is not None and req.period_label:
         if state.get("route") == "investigate":
-            out.append(f"질문의 기간 말 '{req.period_label}'은 조사 등급에 쓰지 않음 "
-                       f"(등급은 기준일 {state['as_of']}까지 자료로 정함, 정기 감시와 같은 등급)")
+            out.append(f"질문의 '{req.period_label}'은 등급 계산에 쓰지 않음 "
+                       f"(등급은 기준일 {state['as_of']}까지의 자료로 정하며 정기 감시와 같음)")
         else:
-            out.append(f"조회 기간: '{req.period_label}' → {req.period_from}~{req.period_to} "
+            out.append(f"조회 기간: '{req.period_label}', {req.period_from}~{req.period_to} "
                        f"(기준일 {state['as_of']}까지로 자름, 공급 지연이 있는 자료는 그보다 앞까지)")
     return out
 
@@ -1683,7 +1719,7 @@ def summary_sentences(cands: list[Candidate], evidence: list[ToolResult]) -> lis
     out = []
     low = [c for c in cands if c.candidate_type == "scheduled_access_review" and c.candidate_level in ("Level 0", "Level 1")]
     if low:
-        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 동을 가리키는 통신 신호가 없어 Level 1 (공공 자료만으로는 오르지 않음) [rules-v2.0]")
+        out.append(f"후보 요약: 예정된 점검 중 {len(low)}곳은 동을 가리키는 통신 신호가 없어 Level 1 (공공 자료만으로는 오르지 않음)")
     far = S.STUB_LEVEL_RULES["access_far_km"]
     for city in dict.fromkeys(c.city for c in cands):
         acc = [e for e in evidence if e.metric == ACCESS_METRIC and e.status == "OK"
