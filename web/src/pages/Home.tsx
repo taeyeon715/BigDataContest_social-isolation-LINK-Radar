@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError, CITIES, type CandidateLevel, type City, type HomeCandidate, type HomeResponse } from '../api'
+import { DatePicker } from '../components/DatePicker'
 import { DongMap, LEVEL_FILL, LevelLegend } from '../components/DongMap'
 import { ErrorBox, LevelBadge, Loading } from '../components/ui'
 import { PRESETS } from '../lib/filters'
@@ -103,7 +104,7 @@ export default function Home() {
             </div>
             <div className="rounded-pill bg-white/70 px-4 py-2 text-sm font-semibold text-ink-900" data-testid="basis-line">
               {explicit ? (
-                <>기준일 {as_of} 결과</>
+                <>기준일 {explicit}{explicit !== as_of ? ` · 계산일 ${as_of}` : ''} 결과</>
               ) : todayData ? (
                 <>
                   오늘 {today} · 작년 같은 날({todayData}) 기준{as_of !== todayData ? ` · 계산일 ${as_of}` : ''}
@@ -122,15 +123,7 @@ export default function Home() {
                 {p.label}
               </button>
             ))}
-            {STATIC_MODE ? (
-              <select aria-label="기준일" className="rounded-pill border-0 bg-white/70 px-3 py-1.5 text-sm font-semibold text-ink-900" value={as_of} onChange={(e) => set({ as_of: e.target.value })}>
-                {(dates ?? []).map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            ) : (
-              <input type="date" aria-label="기준일" className="rounded-pill border-0 bg-white/70 px-3 py-1.5 text-sm font-semibold text-ink-900" min={DATA_FROM} max={DATA_TO} value={as_of} onChange={(e) => e.target.value && set({ as_of: e.target.value })} />
-            )}
+            <DatePicker value={explicit && STATIC_MODE ? explicit : as_of} min={DATA_FROM} max={DATA_TO} marked={STATIC_MODE ? dates : null} today={todayData} onChange={(d) => set({ as_of: d })} />
           </div>
           <LevelGuide />
         </div>
