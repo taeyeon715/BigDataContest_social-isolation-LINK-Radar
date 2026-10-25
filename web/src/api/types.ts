@@ -86,8 +86,9 @@ export interface TriggerInfo {
 
 export interface CandidateCountRange {
   count: number
-  low: number
-  high: number
+  /** 임계값을 바꿔 다시 센 범위. 지금 등급 규칙으로 계산한 범위가 없으면 null (범위 표시 생략) */
+  low: number | null
+  high: number | null
   note: string
 }
 

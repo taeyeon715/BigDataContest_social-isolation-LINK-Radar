@@ -43,6 +43,7 @@ from bigcontest.agent.tools import signal as S
 from bigcontest.agent.tools.common import city_of_evidence, req_with_city
 from bigcontest.agent.tools.stubs import ToolContext
 from bigcontest.agent.tools.welfare import ACCESS_METRIC, cause_for
+from bigcontest.agent.v2_levels import inherit_inputs
 from bigcontest.contracts import grain_contract
 from bigcontest.contracts.grain import check_request_contract
 from bigcontest.contracts.inputs import required_tools
@@ -1231,14 +1232,16 @@ def assign_level(state: dict) -> dict:
     cands = S.assign_level(_candidates(state), evidence, as_of=_as_of(state))
     cands = apply_holiday_watch(cands, evidence, _as_of(state))
     cands = apply_winter_cells(cands, evidence, _as_of(state))
+    from bigcontest.agent import v2_levels as V2
+
     if _backend(state) == "real":  # 가짜 도구에는 칸 값이 없어 실제 자료일 때만 칸 판정
-        from bigcontest.agent import v2_levels as V2
         from bigcontest.agent.tools.datasource import open_datasource
 
         ds, mode, req = open_datasource(state["snapshot_id"]), state["analysis_mode"], _req(state)
         cands = V2.relevel_scheduled(cands, evidence, ds, _as_of(state), mode, req.group if req else None)
         cands = V2.relevel_deviation(cands, ds, _as_of(state), mode)
-    return {"candidates": _dump(cands)}
+    # 최종 등급이 정해진 뒤 대응 종류·근거 신뢰도·입력 상태 상한을 맞춘다 (최초 판정 값이 남지 않게)
+    return {"candidates": _dump(V2.sync_final(cands))}
 
 
 HOLIDAY_TRIGGERS = ("R1", "R2", "R3")
@@ -1310,7 +1313,7 @@ def apply_holiday_watch(cands: list[Candidate], evidence: list[ToolResult], as_o
                 n += 1
             used.add(cid)
             base = tmpl.model_copy(update={"candidate_id": cid, "adm_cd": adm, "context": [], "queue_rank": None,
-                                           "selected_for_review": False, "input_status": "충족", "missing_inputs": [],
+                                           "selected_for_review": False, **inherit_inputs(tmpl),
                                            "evidence_ids": [i for i in tmpl.evidence_ids if i in city_level]
                                            + [e.evidence_id for e in cells]})
             out.append(base.model_copy(update=_watch_update(base, cells)))
@@ -1338,8 +1341,10 @@ def _winter_update(c: Candidate, cells: list[tuple[ToolResult, str, str]]) -> di
     parts = [who, e.warnings[2], V2T.trigger_text(c.trigger)]
     if level != "Level 3":
         parts.append(V2T.why_not3(rid.split("+")[1:]))
+    # 칸 신뢰도는 칸 인구가 적을 때만 낮음 (cell_facts) → 판정의 CAP-CONF-LOW 로 읽는다
     return {"candidate_level": level, "rule_id": rid if rid.startswith("V2-") else f"V2-{rid}",
             "rule_version": "rules-v2.0", "rule_checks": [],
+            "evidence_confidence": "낮음" if "CAP-CONF-LOW" in rid.split("+") else "보통",
             "evidence_ids": list(dict.fromkeys([*c.evidence_ids, *(x[0].evidence_id for x in cells)])),
             "level_reason": ". ".join(p for p in parts if p)}
 
@@ -1375,7 +1380,7 @@ def apply_winter_cells(cands: list[Candidate], evidence: list[ToolResult], as_of
                 n += 1
             used.add(cid)
             base = tmpl.model_copy(update={"candidate_id": cid, "adm_cd": adm, "context": [], "queue_rank": None,
-                                           "selected_for_review": False, "input_status": "충족", "missing_inputs": [],
+                                           "selected_for_review": False, **inherit_inputs(tmpl),
                                            "evidence_ids": [i for i in tmpl.evidence_ids if i in city_level]})
             out.append(base.model_copy(update=_winter_update(base, cells)))
     return out
@@ -2213,9 +2218,9 @@ def trace_step(name: str, before: dict, upd: dict, nxt: str | None, started_at: 
         cands = st.get("candidates") or []
         step["choice"] = _count(cands, lambda c: c.get("candidate_level"))
         ids = sorted({c["rule_id"] for c in cands if c.get("rule_id")})
-        from bigcontest.agent.tools.common import RULE_VERSION
+        from bigcontest.agent.tools.common import rule_version
 
-        step["rule_ids"] = ids or [RULE_VERSION]
+        step["rule_ids"] = ids or [rule_version()]
     elif name == "assign_queue":
         cands = st.get("candidates") or []
         sel = [c["candidate_id"] for c in sorted(cands, key=lambda c: c.get("queue_rank") or 0)

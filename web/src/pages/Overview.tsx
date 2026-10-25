@@ -13,12 +13,14 @@ import { useAsync } from '../lib/useAsync'
 
 const TYPE_COLOR: Record<CandidateType, string> = { scheduled_access_review: '#008F8A', unexpected_activity_deviation: '#7A5BC7' }
 
+/** 종류별 범위를 더한 전체 범위. 한 종류라도 범위가 없으면(null) 전체 범위도 없음 */
 function totalRange(o: OverviewResponse) {
   const r = Object.values(o.candidate_counts)
+  const ranged = r.every((x) => x?.low != null && x?.high != null)
   return {
     count: r.reduce((s, x) => s + (x?.count ?? 0), 0),
-    low: r.reduce((s, x) => s + (x?.low ?? 0), 0),
-    high: r.reduce((s, x) => s + (x?.high ?? 0), 0),
+    low: ranged ? r.reduce((s, x) => s + (x?.low ?? 0), 0) : null,
+    high: ranged ? r.reduce((s, x) => s + (x?.high ?? 0), 0) : null,
   }
 }
 
@@ -82,30 +84,37 @@ export function releasedOf(o: OverviewResponse): { id: string; c: ReleasedCandid
   return o.released_candidate_ids.map((id) => ({ id, c: null, reason: null }))
 }
 
-type CountRow = { kind: string; key: CandidateType; count: number; low: number; high: number }
+type CountRow = { kind: string; key: CandidateType; count: number; low: number | null; high: number | null }
 
-/** 후보 수 막대 + 범위 선 (CSS만, 차트 라이브러리 없이). 막대 = 지금 수, 가는 선 = 임계값을 바꿀 때 범위 */
+/** 후보 수 막대 + 범위 선 (CSS만, 차트 라이브러리 없이). 막대 = 지금 수, 가는 선 = 임계값을 바꿀 때 범위 (없으면 생략) */
 export function CountBars({ rows }: { rows: CountRow[] }) {
-  const max = Math.max(1, ...rows.map((r) => Math.max(r.count, r.high)))
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.count, r.high ?? 0)))
   const pct = (v: number) => `${(v / max) * 100}%`
-  const summary = rows.map((r) => `${r.kind} ${r.count}건 (범위 ${r.low}~${r.high}건)`).join(', ')
+  const ranged = rows.some((r) => r.low != null && r.high != null)
+  const summary = rows.map((r) => `${r.kind} ${r.count}건${r.low != null && r.high != null ? ` (범위 ${r.low}~${r.high}건)` : ''}`).join(', ')
   return (
-    <div role="img" aria-label={`후보 종류별 수와 임계값 범위: ${summary}`} data-testid="count-bars" className="flex flex-col gap-4">
+    <div role="img" aria-label={`후보 종류별 수${ranged ? '와 임계값 범위' : ''}: ${summary}`} data-testid="count-bars" className="flex flex-col gap-4">
       {rows.map((r) => (
         <div key={r.key} className="grid grid-cols-[88px_minmax(0,1fr)_72px] items-center gap-3" aria-hidden>
           <div className="text-sm font-semibold text-ink-900">{r.kind}</div>
           <div className="relative h-7 rounded-md bg-canvas">
             <div className="absolute inset-y-0 left-0 rounded-md" style={{ width: pct(r.count), background: TYPE_COLOR[r.key] }} />
             {/* 범위 선: low~high */}
-            <div className="absolute top-1/2 h-0.5 -translate-y-1/2 bg-ink-900" style={{ left: pct(r.low), width: `calc(${pct(r.high)} - ${pct(r.low)})` }} />
-            <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: pct(r.low) }} />
-            <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: `calc(${pct(r.high)} - 2px)` }} />
+            {r.low != null && r.high != null && (
+              <>
+                <div className="absolute top-1/2 h-0.5 -translate-y-1/2 bg-ink-900" style={{ left: pct(r.low), width: `calc(${pct(r.high)} - ${pct(r.low)})` }} />
+                <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: pct(r.low) }} />
+                <div className="absolute top-1 bottom-1 w-0.5 bg-ink-900" style={{ left: `calc(${pct(r.high)} - 2px)` }} />
+              </>
+            )}
           </div>
           <div className="text-xs text-ink-800">
             <b className="text-sm">{r.count}건</b>
-            <div className="text-ink-600">
-              범위 {r.low}~{r.high}
-            </div>
+            {r.low != null && r.high != null && (
+              <div className="text-ink-600">
+                범위 {r.low}~{r.high}
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -154,7 +163,7 @@ export default function Overview() {
   const chart = o
     ? (Object.keys(TYPE_LABEL) as CandidateType[]).map((k) => {
         const r = o.candidate_counts[k]
-        return { kind: TYPE_LABEL[k], key: k, count: r?.count ?? 0, low: r?.low ?? 0, high: r?.high ?? 0 }
+        return { kind: TYPE_LABEL[k], key: k, count: r?.count ?? 0, low: r ? r.low : 0, high: r ? r.high : 0 }
       })
     : []
 
@@ -180,9 +189,11 @@ export default function Overview() {
                   <span className="text-hero-num font-black" data-testid="hero-count">
                     전체 {total.count}건
                   </span>
-                  <span className="rounded-pill bg-ink-900/25 px-3 py-1 text-sm" data-testid="hero-range">
-                    임계값에 따라 {total.low}~{total.high}건
-                  </span>
+                  {total.low != null && total.high != null && (
+                    <span className="rounded-pill bg-ink-900/25 px-3 py-1 text-sm" data-testid="hero-range">
+                      임계값에 따라 {total.low}~{total.high}건
+                    </span>
+                  )}
                 </div>
                 <div className="mt-1 text-sm text-white">
                   {chart.map((c) => `${c.kind} ${c.count}`).join(' · ')}
@@ -309,12 +320,18 @@ export default function Overview() {
             )}
           </Card>
         </div>
-        <Card title="후보 수 (범위와 함께)">
+        <Card title={total?.low != null ? '후보 수 (범위와 함께)' : '후보 수'}>
           <AsyncBlock state={ov}>
             {() => (
               <>
                 <CountBars rows={chart} />
-                <div className="mt-3 text-xs text-ink-600">막대 = 지금 기준의 수, 가는 선 = 임계값을 바꿀 때의 범위. 후보 수는 범위와 함께만 말합니다.</div>
+                {total?.low != null ? (
+                  <div className="mt-3 text-xs text-ink-600">막대 = 지금 기준의 수, 가는 선 = 임계값을 바꿀 때의 범위. 후보 수는 범위와 함께만 말합니다.</div>
+                ) : (
+                  <div className="mt-3 text-xs text-ink-600" data-testid="range-omitted">
+                    막대 = 지금 기준의 수. 칸 판정 기준값을 바꿔 다시 센 범위는 아직 계산하지 않아 표시하지 않습니다.
+                  </div>
+                )}
               </>
             )}
           </AsyncBlock>

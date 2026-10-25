@@ -60,14 +60,15 @@ def holiday_phase(blocks: list[tuple[date, date, str]], as_of: date, city: str, 
 
 def cell_axes(pop: pd.DataFrame, one: pd.DataFrame, tel_age: pd.DataFrame, tel_time: pd.DataFrame, res_month: int,
               tel_months: list[int], as_of: date, access_km: dict[tuple[str, str], float] | None = None,
-              ages: list[str] | None = None, rules: dict | None = None) -> pd.DataFrame:
+              ages: list[str] | None = None, rules: dict | None = None,
+              v_inputs: tuple[pd.DataFrame, pd.DataFrame] | None = None) -> pd.DataFrame:
     """칸마다 S·H·V·A 값. 달은 부르는 쪽이 기준일에 쓸 수 있던 달로 넘긴다.
-    access_km 은 (동 코드, 정책 집단)별 안부·관계 거점 직선거리."""
+    access_km 은 (동 코드, 정책 집단)별 안부·관계 거점 직선거리. v_inputs 는 V축 원자료 (vulnerability.v_axis)."""
     rules = rules or load_rules_v2()
     ax = rules["axes"]
     s = s_axis(pop, one, res_month, ax["top_share"])
     h = h_axis(tel_age, tel_time, pop, tel_months, ax["top_share"])
-    v = v_axis(pop, res_month)
+    v = v_axis(pop, res_month, inputs=v_inputs)
     key = ["adm_cd", "sex", "age5"]
     df = s.merge(h[key + ["h", "h_top", "h_state", "h_basis"]], on=key, how="left")
     df = df.merge(v[key + ["v_eb", "v_top", "v_state", "v_source"]], on=key, how="left")

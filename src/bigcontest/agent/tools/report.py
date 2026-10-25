@@ -483,10 +483,10 @@ def explain_level(candidate: Candidate, rule_trace: list | None = None) -> Level
 
 def write_run_metadata(ctx, run_id: str, out_dir: Path, thresholds: dict | None = None):
     """runmeta 로 실행 메타데이터 저장 (run_id 키로 한 번만). (메타데이터, 새로 썼는지)."""
-    from bigcontest.agent.tools.common import RULE_VERSION
+    from bigcontest.agent.tools.common import rule_version
     from bigcontest.agent.tools.datasource import open_datasource
     from bigcontest.runmeta import write_run_metadata as _write
 
     meta = open_datasource(ctx.snapshot_id).run_metadata(run_id, ctx.analysis_mode, ctx.as_of,
-                                                        thresholds=thresholds, rule_version=RULE_VERSION)
+                                                        thresholds=thresholds, rule_version=rule_version())
     return _write(meta, Path(out_dir))

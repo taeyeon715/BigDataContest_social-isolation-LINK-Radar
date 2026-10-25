@@ -24,9 +24,16 @@ MERCHANT = {"강남": "강남구", "춘천": "춘천시"}
 RESIDENCE = {"강남": "서울", "춘천": "강원"}
 SEX_CODE = {"남성": "M", "여성": "F"}
 SEX_KO = {"남": "남성", "여": "여성"}
-# 등급은 rules-v1.1 (configs/rules.yaml). 기상특보 근사 같은 도구 안 규칙은 아직 임시 기준
-RULE_VERSION = "agent-s5-v1 (등급 rules-v1.1, 도구 근사는 임시)"
+# 기상특보 근사 같은 도구 안 규칙은 아직 임시 기준
 TEMP_RULE_NOTE = "임시 기준: 특보 근사 임계값은 아직 확정되지 않음"
+
+
+def rule_version() -> str:
+    """근거 봉투·스냅샷 정보·실행 메타데이터의 규칙 판. 등급 판은 후보의 rule_version 과 같은 값
+    (기본 rules-v2.0, LINKRADAR_RULES=v1.1 이면 rules-v1.1)."""
+    from bigcontest.rules.version import level_version
+
+    return f"agent-s5-v1 (등급 {level_version()}, 도구 근사는 임시)"
 
 
 def age_code(age_g: str) -> str:
@@ -120,7 +127,7 @@ def envelope(ctx, code: str, source: str | None, city: str | None = None, **kw) 
         analysis_mode=ctx.analysis_mode,
         as_of=ctx.as_of,
         snapshot_id=ctx.snapshot_id,
-        rule_version=RULE_VERSION,
+        rule_version=rule_version(),
         status="OK",
     )
     if source:

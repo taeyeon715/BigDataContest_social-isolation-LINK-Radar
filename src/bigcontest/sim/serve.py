@@ -49,7 +49,7 @@ def build_app(db_path: str | None = None, seed: int | None = None):
         sys.path.insert(0, str(ROOT))
     from api.app import create_app
     from bigcontest.agent.schemas import DATA_END, DATA_START, SnapshotInfo
-    from bigcontest.agent.tools.common import RULE_VERSION
+    from bigcontest.agent.tools.common import rule_version
     from bigcontest.sim import params as P
     from bigcontest.sim.adapter import SimDataSource, register
 
@@ -62,7 +62,7 @@ def build_app(db_path: str | None = None, seed: int | None = None):
                      delay_s=0)
     app.state.snapshots.publish(SnapshotInfo(
         snapshot_id=sid, created_at=datetime.now(timezone(timedelta(hours=9))), data_from=DATA_START, data_to=DATA_END,
-        cleaning_rule_version=f"{P.SIM_VERSION}/synthetic", rule_version=RULE_VERSION,
+        cleaning_rule_version=f"{P.SIM_VERSION}/synthetic", rule_version=rule_version(),
         ledger_version=f"ledger@sha256:{ds.hashes['resources'][:12]}", previous_snapshot_id=None))
     app.add_middleware(MarkSynthetic)
     return app, sid

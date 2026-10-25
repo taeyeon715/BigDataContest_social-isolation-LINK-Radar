@@ -1,6 +1,7 @@
 """도구가 자료를 읽는 한 곳. 모든 실제 도구는 여기서 고정한 `snapshot_id` 로 읽는다.
 
-- 지금은 "dev" 스냅샷 하나: data/interim(정제 parquet) + external + ref + configs/project.yaml(공휴일).
+- 지금은 "dev" 스냅샷 하나: data/interim(정제 parquet) + external + ref + configs/project.yaml(공휴일)
+  + rules-v2.0 칸 판정 입력(성·연령별 1인세대, 강남 성별 수급자, 춘천 기초연금 연보).
   snapshot_id = "dev-" + (입력 파일 해시들의 해시) 앞 12자리. 파일이 하나라도 바뀌면 id 가 바뀐다.
 - **지정 파일만 읽음**: 모든 표(카드·공휴일·날씨·주민등록·시민생활·통신·원장·동 이름)는 이 객체의
   `self.files[원천]` 에서만 읽는다. 전역 ROOT·설정 파일 경로를 다시 찾지 않는다. root 나 files 를 바꾸면
@@ -46,10 +47,14 @@ DEV_FILES: dict[str, str] = {
     "tel_wkdy": "data/interim/tel_wkdy.parquet",
     "resident_pop": "external/resident/주민등록_성연령별인구_2025-07_12.csv",
     "resident_hh": "external/resident/주민등록_세대원수별세대수_2025-07_12.csv",
+    "resident_single": "external/resident/주민등록_성연령별1인세대_2025-07_12.csv",  # rules-v2.0 S축 (칸 1인세대)
     "seoul_living": "external/seoul_living/시민생활_10개관심집단_강남_2025-07_12.csv",
     "asos": "external/weather/kma_asos_daily_2025-07_12.csv",
     "asos_heat": "external/weather/kma_asos_heat_2025-07_12.csv",  # 일 최고 체감온도 근사 (R4 특보 단계)
     "welfare_recipients": "external/welfare/서울_기초생활수급자_동별_2024.csv",  # 서울 동별 수급자 (표시만)
+    # rules-v2.0 V축 (등급 입력): 강남 동 × 성 수급자, 춘천 읍면동 기초연금 수급률
+    "welfare_recipients_sex": "analysis/taeyeon_2axis/external/seoul_welfare/서울_국민기초생활보장수급자_동별_강남구_2024.csv",
+    "chuncheon_pension": "analysis/taeyeon_2axis/external/chuncheon/춘천통계연보2025_11_보건및사회보장_20241231.xlsx",
     "resources": "external/resources/복지자원_원장_v2.csv",
     "adm_names": "ref/adm_cd_names.csv",
     "adm_code_map": "ref/adm_code_map.csv",
@@ -326,6 +331,21 @@ class DataSource:
 
         return self._get("resident_pop",
                          lambda: resident_population(self.files["resident_pop"], self.files["adm_code_map"]))
+
+    def resident_single(self) -> pd.DataFrame:
+        """주민등록 성·연령별 1인세대 (행정동 × 월 × 성 × 5세 구간). rules-v2.0 S축."""
+        from bigcontest.external import resident_single_by_age
+
+        return self._get("resident_single",
+                         lambda: resident_single_by_age(self.files["resident_single"], self.files["adm_code_map"]))
+
+    def v_inputs(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """rules-v2.0 V축 원자료: (강남 동 × 성 수급자, 춘천 읍면동 기초연금). vulnerability.v_axis(inputs=…)."""
+        from bigcontest.vulnerability import chuncheon_basic_pension, gangnam_recipients
+
+        return self._get("v_inputs", lambda: (
+            gangnam_recipients(self.files["welfare_recipients_sex"], self.files["adm_names"]),
+            chuncheon_basic_pension(self.files["chuncheon_pension"], self.files["adm_names"])))
 
     def weather(self) -> pd.DataFrame:
         return self._get("weather", lambda: pd.read_csv(self.files["asos"], parse_dates=["date"]))

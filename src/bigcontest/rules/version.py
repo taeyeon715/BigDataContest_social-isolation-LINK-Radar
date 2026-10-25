@@ -16,6 +16,17 @@ def active() -> str:
     return "v1.1" if os.environ.get(ENV, "v2.0") == "v1.1" else "v2.0"
 
 
+def level_version() -> str:
+    """등급 규칙 판 이름 (rules-v2.0, LINKRADAR_RULES=v1.1 이면 rules-v1.1)."""
+    if active() == "v1.1":
+        from bigcontest.rules import rules_version
+
+        return rules_version()
+    from bigcontest.rules.levels_v2 import load_rules_v2
+
+    return load_rules_v2()["version"]
+
+
 def alarm_config():
     """카드 이탈 경보 설정 (signals.alarm.AlarmConfig)."""
     from bigcontest.signals.alarm import AlarmConfig

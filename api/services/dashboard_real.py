@@ -7,7 +7,9 @@
   후보 ID 는 그 실행의 ID 라 POST /runs (candidate_id) 가 그대로 받는다.
 - 새로 생긴 / 해제된 후보: 7일 전 기준일의 정기 감시와 후보 열쇠(종류·도시·동·코호트, 예정된 점검은 사건)로 비교.
   후보 ID 는 실행마다 새로 매기므로 ID 로 비교하지 않는다. 해제 사유는 트리거·경보가 이번 기준일에도 있는지로 정함
-- 후보 수 범위: 같은 근거에 임계값만 바꿔(rules.sensitivity.THRESHOLD_GRID) 다시 낸 후보 수의 최소·최대
+- 후보 수 범위: 같은 근거에 임계값만 바꿔(rules.sensitivity.THRESHOLD_GRID) 다시 낸 후보 수의 최소·최대.
+  rules-v1.1 판정 함수로만 계산할 수 있어 LINKRADAR_RULES=v1.1 일 때만 낸다. rules-v2.0(기본)에서는 칸 판정 민감도가
+  아직 없으므로 범위를 비우고(low·high=None) 지금 수만 준다 (다른 규칙의 값을 섞지 않음)
 - 지도: 1인세대 비율과 도시 안 순위(도시 × 기준월 전체 모집단), 구조 상위 여부(rules.yaml)는 정기 감시 근거에서,
   행동 신호는 그 실행의 후보에서. 자원 점은 원장 v2 (출처·확인일 없는 것, 운영 중단, 관할 밖 물리 거점은 뺌)
 - 자원 조회: 원장 v2 + find_resources 와 같은 매칭·제외 규칙 (resources.match). 동을 주면 거리, 도시만 주면 도시 전체.
@@ -45,7 +47,6 @@ from bigcontest.agent.tools import signal as S
 from bigcontest.agent.tools.common import city_of_evidence, req_with_city
 from bigcontest.rules import candidates as RC
 from bigcontest.rules import load_rules
-from bigcontest.rules import rules_version as _v11_version
 from bigcontest.rules import version as RV
 
 from api.auth import DEV_IDENTITY, Identity
@@ -60,6 +61,7 @@ COMPARE_DAYS = 7
 RESOURCE_LIMIT = 50
 CACHE_RUNS = 8
 TYPE_KO = {"scheduled_access_review": "예정된 점검", "unexpected_activity_deviation": "예상 밖 이탈"}
+V2_RANGE_NOTE = "칸 판정 기준값을 바꿔 다시 센 범위는 아직 계산하지 않아 표시하지 않음"
 
 
 def cand_key(c: Candidate) -> tuple:
@@ -76,11 +78,7 @@ def _codes(trigger: str | None) -> list[str]:
 
 def rules_version() -> str:
     """화면에 표시할 규칙 판 (에이전트 기본 rules-v2.0, LINKRADAR_RULES=v1.1 이면 v1.1)."""
-    if RV.active() == "v1.1":
-        return _v11_version()
-    from bigcontest.rules.levels_v2 import load_rules_v2
-
-    return load_rules_v2()["version"]
+    return RV.level_version()
 
 class RealDashboard:
     def __init__(self, runs: AgentRunService):
@@ -169,7 +167,12 @@ class RealDashboard:
         return list(out.values())
 
     def _count_ranges(self, run_id: str, city: str, cands: list[Candidate]) -> dict[str, CandidateCountRange]:
-        """같은 근거에 임계값만 바꿔 다시 낸 후보 수 (기각 제외)의 최소·최대. 등급은 바꾸지 않는다 (계산만)."""
+        """같은 근거에 임계값만 바꿔 다시 낸 후보 수 (기각 제외)의 최소·최대. 등급은 바꾸지 않는다 (계산만).
+        rules-v2.0 이면 범위 없이 지금 수만 (v1.1 run_rules 값은 같은 규칙의 민감도가 아님)."""
+        if RV.active() != "v1.1":
+            return {kind: CandidateCountRange(
+                count=sum(c.candidate_type == kind and c.counter_result != "기각" for c in cands),
+                note=V2_RANGE_NOTE) for kind in TYPE_KO}
         if run_id not in self._ranges:
             from bigcontest.rules.compare import run_rules
             from bigcontest.rules.sensitivity import THRESHOLD_GRID

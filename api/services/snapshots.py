@@ -72,13 +72,13 @@ class AgentSnapshotService(SnapshotService):
             from datetime import datetime, timedelta, timezone
 
             from bigcontest.agent.schemas import DATA_END, DATA_START
-            from bigcontest.agent.tools.common import RULE_VERSION
+            from bigcontest.agent.tools.common import rule_version
             from bigcontest.ingest import CLEANING_RULE_VERSION
             from bigcontest.runmeta import ledger_version
 
             self._known[sid] = SnapshotInfo(
                 snapshot_id=sid, created_at=datetime.now(timezone(timedelta(hours=9))), data_from=DATA_START,
-                data_to=DATA_END, cleaning_rule_version=CLEANING_RULE_VERSION, rule_version=RULE_VERSION,
+                data_to=DATA_END, cleaning_rule_version=CLEANING_RULE_VERSION, rule_version=rule_version(),
                 ledger_version=ledger_version(), previous_snapshot_id=None)
         return self._known[sid]
 

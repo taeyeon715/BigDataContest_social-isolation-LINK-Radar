@@ -114,7 +114,7 @@ def test_overview_map_candidates_shapes(client, city, as_of):
     assert ov.disclaimer == DISCLAIMER
     assert ov.time_label  # simulated_replay 기본 → 가정한 공개 시점 표시
     for rng in ov.candidate_counts.values():
-        assert rng.low <= rng.count <= rng.high
+        assert rng.low is not None and rng.low <= rng.count <= rng.high
     mp = ok(client.get("/map", params={"as_of": as_of, "city": city}), MapResponse)
     assert len(mp.areas) == (22 if city == "강남" else 25)
     assert "위험지도 아님" in mp.note

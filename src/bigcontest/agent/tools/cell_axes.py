@@ -59,7 +59,6 @@ _SHARED_MAX = 16
 def _cell_frame(ds, res_m: int, tel_m: tuple[int, ...], as_of: date) -> pd.DataFrame:
     """축은 기준일이 아니라 '쓸 수 있던 달 조합'과 강남 V 공개 여부로만 정해진다 → 그 열쇠로 한 번만 계산."""
     from bigcontest import holiday_watch as HW
-    from bigcontest.external import resident_single_by_age
     from bigcontest.rules.levels_v2 import load_rules_v2
 
     pub = load_rules_v2()["axes"]["v_published"].get("강남")
@@ -68,8 +67,9 @@ def _cell_frame(ds, res_m: int, tel_m: tuple[int, ...], as_of: date) -> pd.DataF
     if key not in _SHARED:
         if len(_SHARED) >= _SHARED_MAX:
             _SHARED.pop(next(iter(_SHARED)))
-        _SHARED[key] = HW.cell_axes(ds.resident_pop(), resident_single_by_age(), ds.tel("tel_age"), ds.tel("tel_time"),
-                                    res_m, list(tel_m), as_of, access_km(ds))
+        # 1인세대·수급 통계도 스냅샷이 고정한 파일에서 읽는다 (입력 해시·변경 검사에 들어감)
+        _SHARED[key] = HW.cell_axes(ds.resident_pop(), ds.resident_single(), ds.tel("tel_age"), ds.tel("tel_time"),
+                                    res_m, list(tel_m), as_of, access_km(ds), v_inputs=ds.v_inputs())
     return _SHARED[key]
 
 

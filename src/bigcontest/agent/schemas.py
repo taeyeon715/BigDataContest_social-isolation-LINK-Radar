@@ -691,13 +691,16 @@ class TriggerInfo(_Model):
 
 class CandidateCountRange(_Model):
     count: int = Field(ge=0)
-    low: int = Field(ge=0)  # 임계값 범위 안 최소
-    high: int = Field(ge=0)
+    # 임계값 범위 안 최소·최대. 지금 등급 규칙과 같은 판정으로 계산한 범위가 없으면 둘 다 None (범위 표시 생략)
+    low: int | None = Field(default=None, ge=0)
+    high: int | None = Field(default=None, ge=0)
     note: str = "임계값에 따라 달라지는 수"
 
     @model_validator(mode="after")
     def _check(self) -> CandidateCountRange:
-        if not (self.low <= self.count <= self.high):
+        if (self.low is None) != (self.high is None):
+            raise ValueError("low·high 는 함께 있거나 함께 없어야 함")
+        if self.low is not None and not (self.low <= self.count <= self.high):
             raise ValueError("count 는 low~high 안이어야 함")
         return self
 

@@ -71,6 +71,16 @@ def test_agent_chuseok_d7_level3_is_watch_list():
     l3 = {(c["city"], adm_name(c["adm_cd"])) for c in out["candidates"] if c["candidate_level"] == "Level 3"}
     assert l3 == {("강남", "세곡동"), ("강남", "역삼1동"), ("강남", "논현1동"), ("강남", "논현2동"),
                   ("춘천", "효자2동"), ("춘천", "소양동"), ("춘천", "약사명동"), ("춘천", "조운동")}
+    # 최종 등급과 대응 종류가 맞음 (Level 3 = 현장 확인. 최초 판정의 '담당자 추가 분석'이 남지 않음)
+    from bigcontest.agent.schemas import Candidate
+    from bigcontest.rules import candidates as RC
+    from bigcontest.rules import load_rules
+
+    for c in out["candidates"]:
+        Candidate.model_validate(c)
+        assert c["response_type"] == RC.response_type(c["candidate_level"], c["service_eligibility_group"],
+                                                      load_rules(), c["rule_id"]), c["candidate_id"]
+    assert {c["response_type"] for c in out["candidates"] if c["candidate_level"] == "Level 3"} == {"현장 확인"}
     block = out["report"]["holiday_watch"]
     assert block[0].startswith("2025 추석 연휴 주의 지역: 강남 세곡동·역삼1동·논현1·2동, 춘천 효자2동·소양동·약사명동·조운동의 60대 이상")
     assert block == out["report"]["fact_sentences"][:4]

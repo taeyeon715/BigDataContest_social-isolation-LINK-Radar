@@ -503,7 +503,8 @@ def test_dashboard_reads_published_monitoring_run(real):
     assert ov.monitoring_run_id == mp.monitoring_run_id == rid and ov.rule_version == "rules-v2.0"
     assert [t.rule for t in ov.triggers] == ["R1"]
     for kind, rng in ov.candidate_counts.items():
-        assert rng.low <= rng.count <= rng.high
+        # rules-v2.0: v1.1 판정으로 센 범위를 섞지 않고 범위를 비움 (v2 칸 판정 민감도는 아직 없음)
+        assert rng.low is None and rng.high is None and "표시하지 않음" in rng.note
         assert rng.count == sum(c.candidate_type == kind and c.counter_result != "기각" for c in cl.items)
     assert ov.compared_as_of.isoformat() == "2025-09-19"
     assert set(ov.new_candidate_ids) <= {c.candidate_id for c in cl.items}

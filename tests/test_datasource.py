@@ -4,6 +4,7 @@
 읽는지 본다. 자료가 없으면 건너뜀.
 """
 
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from bigcontest.config import ROOT
 pytestmark = pytest.mark.skipif(not dev_available(), reason="dev 스냅샷 자료(data/interim 등) 없음")
 
 REAL = dev_files(ROOT)
+V2_INPUTS = ("resident_single", "welfare_recipients_sex", "chuncheon_pension")  # rules-v2.0 S·V 원자료
 DROP = (pd.Timestamp("2025-10-01"), "강남", "80대+", None)  # B 에서 뺄 코호트-일 (성은 아래에서 채움)
 
 
@@ -54,6 +56,8 @@ def make_root(root: Path, city: str, holidays: dict, n_rows: int, drop_one: bool
     led.to_csv(root / DEV_FILES["resources"], index=False, encoding="utf-8")
     for k in ("adm_names", "adm_code_map", "asos_heat", "welfare_recipients"):  # rules-v1.1 자료는 통째로
         _lines(REAL[k], root / DEV_FILES[k], None)
+    for k in V2_INPUTS:  # rules-v2.0 칸 판정 입력도 통째로 (춘천 연보는 xlsx)
+        shutil.copyfile(REAL[k], root / DEV_FILES[k])
     cfg = yaml.safe_load(REAL["config"].read_text(encoding="utf-8"))
     cfg["holidays"] = holidays
     (root / DEV_FILES["config"]).write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
@@ -163,6 +167,37 @@ def test_metadata_uses_captured_hashes_and_reports_change(tmp_path):
         ds.weather()  # 처음 읽는 표는 바뀐 파일을 읽지 않음
     with pytest.raises(SnapshotMismatch, match="재실행 필요"):
         DataSource(ds.snapshot_id, root=root)  # 재시작 뒤 같은 id 재개 불가
+
+
+def test_v2_cell_inputs_are_pinned(tmp_path, monkeypatch):
+    """rules-v2.0 칸 판정 입력(성·연령별 1인세대, 강남 성별 수급자, 춘천 기초연금)도 스냅샷 파일이다:
+    해시·snapshot_id·변경 검사에 들어가고, 지정 root 에서만 읽는다."""
+    import bigcontest.external as ext
+    import bigcontest.vulnerability as vul
+
+    assert set(V2_INPUTS) <= set(DEV_FILES)
+    root = make_root(tmp_path / "snap", "춘천", {"2025-08-15": "광복절"}, 20)
+    ds = open_root(root)
+    assert set(V2_INPUTS) <= set(ds.hashes)
+    # 전역 기본 파일을 없는 곳으로 바꿔도 지정 root 의 파일을 읽음
+    monkeypatch.setattr(ext, "SINGLE_FILE", tmp_path / "nowhere_single.csv")
+    monkeypatch.setattr(vul, "GN_FILE", tmp_path / "nowhere_gn.csv")
+    monkeypatch.setattr(vul, "CH_FILE", tmp_path / "nowhere_ch.xlsx")
+    assert len(ds.resident_single()) > 0
+    gn, ch = ds.v_inputs()
+    assert gn["adm_cd"].nunique() == 22 and len(ch) == 25
+    # 파일 하나만 바뀌어도 id 가 바뀌고, 같은 id 로는 다시 열 수 없음 (같은 snapshot_id 아래 입력이 달라지지 않음)
+    sid = ds.snapshot_id
+    for k in V2_INPUTS:
+        r2 = make_root(tmp_path / f"snap_{k}", "춘천", {"2025-08-15": "광복절"}, 20)
+        path = r2 / DEV_FILES[k]
+        path.write_bytes(path.read_bytes() + b"\n")
+        assert files_snapshot_id(dev_files(r2)) != sid
+        ds2 = open_root(r2)
+        path.write_bytes(path.read_bytes() + b"\n")
+        assert ds2.changed_files() == [k]
+        with pytest.raises(SnapshotMismatch, match="재실행 필요"):
+            ds2.v_inputs() if k != "resident_single" else ds2.resident_single()
 
 
 # ---------------------------------------------------------------- 카드 0건 가정 표시
