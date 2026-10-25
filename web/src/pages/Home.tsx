@@ -130,10 +130,11 @@ export default function Home() {
             <DatePicker value={explicit && STATIC_MODE ? explicit : as_of} min={DATA_FROM} max={DATA_TO} marked={STATIC_MODE ? dates : null} today={todayData} onChange={(d) => set({ as_of: d })} />
             <span className="text-xs text-ink-600">달력에서 2025년 7~12월 중 아무 날이나 고를 수 있습니다</span>
           </div>
-          <div data-testid="presets">
-            <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
-              <span className="text-base font-extrabold text-ink-900">추천 시점 둘러보기</span>
-              <span className="text-xs text-ink-600">처음이라면 아래 장면부터 보세요. 누르면 그날 춘천 결과로 바뀝니다</span>
+          <div className="rounded-card bg-brand-600 p-5 shadow-card" data-testid="presets">
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="rounded-pill bg-white px-3 py-0.5 text-xs font-black text-brand-700">처음이라면</span>
+              <span className="text-lg font-extrabold text-surface">추천 시점 둘러보기</span>
+              <span className="text-sm text-brand-100">누르면 그날 춘천 결과로 바뀝니다</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {PRESETS.map((p) => {
@@ -141,13 +142,13 @@ export default function Home() {
                 return (
                   <button
                     key={p.label}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${on ? 'border-brand-600 bg-white shadow-card' : 'border-transparent bg-white/70 hover:bg-white'}`}
+                    className={`rounded-2xl border-2 bg-white p-4 text-left transition ${on ? 'border-brand-400 ring-4 ring-brand-100/60' : 'border-transparent hover:border-brand-400'}`}
                     onClick={() => set({ as_of: p.as_of, city: p.city })}
                     aria-pressed={on}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-base font-extrabold text-ink-900">{p.title}</span>
-                      <span className="rounded-lg bg-canvas px-2 py-0.5 text-xs font-bold text-brand-700">{p.label}</span>
+                      <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${on ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-700'}`}>{p.label}</span>
                     </div>
                     <p className="mt-1.5 text-xs leading-relaxed text-ink-600">{p.desc}</p>
                   </button>
@@ -445,12 +446,13 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
   const [msgs, setMsgs] = useState<Msg[]>([])
-  const end = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
     setMsgs([])
   }, [as_of, city])
+  // 새 메시지가 오면 질문창 안쪽만 아래로 (페이지는 움직이지 않음. 날짜를 바꿔 대화가 비워질 때도 그대로)
   useEffect(() => {
-    end.current?.scrollIntoView?.({ block: 'nearest' })
+    if (box.current && (msgs.length || busy)) box.current.scrollTop = box.current.scrollHeight
   }, [msgs, busy])
   useEffect(() => {
     if (!busy) return
@@ -517,7 +519,7 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
         </div>
       </header>
 
-      <div className="flex max-h-[420px] min-h-[200px] flex-col gap-4 overflow-y-auto p-6 sm:px-8" data-testid="home-chat">
+      <div ref={box} className="flex max-h-[420px] min-h-[200px] flex-col gap-4 overflow-y-auto p-6 sm:px-8" data-testid="home-chat">
         {msgs.length === 0 && (
           <div className="flex gap-3">
             <AgentAvatar small />
@@ -568,7 +570,6 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
             </ol>
           </div>
         )}
-        <div ref={end} />
       </div>
 
       <div className="border-t border-white/10 p-6 sm:px-8">
