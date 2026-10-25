@@ -135,7 +135,7 @@ export function NoticeBar({ o, query }: { o: OverviewResponse; query: string }) 
           {label} · 예정된 점검 {sched}건
         </span>
       </div>
-      <Link to={`/candidates${query}&tab=scheduled`} className="btn bg-brand-500 text-white hover:bg-brand-600">
+      <Link to={`/candidates${query}&tab=scheduled`} className="btn bg-brand-600 text-white hover:bg-brand-700">
         후보 검토하기 →
       </Link>
     </div>

@@ -86,3 +86,26 @@
   font-family: inherit;
   border-radius: 16px;
 }
+
+/* 상단 영역(연한 코랄 바탕): 흰 글자·어두운 반투명 칸을 진한 글자·밝은 반투명 칸으로 바꿈.
+   자기 바탕색이 있는 칩(bg-…)의 흰 글자는 그대로 둔다 */
+.bg-hero {
+  color: theme('colors.ink.900');
+}
+.bg-hero .text-white:not([class*='bg-']) {
+  color: theme('colors.ink.900');
+}
+.bg-hero .border-white\/70 {
+  border-color: rgb(20 23 31 / 0.25);
+}
+.bg-hero .bg-ink-900\/25,
+.bg-hero .bg-ink-900\/30 {
+  background-color: rgb(255 255 255 / 0.6);
+}
+.bg-hero .hover\:bg-ink-900\/30:hover,
+.bg-hero .hover\:bg-ink-900\/40:hover {
+  background-color: rgb(255 255 255 / 0.8);
+}
+.bg-hero .ring-white\/40 {
+  --tw-ring-color: rgb(20 23 31 / 0.12);
+}

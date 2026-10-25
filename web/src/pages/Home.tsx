@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CITIES, type City, type HomeCandidate, type HomeResponse } from '../api'
-import { DongMap, LevelLegend } from '../components/DongMap'
+import { api, ApiError, CITIES, type CandidateLevel, type City, type HomeCandidate, type HomeResponse } from '../api'
+import { DongMap, LEVEL_FILL, LevelLegend } from '../components/DongMap'
 import { Card, ErrorBox, LevelBadge, Loading, TypeChip } from '../components/ui'
 import { PRESETS } from '../lib/filters'
 import {
@@ -21,7 +21,7 @@ import {
   upcomingEvents,
 } from '../lib/home'
 import { LIMIT_MESSAGE } from '../lib/geminiChat'
-import { LEVEL_LEGEND, plainText } from '../lib/labels'
+import { LEVEL_LEGEND, LEVEL_NAME, plainText } from '../lib/labels'
 
 // 첫 화면: ① 요약 → ② 먼저 볼 곳 지도 → ③ 근거 → ④ 질문. '오늘 기준'은 작년 같은 날의 결과다 (자료는 2025년 7~12월).
 type Loaded = { as_of: string; data: Partial<Record<City, HomeResponse>>; error: string | null }
@@ -108,12 +108,42 @@ export default function Home() {
               <input type="date" aria-label="기준일" className="rounded-md px-2 py-1 text-sm text-ink-900" min={DATA_FROM} max={DATA_TO} value={as_of} onChange={(e) => e.target.value && set({ as_of: e.target.value })} />
             )}
           </div>
+          <LevelGuide />
         </div>
       </div>
       <div className="mx-auto -mt-16 flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-10 sm:px-6">
         {ready ? <Body as_of={as_of} city={city} setCity={(c) => set({ city: c })} events={events} goDate={(d) => set({ as_of: d })} /> : <Loading />}
       </div>
     </>
+  )
+}
+
+const GUIDE: { level: CandidateLevel; todo: string }[] = [
+  { level: 'Level 3', todo: '연휴·계절 점검 시기에 행동 신호 2개 이상 + 공공 자료 확인. 기존 돌봄 명단에서 먼저 현장 확인' },
+  { level: 'Level 2', todo: '동을 가리키는 행동 신호 1개, 또는 다른 원인으로 설명되지 않는 결제 변화. 담당자가 근거를 보고 결정' },
+  { level: 'Level 1', todo: '신호가 약하거나 다른 원인으로 설명됨. 다음 기준일과 비교' },
+  { level: 'Level 0', todo: '점검 시기가 아님. 정기 모니터링' },
+  { level: '판단 보류', todo: '필수 자료가 없거나 다른 원인 확인이 끝나지 않음. 자료를 더 모아 다시 판단' },
+]
+
+/** 맨 위 등급 설명: 요약의 'Level 3 n개 동'을 읽는 법 */
+function LevelGuide() {
+  return (
+    <div className="rounded-2xl bg-white/70 p-4" data-testid="level-guide">
+      <div className="mb-2 text-sm font-bold text-ink-900">등급 읽는 법 · 위험 점수가 아니라 먼저 확인할 순서입니다</div>
+      <ul className="grid gap-2 text-xs text-ink-800 sm:grid-cols-2 lg:grid-cols-5">
+        {GUIDE.map((g) => (
+          <li key={g.level} className="flex flex-col gap-1">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm" style={{ background: LEVEL_FILL[g.level] }} />
+              <b className="text-ink-900">{g.level}</b>
+              {g.level !== '판단 보류' && <span>{LEVEL_NAME[g.level]}</span>}
+            </span>
+            <span>{g.todo}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

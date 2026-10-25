@@ -2,7 +2,7 @@
 // - 근거는 서버가 자기 배포본의 /data/home JSON 에서 읽는다 (화면이 보낸 근거를 믿지 않음)
 // - 근거에 없는 숫자가 든 문장은 뺀다. 등급·후보는 바꾸지 못한다
 // - 무료 등급만: 429(한도 초과)면 다른 모델로 넘기지 않고 멈춘다
-import type { HomeCandidate, HomeResponse } from '../api/types'
+import type { HomeCandidate, HomeResponse } from '../api/types.js'
 
 export const GEMINI_MODEL = 'gemini-2.5-flash-lite' // 무료 등급 있음 (ai.google.dev 가격표, 2026-10-22 갱신본 확인)
 export const MAX_QUESTION = 300

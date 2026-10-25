@@ -12,6 +12,7 @@ vi.mock('../components/DongMap', () => ({
     </button>
   ),
   LevelLegend: () => null,
+  LEVEL_FILL: { 'Level 3': '#1F5FA8', 'Level 2': '#5E9BD9', 'Level 1': '#B9D3F0', 'Level 0': '#DCE3EE', '판단 보류': '#9AA1AE' },
 }))
 
 function home(city: '강남' | '춘천', l3: boolean): HomeResponse {
@@ -84,6 +85,7 @@ describe('Home page', () => {
     expect(within(summary).getByText('Level 3 1개 동')).toBeInTheDocument()
     expect(within(summary).getByText('먼저 볼 동(Level 3) 없음')).toBeInTheDocument() // 강남
     expect(screen.getByTestId('basis-line')).toHaveTextContent('기준일 2025-09-26 결과')
+    expect(screen.getByTestId('level-guide')).toHaveTextContent('위험 점수가 아니라 먼저 확인할 순서')
     expect(screen.getByTestId('home-watch')).toHaveTextContent('연휴 주의 지역')
     // 처음에는 가장 높은 등급 동의 근거, 등급 꼬리표는 화면에서 뺌
     const ev = await screen.findByTestId('home-evidence')

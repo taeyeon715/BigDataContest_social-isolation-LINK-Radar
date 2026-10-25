@@ -1,7 +1,7 @@
 // Vercel 서버 함수: POST /api/chat. 정적 배포 질문창을 Gemini(무료 등급)로 답한다.
 // 키는 Vercel 환경 변수 GEMINI_API_KEY 에만 둔다 (레포·화면에 넣지 않음). 결제수단이 없는 키라 한도를 넘으면 429 → 멈춤.
-import type { HomeResponse } from '../src/api/types'
-import { CITY_CODE, GEMINI_MODEL, contextOf, geminiBody, parseRequest, readGemini, type ChatResult } from '../src/lib/geminiChat'
+import type { HomeResponse } from '../src/api/types.js'
+import { CITY_CODE, GEMINI_MODEL, contextOf, geminiBody, parseRequest, readGemini, type ChatResult } from '../src/lib/geminiChat.js'
 
 const TIMEOUT_MS = 25_000
 // @types/node 없이도 빌드되게 (Vercel Node 런타임에는 process.env 가 있음)
