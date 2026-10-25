@@ -23,6 +23,7 @@ from api.auth import Identity, require
 from api.errors import ApiError
 from api.routes.deps import check_as_of, check_city, check_mode, snapshots
 from api.services import fake_data as fd
+from api.services.home import HomeResponse, home_fake, home_real
 from api.services.snapshots import SnapshotService
 
 router = APIRouter(dependencies=[Depends(require("조회"))])
@@ -44,6 +45,17 @@ def overview(as_of: date, city: str, analysis_mode: str = "simulated_replay",
     if dash is not None:
         return dash.overview(as_of, city, mode, who)
     return fd.overview(city, as_of, mode, snaps.active().snapshot_id)
+
+
+@router.get("/home", response_model=HomeResponse)
+def home(as_of: date, city: str, analysis_mode: str = "simulated_replay",
+         snaps: SnapshotService = Depends(snapshots), dash=Depends(real),
+         who: Identity = Depends(require("조회"))) -> HomeResponse:
+    """첫 화면 한 번에: 요약·동별 등급·후보 근거·자원 이름 (api/services/home.py)."""
+    city, as_of, mode = check_city(city), check_as_of(as_of), check_mode(analysis_mode)
+    if dash is not None:
+        return home_real(dash, as_of, city, mode, who)
+    return home_fake(as_of, city, snaps.active().snapshot_id)
 
 
 @router.get("/map", response_model=MapResponse)

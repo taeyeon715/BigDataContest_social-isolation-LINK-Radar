@@ -5,6 +5,7 @@ import './index.css'
 import Layout from './components/Layout'
 import { syncRole } from './api'
 const CandidateDetail = lazy(() => import('./pages/CandidateDetail'))
+const Home = lazy(() => import('./pages/Home'))
 const Candidates = lazy(() => import('./pages/Candidates'))
 const MapPage = lazy(() => import('./pages/MapPage'))
 const Overview = lazy(() => import('./pages/Overview'))
@@ -17,7 +18,8 @@ const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      { path: '/', element: page(<Overview />) },
+      { path: '/', element: page(<Home />) },
+      { path: '/overview', element: page(<Overview />) },
       { path: '/map', element: page(<MapPage />) },
       { path: '/candidates', element: page(<Candidates />) },
       { path: '/candidates/:id', element: page(<CandidateDetail />) },

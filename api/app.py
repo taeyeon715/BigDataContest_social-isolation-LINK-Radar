@@ -55,7 +55,7 @@ from api.store import Store
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "data" / "state" / "linkradar_fake.sqlite"
 DEFAULT_REAL_DB = ROOT / "data" / "state" / "linkradar.sqlite"
-REAL_PREFIXES = ("/runs", "/qa", "/health", "/snapshots", "/overview", "/map", "/candidates", "/resources", "/followups",
+REAL_PREFIXES = ("/runs", "/qa", "/health", "/snapshots", "/home", "/overview", "/map", "/candidates", "/resources", "/followups",
                  "/outcomes", "/me", "/objections")
 DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 

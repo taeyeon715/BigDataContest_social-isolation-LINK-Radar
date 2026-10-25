@@ -45,3 +45,10 @@ Thumbs.db
 analysis/taeyeon_2axis/원본데이터/*.zip
 analysis/taeyeon_2axis/csv/
 analysis/taeyeon_2axis/external/codes/*.geojson
+
+# 정적 배포 자료(집계 결과만)는 올림. 원자료 data/ 는 계속 제외
+!web/public/data/
+
+# Vercel CLI 로컬 연결 정보
+.vercel/
+web/.vercel/

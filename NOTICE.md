@@ -5,7 +5,7 @@
 ## 라이선스 범위
 
 - [MIT 라이선스](LICENSE)는 **이 레포의 코드**(`src/`, `api/`, `web/`, `notebooks/`, `scripts/`, `tests/`, `configs/`)에만 적용됩니다. Copyright (c) 2026 Im Junseo.
-- **대회 제공 데이터**(SK텔레콤 유동인구, 신한카드)는 레포에 들어 있지 않고, 대회 규정에 따라 재배포할 수 없습니다. `reports/`에는 이 데이터를 집계한 결과만 있습니다.
+- **대회 제공 데이터**(SK텔레콤 유동인구, 신한카드)는 레포에 들어 있지 않고, 대회 규정에 따라 재배포할 수 없습니다. `reports/`와 정적 배포 자료(`web/public/data/home/`)에는 이 데이터를 집계한 결과(후보·등급·근거 문장)만 있습니다.
 - **외부 공공데이터**(`external/`, `ref/`)는 아래 표에 적은 각 원본의 이용 조건(공공누리 등)을 따릅니다. MIT 라이선스로 다시 허락하는 것이 아닙니다.
 - `ref/adm_boundary.geojson`, `ref/adm_cd_names.csv`는 vuski/admdongkor 자료(CC BY 4.0)를 가공한 것입니다. 쓸 때 출처를 표시합니다.
 
@@ -27,7 +27,8 @@
 | 노인돌봄서비스 기관 현황 (노인맞춤돌봄 수행기관) | `external/resources/수동_추가자원.csv` | 공공데이터포털 15004317 (보건복지부, 2024-04-23 기준) | 이용허락범위 제한 없음 |
 | 구청·시청 공식 안내 (강남구 보도·쉼터 목록, 춘천시 복지 안내, 서울시 내 손안에 서울) | `external/resources/수동_추가자원.csv`, `정정_기록.csv` | 행마다 출처 URL·확인일 (`source_url`, `verified_url`, `page_collected_at`) | 사실(기관명·주소·전화·운영 시간)만 옮기고 출처 표시. 글·사진은 옮기지 않음 |
 | 행정동 경계 (강남·춘천 47개 동만) | `ref/adm_boundary.geojson` (보강 자원 좌표 → 행정동) | vuski/admdongkor ver20250701 (원천: 통계청 SGIS) | CC BY 4.0. 출처 표시 필요 |
-| 지도 바탕 타일 | 화면 지도 (`web/src/pages/MapPage.tsx`) | © OpenStreetMap contributors (https://www.openstreetmap.org/copyright) | 자료는 ODbL. 화면에 출처 표시 필요 |
+| 행정동 경계 (화면 지도용, 좌표 소수 4자리) | `web/public/data/dong_boundaries.json` (첫 화면 '먼저 볼 곳' 지도) | vuski/admdongkor ver20250701 (원천: 통계청 SGIS) | CC BY 4.0. 지도 하단에 출처 표시 |
+| 지도 바탕 타일 | 화면 지도 (`web/src/pages/MapPage.tsx`, `web/src/components/DongMap.tsx`) | © OpenStreetMap contributors (https://www.openstreetmap.org/copyright) | 자료는 ODbL. 화면에 출처 표시 필요 |
 | 대회 제공 자료 (카드·통신 등) | `data/` (레포에 올리지 않음) | 2026 빅콘테스트 | 대회 규정. 재배포 금지 |
 
 ### 태연 분석 (`analysis/taeyeon_2axis/`)

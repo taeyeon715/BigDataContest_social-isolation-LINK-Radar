@@ -26,6 +26,7 @@ EXPECTED = {
     ("GET", "/me"): "real",
     ("GET", "/snapshots/active"): "real",
     ("GET", "/data/capabilities"): "config",
+    ("GET", "/home"): "real",
     ("GET", "/overview"): "real",
     ("GET", "/map"): "real",
     ("GET", "/candidates"): "real",

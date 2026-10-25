@@ -956,3 +956,69 @@ export interface MeResponse {
   shared?: boolean
   authenticated?: boolean
 }
+
+// ---- 첫 화면 (GET /home, 정적 배포는 /data/home/<기준일>_<도시>.json). api/services/home.py 와 같은 모양
+export interface HomeResource {
+  name: string
+  resource_type: string
+  eligibility: string
+  distance_km: number | null
+  phone_based: boolean
+}
+
+export interface HomeCandidate {
+  candidate_id: string
+  candidate_type: CandidateType
+  adm_cd: string | null
+  adm_nm: string | null
+  check_first_adm: string[]
+  group: string | null
+  analysis_cohort: string
+  candidate_level: CandidateLevel | null
+  level_reason: string | null
+  trigger: string | null
+  response_type: string | null
+  evidence_confidence: string | null
+  input_status: string
+  missing_inputs: string[]
+  counter_result: string
+  counter_reason: string | null
+  queue_rank: number | null
+  selected_for_review: boolean
+  cause_type: string | null
+  resources: HomeResource[]
+}
+
+export interface HomeArea {
+  adm_cd: string
+  adm_nm: string
+  level: CandidateLevel | null
+  candidate_ids: string[]
+  deviation_first: boolean
+}
+
+export interface HomeResponse {
+  as_of: string
+  city: City
+  snapshot_id: string
+  rule_version: string
+  selection_budget: number
+  summary: {
+    counts: Record<string, number>
+    triggers: { code: string; name: string; starts_on: string | null }[]
+    holiday_watch: string[]
+    actions: string[]
+  }
+  areas: HomeArea[]
+  candidates: HomeCandidate[]
+  monitoring_run_id: string | null
+}
+
+export interface StaticIndex {
+  dates: string[]
+  cities: City[]
+  snapshot_id: string | null
+  rule_version: string
+  generated_at: string
+  note: string
+}

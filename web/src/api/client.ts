@@ -37,6 +37,7 @@ import type {
   ObjectionResponse,
   ObjectionStatus,
   ProtectiveResponse,
+  HomeResponse,
 } from './types'
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8000'
@@ -231,6 +232,7 @@ export const api = {
   me: (o?: ReqOpts) => request<MeResponse>('GET', '/me', { ...o }),
   activeSnapshot: (o?: ReqOpts) => request<SnapshotInfo>('GET', '/snapshots/active', { ...o }),
   capabilities: (o?: ReqOpts) => request<CapabilitiesResponse>('GET', '/data/capabilities', { ...o }),
+  home: (as_of: string, city: City, o?: ReqOpts) => request<HomeResponse>('GET', '/home', { query: { as_of, city }, ...o }),
   overview: (as_of: string, city: City, o?: ReqOpts) => request<OverviewResponse>('GET', '/overview', { query: { as_of, city }, ...o }),
   map: (as_of: string, city: City, o?: ReqOpts) => request<MapResponse>('GET', '/map', { query: { as_of, city }, ...o }),
   candidates: (as_of: string, city: City, type?: CandidateType, level?: string, o?: ReqOpts) =>

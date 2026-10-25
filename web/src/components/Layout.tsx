@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { DISCLAIMER, api, dataSources, onDataSource, type Source, type SnapshotInfo } from '../api'
 import { CITIES } from '../api'
 import { PRESETS, useFilters } from '../lib/filters'
+import { STATIC_MODE, loadIndex } from '../lib/home'
 
 // ---- 하단 영역에 보일 실행 ID (페이지가 정함)
 const RunCtx = createContext<{ runId: string | null; setRunId: (id: string | null) => void }>({ runId: null, setRunId: () => {} })
@@ -15,7 +16,8 @@ export function useFooterRun(runId: string | null | undefined) {
 }
 
 const NAV: { to: string; label: string; icon: ReactNode }[] = [
-  { to: '/', label: '현황', icon: <path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10" /> },
+  { to: '/', label: '한눈에', icon: <path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10" /> },
+  { to: '/overview', label: '현황', icon: <path d="M4 19V9m6 10V5m6 14v-7m4 7H2" /> },
   { to: '/map', label: '지도', icon: <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14" /> },
   { to: '/candidates', label: '후보', icon: <path d="M4 6h16M4 12h16M4 18h10" /> },
   { to: '/qa', label: '질의응답', icon: <path d="M4 5h16v10H8l-4 4V5z" /> },
@@ -38,7 +40,7 @@ function Sidebar({ query }: { query: string }) {
       className="sticky top-0 z-20 flex shrink-0 print:hidden items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:h-screen md:w-[84px] md:flex-col md:border-b-0 md:border-r md:px-0 md:py-6"
     >
       <div className="mr-3 text-sm font-black tracking-tight text-brand-600 md:mb-6 md:mr-0">LINK</div>
-      {NAV.map((n) => {
+      {NAV.filter((n) => !STATIC_MODE || n.to === '/').map((n) => {
         const active = n.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.to)
         return (
           <NavLink
@@ -190,6 +192,12 @@ export default function Layout() {
   const [runId, setRunId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<SnapshotInfo | null>(null)
   useEffect(() => {
+    if (STATIC_MODE) {
+      loadIndex()
+        .then((i) => setSnapshot({ snapshot_id: `${i.snapshot_id} (정적 배포, ${i.generated_at.slice(0, 10)} 계산)`, data_from: '2025-07-01', data_to: '2025-12-31' } as SnapshotInfo))
+        .catch(() => setSnapshot(null))
+      return
+    }
     api.activeSnapshot().then(setSnapshot).catch(() => setSnapshot(null))
   }, [])
   return (
