@@ -95,4 +95,26 @@ describe('Home page', () => {
     fireEvent.click(within(screen.getByTestId('home-rank')).getByText(/효자3동/))
     await waitFor(() => expect(screen.getByText(/지도나 목록에서 동을 고르면/)).toBeInTheDocument())
   })
+
+  it('preset cards explain the scene and switch to its city as well as its date', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const city = decodeURIComponent(String(input)).includes('city=강남') ? '강남' : '춘천'
+      return new Response(JSON.stringify(home(city, city === '춘천')), { status: 200 })
+    })
+    const { default: Home } = await import('../pages/Home')
+    render(
+      <MemoryRouter initialEntries={['/?city=강남']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByTestId('home-summary')
+    expect(screen.getByRole('heading', { level: 2, name: /먼저 볼 곳 · 강남/ })).toBeInTheDocument()
+    const presets = screen.getByTestId('presets')
+    expect(presets).toHaveTextContent('겨울 점검')
+    fireEvent.click(within(presets).getByText('동절기 (12/20)'))
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: /먼저 볼 곳 · 춘천/ })).toBeInTheDocument())
+    expect(screen.getByTestId('basis-line')).toHaveTextContent('기준일 2025-12-20')
+  })
 })
