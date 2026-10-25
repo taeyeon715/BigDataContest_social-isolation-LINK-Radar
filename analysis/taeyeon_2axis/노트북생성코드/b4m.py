@@ -9,7 +9,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip()))
 
 md(r"""
 # 04
-**위험도의 구조 (2축 지수형)** — SKT 정답으로 학습하지 않고, 이론으로 정한 지표를 두 지역에 같은 규칙으로 적용합니다.
+**위험도의 구조 (2축 지수형)**: SKT 정답으로 학습하지 않고, 이론으로 정한 지표를 두 지역에 같은 규칙으로 적용합니다.
 
 | 축 | 질문 | 담당 데이터 | 기호 |
 |---|---|---|---|
@@ -53,11 +53,11 @@ print('사전 등록:', PROTO['작성'])
 """)
 
 # ---------------------------------------------------------------- 1
-md("## 1. 데이터 준비 — 주민등록을 분석 기간에 맞는 시점으로 교체")
+md("## 1. 데이터 준비: 주민등록을 분석 기간에 맞는 시점으로 교체")
 md(r"""
 - **주민등록 (행안부, 행정동 × 성 × 10세 연령)**: 2024.12와 2025.12를 모두 씁니다.
-  - 행동 축(SK 유동 ÷ 주민)에는 **2025.12** — SK 데이터 기간(2025.7~12)의 끝 시점
-  - 취약 축(수급자 ÷ 인구)에는 **2024.12** — 수급자·춘천 연보와 같은 시점
+  - 행동 축(SK 유동 ÷ 주민)에는 **2025.12**: SK 데이터 기간(2025.7~12)의 끝 시점
+  - 취약 축(수급자 ÷ 인구)에는 **2024.12**: 수급자·춘천 연보와 같은 시점
   - 이전 모델은 2026.9 주민등록을 썼습니다(시점 불일치, 과제 P6).
 - **SK 유동인구**: 집단(동 × 성 × 연령)별 월 유동, 동별 시간대 유동
 - **신한카드**: 집단 행동 C (부록 A와 같은 정의·가중치)
@@ -161,7 +161,7 @@ CH[['기초연금 수급률(%)', '장애인 비율(%)', '인구 이동률(%)']].
 """)
 
 # ---------------------------------------------------------------- 2
-md("## 2. 행동 고립 축 H — 방문객·동 규모를 보정한 체류도")
+md("## 2. 행동 고립 축 H: 방문객·동 규모를 보정한 체류도")
 md(r"""
 **문제 (부록 B)**: '유동 ÷ 거주' 비율은 ① 방문객(직장인·쇼핑객)이 많은 상업지에서 커지고, ② 거주 인구(분모)가 작은 동에서 커집니다. 강남에서 '작은 동일수록 점수가 높은' 편향(ρ −0.50)이 여기서 나왔습니다.
 
@@ -204,12 +204,12 @@ for ax, reg in zip(axes, MAIN):
     ax.scatter(d['log 동 인구'], d['H 보정 전'], color=GRAY, s=22, label='보정 전')
     ax.scatter(d['log 동 인구'], d['H 보정 후'], color=C_[reg], s=26, label='보정 후')
     for _, r in d.iterrows(): ax.plot([r['log 동 인구']] * 2, [r['H 보정 전'], r['H 보정 후']], color=GRAY, lw=.6)
-    ax.set_xlabel('log 동 인구 (2025.12)'); ax.set_ylabel('동별 행동 고립 H'); ax.set_title(f'{reg} — 동 규모와 H'); ax.legend(fontsize=8.5)
+    ax.set_xlabel('log 동 인구 (2025.12)'); ax.set_ylabel('동별 행동 고립 H'); ax.set_title(f'{reg}: 동 규모와 H'); ax.legend(fontsize=8.5)
 plt.tight_layout(); plt.show()
 """)
 
 # ---------------------------------------------------------------- 3
-md("## 3. 사회경제 취약 축 V — 혼자 사는 비율 + 공공부조 수급")
+md("## 3. 사회경제 취약 축 V: 혼자 사는 비율 + 공공부조 수급")
 md(r"""
 | 구성 지표 | 단위 | 강남 | 춘천 | 근거 |
 |---|---|---|---|---|
@@ -228,14 +228,14 @@ U['공공부조 수급'] = np.where(U['지역'] == '서울 강남구',
 U['V'] = (pct(U['혼자 사는 비율']) + pct(U['공공부조 수급'])) / 2
 U['R_V'] = np.exp(SLOPE * (U['V'] - .5))
 DG['V'] = dong('V', '주민_2024')
-print('혼자 사는 비율(%) — 지역 × 연령 (거주 인구 가중)')
+print('혼자 사는 비율(%): 지역 × 연령 (거주 인구 가중)')
 display((U.groupby(['지역', '연령5']).apply(lambda g: g['1인세대_2024'].sum() / g['주민_2024'].sum() * 100).unstack().round(1)))
 """)
 
 # ---------------------------------------------------------------- 4
-md("## 4. 2축 결합 — 점수 · 유형 · 5단계 (규칙)")
+md("## 4. 2축 결합: 점수 · 유형 · 5단계 (규칙)")
 md(r"""
-- **점수** = B × exp(0.6 × (H − 0.5)) × exp(0.6 × (V − 0.5)) × C — 각 축의 배수는 약 0.74~1.35배
+- **점수** = B × exp(0.6 × (H − 0.5)) × exp(0.6 × (V − 0.5)) × C: 각 축의 배수는 약 0.74~1.35배
 - **유형**: 지역 안에서 거주 인구 가중 상위 1/3(공식 고립률 33%에 맞춤)을 '높음'으로 보고 이중 위험 / 행동형(H만 높음) / 취약형(V만 높음) / 저위험
 - **5단계**: 지역 안 · 생애단계 안 · 성별 안 (누적 인구 5/15/33/60/100%, 부록 A와 같음)
 - **주요 요인**: 같은 지역 · 성 · 연령 안 상위 20%인 구성 지표 → 에이전트의 '원인 분석' 문장
@@ -265,11 +265,11 @@ def build(Hcol, win='겨울 체류 유지'):
     U.loc[U['C'] > 1.03, '주요 요인'] += ' (+ 집단 소비 위축)'
     tp = U.groupby(['지역', '위험 유형'])['주민'].sum().unstack().reindex(columns=list(TYPE_C)).fillna(0)
     return (tp.div(tp.sum(axis=1), axis=0) * 100).round(1)
-print('사전 등록 버전 — 유형별 거주 인구 비중(%)'); display(build('H'))
+print('사전 등록 버전: 유형별 거주 인구 비중(%)'); display(build('H'))
 """)
 
 # ---------------------------------------------------------------- 5
-md("## 5. 사전 등록 검증 — 실행 전에 고정한 기준으로 판정")
+md("## 5. 사전 등록 검증: 실행 전에 고정한 기준으로 판정")
 md(r"""
 기준은 `outputs/검증프로토콜_사전등록.json`에 실행 전에 적어 두었고, 결과를 본 뒤 바꾸지 않았습니다. p값은 **순열 검정**(동의 값을 10,000번 무작위로 섞어 우연히 그만한 상관이 나올 확률)으로 계산하고, 확증 가설 3개는 **Holm 보정**으로 다중 비교를 막습니다.
 """)
@@ -341,9 +341,9 @@ ALL.to_csv(OUTD / '검증결과_2축모델.csv', index=False, encoding='utf-8-si
 ALL[ALL['판정'] != '통과']
 """)
 
-md("### 5-1. 사후 진단 — 실패한 기준의 원인과 수정안 (사전 등록 아님)")
+md("### 5-1. 사후 진단: 실패한 기준의 원인과 수정안 (사전 등록 아님)")
 md(r"""
-⚠ 이 절은 결과를 본 뒤에 한 분석입니다. 위의 사전 등록 판정은 바꾸지 않고 그대로 보고합니다. 여기서 만든 수정안은 **새 자료로 다시 확인해야 하는 가설**로 다룹니다.
+이 절은 결과를 본 뒤에 한 분석입니다. 위의 사전 등록 판정은 바꾸지 않고 그대로 보고합니다. 여기서 만든 수정안은 **새 자료로 다시 확인해야 하는 가설**로 다룹니다.
 """)
 code(r"""
 POP25 = POP['20251231']['계_총인구수']
@@ -366,7 +366,7 @@ def partial(x, y, z):                                                  # 순위 
     return np.corrcoef(ex, ey)[0, 1]
 gn, ch = DG[DG['지역'] == MAIN[0]], DG[DG['지역'] == MAIN[1]]
 print(f"② 춘천: 인구 이동률 ↔ log 동 인구 ρ = {spearmanr(ch['인구 이동률(%)'], ch['log 동 인구'])[0]:.2f}")
-print(f"   동 규모를 뺀 편상관 — H(사전 등록) ↔ 이동률 {partial(ch['H 보정 후'], ch['인구 이동률(%)'], ch['log 동 인구']):.2f}, "
+print(f"   동 규모를 뺀 편상관: H(사전 등록) ↔ 이동률 {partial(ch['H 보정 후'], ch['인구 이동률(%)'], ch['log 동 인구']):.2f}, "
       f"H_v2 ↔ 이동률 {partial(ch['H_v2 (수정안)'], ch['인구 이동률(%)'], ch['log 동 인구']):.2f}")
 v2 = []
 for h, reg, t, x, y in [('H1a', '강남', 'H_v2 ↔ 혼자 사는 주민 비율', gn['H_v2 (수정안)'], gn['혼자 사는 주민 비율(%)']),
@@ -382,7 +382,7 @@ print('→ 적용 모델:', '수정안 H_v2 (사후 수정, 다음 자료로 재
 """)
 
 # ---------------------------------------------------------------- 6
-md("## 6. 최종 결과 — 유형 · 단계 · 우선 지원 대상")
+md("## 6. 최종 결과: 유형 · 단계 · 우선 지원 대상")
 code(r"""
 TP = build(FINAL, win='보정 겨울 체류' if FINAL == 'H_v2' else '겨울 체류 유지')
 DG['H 최종'] = dong(FINAL)
@@ -393,7 +393,7 @@ w24 = adjust(U['겨울 체류 유지'], POP['20241231']['계_총인구수'])[0] 
 sens = {'시점 교체 (2024.12 ↔ 2025.12)': compare(score(H=(pct(adj24) + pct(w24)) / 2, V=V25))}
 for nm, kw in [('기울기 0.3', dict(slope=.3)), ('기울기 1.0', dict(slope=1.)), ('H:V = 2:1', dict(a=4 / 3, b=2 / 3)), ('H:V = 1:2', dict(a=2 / 3, b=4 / 3))]:
     sens[nm] = compare(score(H=U[FINAL], **kw))
-print('최종 버전 민감도 — 상위 15% 겹침(%)'); display(pd.DataFrame({k: v['상위 15% 겹침(%)'] for k, v in sens.items()}).round(0))
+print('최종 버전 민감도: 상위 15% 겹침(%)'); display(pd.DataFrame({k: v['상위 15% 겹침(%)'] for k, v in sens.items()}).round(0))
 """)
 code(r"""
 fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6))
@@ -402,7 +402,7 @@ for ax, reg in zip(axes, MAIN):
     sz = POP25.loc[d.index] / POP25.max() * 260 + 15
     ax.scatter(d['H 최종'], d['V'], s=sz, color=C_[reg], alpha=.75, edgecolor='white')
     for i, r in d.iterrows(): ax.annotate(r['읍면동명'].replace('(구 일원2동)', ''), (r['H 최종'], r['V']), fontsize=7.5, xytext=(3, 3), textcoords='offset points', color=INK2)
-    ax.set_xlabel('행동 고립 H (동 평균) →'); ax.set_ylabel('사회경제 취약 V (동 평균) →'); ax.set_title(f'{reg} — 두 축 지도 (점 크기 = 인구, 점선 = 중앙값)')
+    ax.set_xlabel('행동 고립 H (동 평균) →'); ax.set_ylabel('사회경제 취약 V (동 평균) →'); ax.set_title(f'{reg}: 두 축 지도 (점 크기 = 인구, 점선 = 중앙값)')
 plt.tight_layout(); plt.show()
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.6), sharey=True)
 for ax, reg in zip(axes, MAIN):
@@ -410,7 +410,7 @@ for ax, reg in zip(axes, MAIN):
     t = t.div(t.sum(axis=1), axis=0) * 100; left = np.zeros(len(t))
     for c in TYPE_C:
         ax.barh(t.index, t[c], left=left, color=TYPE_C[c], label=c); left += t[c].values
-    ax.invert_yaxis(); ax.set_xlim(0, 100); ax.set_xlabel('거주 인구 비중(%)'); ax.set_title(f'{reg} — 연령별 유형 구성')
+    ax.invert_yaxis(); ax.set_xlim(0, 100); ax.set_xlabel('거주 인구 비중(%)'); ax.set_title(f'{reg}: 연령별 유형 구성')
 axes[1].legend(ncol=4, fontsize=8.5, loc='upper center', bbox_to_anchor=(.5, -.2)); plt.tight_layout(); plt.show()
 """)
 code(r"""
@@ -419,13 +419,13 @@ for r in MAIN:
     print(f'[{r}] 우선 지원 대상 상위 8'); display(U[U['지역'] == r].nlargest(8, '우선순위 점수')[cols].round(2))
 print('지역 × 생애단계별 1순위'); display(U.sort_values('우선순위 점수', ascending=False).groupby(['지역', '연령5'], sort=False).head(1).sort_values(['지역', '연령5'])[['지역'] + cols].round(2))
 lv = U.groupby(['지역', '연령5', '단계'])['주민'].sum().unstack().reindex(columns=ORDER).fillna(0)
-print('지역 내 단계 — 연령별 거주 인구 분포(%)'); display((lv.div(lv.sum(axis=1), axis=0) * 100).round(1))
+print('지역 내 단계: 연령별 거주 인구 분포(%)'); display((lv.div(lv.sum(axis=1), axis=0) * 100).round(1))
 ty = U.groupby(['지역', '연령5', '위험 유형'])['주민'].sum().unstack().reindex(columns=list(TYPE_C)).fillna(0)
 print('연령별 유형 구성(%)'); display((ty.div(ty.sum(axis=1), axis=0) * 100).round(1))
 """)
 
 # ---------------------------------------------------------------- 7
-md("## 7. 참고 비교 — SKT 지표 · 보정 전 · 학습형 (확증 아님)")
+md("## 7. 참고 비교: SKT 지표 · 보정 전 · 학습형 (확증 아님)")
 code(r"""
 L = []
 for mth in range(7, 13):
@@ -447,7 +447,7 @@ print('학습형(부록 A)과의 비교'); display(compare(U['학습형 점수']
 """)
 
 # ---------------------------------------------------------------- 8
-md("## 8. 결과 저장 — 05 복지자원 매핑 · 06 에이전트로 넘길 것")
+md("## 8. 결과 저장: 05 복지자원 매핑 · 06 에이전트로 넘길 것")
 code(r"""
 SAVE = ['지역', '읍면동명', 'SGIS코드', '행정기관코드', '유형', '성별', '연령5', '주민', 'B 기본 고립률(%)', '보정 체류도', '겨울 체류 유지', '보정 겨울 체류',
         'H', 'H_v2', '적용 H', 'R_H', '혼자 사는 비율', '공공부조 수급', 'V', 'R_V', 'C', '우선순위 점수', '위험 유형', '단계', '생애단계 내 단계', '성별 내 단계', '주요 요인']

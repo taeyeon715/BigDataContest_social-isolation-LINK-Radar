@@ -36,7 +36,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 | 사람별 토큰 (권장) | `LINKRADAR_API_TOKENS_FILE=<yaml>` (`tokens: {<토큰>: {name: worker-01, role: 검토}}`, 레포에 올리지 않음) | 담당자마다 하나. 검토자·승인자·감사 actor가 그 이름 |
 | 공용 토큰 | `LINKRADAR_API_TOKEN`, 이름 `LINKRADAR_API_USER`(기본 `demo`), 역할 `LINKRADAR_API_ROLE`(기본 **조회**) | 시연·읽기 전용 화면. 기록 이름·actor는 `공용:<이름>` (한 사람 이름처럼 보이지 않게). `LINKRADAR_ENV=prod`에서 검토·승인을 주면 서버가 시작하지 않음 |
 
-> ⚠ 화면 빌드의 `VITE_API_TOKEN`은 JS 번들에 그대로 들어가 화면을 여는 **누구나 개발자 도구로 볼 수 있습니다.** 여기에는 조회 역할 공용 토큰만 넣습니다. 운영(파일럿)에서는 번들에 토큰을 넣지 말고, 앞단 프록시(nginx 등)에서 기관 로그인(SSO·LDAP)이나 최소 로그인 화면을 거친 뒤 프록시가 사람별 토큰(`Authorization`)을 붙이게 합니다. 토큰 파일 방식은 그 프록시·서버 간 호출용입니다. 개발 모드(토큰 설정 없음)는 모두 허용하되 감사 actor가 `dev-unauthenticated`로 남습니다.
+> 화면 빌드의 `VITE_API_TOKEN`은 JS 번들에 그대로 들어가 화면을 여는 **누구나 개발자 도구로 볼 수 있습니다.** 여기에는 조회 역할 공용 토큰만 넣습니다. 운영(파일럿)에서는 번들에 토큰을 넣지 말고, 앞단 프록시(nginx 등)에서 기관 로그인(SSO·LDAP)이나 최소 로그인 화면을 거친 뒤 프록시가 사람별 토큰(`Authorization`)을 붙이게 합니다. 토큰 파일 방식은 그 프록시·서버 간 호출용입니다. 개발 모드(토큰 설정 없음)는 모두 허용하되 감사 actor가 `dev-unauthenticated`로 남습니다.
 
 ## 2. 엔드포인트 목록
 
@@ -877,7 +877,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 후보 동 옆에 함께 보여 줄 **보호 자원 칸**입니다. 그 동에 이미 있는 경로당, 무더위·한파 쉼터, 돌봄단·통장·이장을 묶음별로 줍니다. **위험 표시가 아니며 등급·순위·자원 추천 순서에 쓰지 않습니다**(지역 낙인 완화). 두 백엔드 모두 지금 원장 v2와 춘천 경로당 시군 집계(`external/resources/protective/`)에서 읽습니다. 묶음 정의는 `configs/need_types.yaml` `protective`.
 
 - `city` 필수, `adm_cd`는 선택(없으면 도시 전체). 다른 도시 동이면 `400 INVALID_REQUEST`
-- `in_dong`: 그 동 안 수. 행정동이 붙은 자원이 없는 묶음(쉼터 목록 안내, 사람 자원)은 `null` — "0곳"이 아니라 "모름"
+- `in_dong`: 그 동 안 수. 행정동이 붙은 자원이 없는 묶음(쉼터 목록 안내, 사람 자원)은 `null`: "0곳"이 아니라 "모름"
 - `status`: `수집` / `도시 집계만`(춘천 경로당: 시군 합계와 읍·면·동 구분 수만) / `미수집`(춘천 쉼터: 행안부 쉼터 API 키 필요)
 
 <!-- schema: ProtectiveResponse -->
@@ -983,7 +983,7 @@ LINK-Radar 화면(React)과 에이전트가 쓰는 REST API(FastAPI)입니다. �
 }
 ```
 
-**계약 사유 코드** — 질의응답·실행에서 계약 위반은 HTTP 오류가 아니라 보류 답변(`abstained`)으로 끝나고, 사유는 `contract_check.issues[].code`와 `abstain_reason`에 들어갑니다.
+**계약 사유 코드**: 질의응답·실행에서 계약 위반은 HTTP 오류가 아니라 보류 답변(`abstained`)으로 끝나고, 사유는 `contract_check.issues[].code`와 `abstain_reason`에 들어갑니다.
 
 | 코드 | Guard | 뜻 |
 |---|---|---|

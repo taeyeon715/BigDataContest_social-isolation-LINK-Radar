@@ -10,14 +10,14 @@ md = lambda s: cells.append(nbf.v4.new_markdown_cell(s.strip()))
 code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip()))
 
 md(r"""
-# 02 노트북 사회적 고립 위험 신호 탐색 — 전 연령·성별·지역
+# 02 노트북 사회적 고립 위험 신호 탐색: 전 연령·성별·지역
 
 **주제**: 사회적 고립 예방 및 대응을 위한 AI 에이전트 (2026 빅콘테스트 AI데이터 활용 분야)
-**관점**: 고립은 노년층만의 문제가 아님 — 청년(은둔·1인가구), 중년(50~60대 남성 고독사 고위험), 노년(독거) 모두를 같은 비중으로 탐색
+**관점**: 고립은 노년층만의 문제가 아님: 청년(은둔·1인가구), 중년(50~60대 남성 고독사 고위험), 노년(독거) 모두를 같은 비중으로 탐색
 
 | 데이터 | 공간 해상도 | 인구집단 | 시간 해상도 |
 |---|---|---|---|
-| SK 유동인구 (성연령 / 시간대 / 요일) | 50m 격자 → 읍면동(47개) | 성 × 연령 6구간 (10대~60대+) | 월 / 1시간 / 요일 — **세 축은 서로 교차 불가** |
+| SK 유동인구 (성연령 / 시간대 / 요일) | 50m 격자 → 읍면동(47개) | 성 × 연령 6구간 (10대~60대+) | 월 / 1시간 / 요일: **세 축은 서로 교차 불가** |
 | 신한카드 데이터1 | 시군구 (강남구·춘천시) | 성 × 연령 9구간 (10대~90대) | 일 × 6시간 |
 | 신한카드 데이터2 | 시군구 + 고객 거주 시도 | 성 × 연령 9구간 | 일 |
 
@@ -221,7 +221,7 @@ ax.set_title("데이터2 고객 거주지 '정보없음' 비율(건수 %)"); plt
 md("**명시적 결측(NaN)은 없습니다.** 데이터2의 거주지 '정보없음'도 최대 0.2% 수준이라 분석에 영향이 거의 없습니다. 실제 결측은 아래의 **암묵적 결측**(빠진 격자·빠진 조합)으로 나타납니다.")
 
 md(r"""
-### 1-2. SK — 격자 패널 결측 (6개월 중 관측된 달 수)
+### 1-2. SK: 격자 패널 결측 (6개월 중 관측된 달 수)
 같은 50m 격자가 매달 관측되지는 않습니다. 관측된 달 수가 적은 격자는 유동인구 자체가 작습니다(기준 미만이라 빠진 것으로 추정).
 """)
 code(r"""
@@ -232,7 +232,7 @@ t
 """)
 
 md(r"""
-### 1-3. SK — 성·연령 컬럼별 0값 비율
+### 1-3. SK: 성·연령 컬럼별 0값 비율
 0은 '그 셀에서 해당 성·연령 유동인구가 측정 단위(약 0.025명) 미만'이라는 뜻으로, 사실상 **희소 결측**입니다.
 """)
 code(r"""
@@ -244,11 +244,11 @@ for r in MAIN:
 z = pd.DataFrame(z)
 fig, ax = plt.subplots(figsize=(6.5, 3.2))
 fig.colorbar(heat(ax, z), ax=ax, shrink=.8, label='%')
-ax.set_title('SK 격자 0값 비율(%) — 연령 × 성별'); plt.show()
+ax.set_title('SK 격자 0값 비율(%): 연령 × 성별'); plt.show()
 """)
 
 md(r"""
-### 1-4. 카드 — 조합 결측 (있어야 할 행 중 실제로 있는 비율)
+### 1-4. 카드: 조합 결측 (있어야 할 행 중 실제로 있는 비율)
 기대 조합 = 184일 × 4시간대 × 업종 수(지역별) × (성·연령 그룹 1개). 행이 없다는 것은 **그 조합의 결제가 없었다(0건)** 는 뜻일 가능성이 큽니다 (건수 최솟값 5 = 실제 1건 추정, 01 노트북 참고).
 """)
 code(r"""
@@ -260,8 +260,8 @@ obs_t = p1.groupby(['연령', '지역', '시간대']).size()
 cov_t = (obs_t / (184 * 2 * obs_t.index.get_level_values('지역').map(n_ind).values) * 100).unstack(['지역', '시간대']).reindex(AGE9)
 cov_t.columns = [r[3:] + chr(10) + t for r, t in cov_t.columns]
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.2), gridspec_kw={'width_ratios': [4, 8]})
-heat(axes[0], cov, vmin=0, vmax=100); axes[0].set_title('조합 관측률(%) — 연령 × 성별')
-im = heat(axes[1], cov_t, vmin=0, vmax=100); axes[1].set_title('조합 관측률(%) — 연령 × 시간대')
+heat(axes[0], cov, vmin=0, vmax=100); axes[0].set_title('조합 관측률(%): 연령 × 성별')
+im = heat(axes[1], cov_t, vmin=0, vmax=100); axes[1].set_title('조합 관측률(%): 연령 × 시간대')
 fig.colorbar(im, ax=axes, shrink=.8, label='%'); plt.show()
 
 obs_i = (p1.groupby(['지역', '업종']).size() / (184 * 4 * 18) * 100).rename('관측률(%)')
@@ -273,7 +273,7 @@ pd.concat({r: obs_i.loc[r].nsmallest(10).reset_index() for r in MAIN}, axis=1)
 md(r"""
 ## 2. 이상값
 
-### 2-1. SK — 성·연령 컬럼별 분포와 극단값
+### 2-1. SK: 성·연령 컬럼별 분포와 극단값
 로그 스케일 IQR 기준(Q3 + 3×IQR 초과)의 극단값 수입니다.
 """)
 code(r"""
@@ -288,7 +288,7 @@ pd.DataFrame(rows).pivot_table(index=['성별', '연령'], columns='지역', val
 """)
 
 md(r"""
-### 2-2. SK — 월별로 급변한 소지역
+### 2-2. SK: 월별로 급변한 소지역
 소지역별 월 합계의 최대/최소 비율입니다 (6개월 평균 100명 이상 소지역만).
 """)
 code(r"""
@@ -303,7 +303,7 @@ top
 """)
 
 md(r"""
-### 2-3. SK — 특정 성·연령에 쏠린 소지역
+### 2-3. SK: 특정 성·연령에 쏠린 소지역
 소지역의 12개 성·연령 그룹 중 한 그룹의 비중이 비정상적으로 큰 곳입니다. 예를 들어 남성 20대가 몰린 곳은 군부대·대학·기숙사일 가능성이 있습니다 (6개월 합계 1,000명 이상 소지역만).
 """)
 code(r"""
@@ -317,7 +317,7 @@ out.sort_values('최대 그룹 비중(%)', ascending=False).head(12).round(1)
 """)
 
 md(r"""
-### 2-4. 카드 — 객단가 이상값 (업종 내 robust z-score)
+### 2-4. 카드: 객단가 이상값 (업종 내 robust z-score)
 업종마다 log(객단가)의 중앙값·MAD로 z를 구해 |z| > 4인 행을 이상값으로 봅니다.
 """)
 code(r"""
@@ -337,7 +337,7 @@ q.loc[q['rz'].abs().sort_values(ascending=False).index[:10],
 """)
 
 md(r"""
-### 2-5. 카드 — 생애단계별 이상한 날
+### 2-5. 카드: 생애단계별 이상한 날
 같은 요일 ±4주의 중앙값을 기준선으로 일별 건수 편차(%)를 구했습니다. 강건 z가 |3.5|를 넘는 날을 표시합니다.
 """)
 code(r"""
@@ -350,7 +350,7 @@ for ax, r in zip(axes, MAIN):
     for s in STAGES:
         ax.plot(dev.index, dev[(r, s)], color=STAGE_C[s], lw=1.3, label=s)
     ax.axvspan(CHUSEOK[0], CHUSEOK[-1], color='#f0efec', zorder=0); ax.axhline(0, color=INK2, lw=.6)
-    ax.set_title(f'{r} — 같은 요일 기준선 대비 일별 결제건수 편차'); pct_axis(ax)
+    ax.set_title(f'{r}: 같은 요일 기준선 대비 일별 결제건수 편차'); pct_axis(ax)
 axes[0].legend(ncol=4, fontsize=9, loc='lower left'); plt.tight_layout(); plt.show()
 flag = (rz.abs() > 3.5)
 lst = dev[flag.any(axis=1)].round(0)
@@ -371,7 +371,7 @@ print('법인 행의 성별×연령 교차:'); pd.crosstab(s1['성별'], s1['연
 md(r"""
 ## 3. 연령별 분석
 
-### 3-1. SK — 생애단계 구성 (지역 · 읍면동 유형)
+### 3-1. SK: 생애단계 구성 (지역 · 읍면동 유형)
 """)
 code(r"""
 sk_long['구분'] = sk_long['지역'].str[3:] + ' ' + np.where(sk_long['유형'] == '동', '동', '읍·면')
@@ -385,7 +385,7 @@ ax.set_xticks(x, STAGES); pct_axis(ax); ax.legend(); ax.set_title('생애단계�
 st.round(1)
 """)
 
-md("### 3-2. SK — 읍면동 × 연령 구성 (6개월 합계 기준 비중 %)")
+md("### 3-2. SK: 읍면동 × 연령 구성 (6개월 합계 기준 비중 %)")
 code(r"""
 dz = sk_long.groupby(['지역', '읍면동', '유형', '연령'])['인구'].sum().unstack()[AGE6]
 dz = dz.div(dz.sum(axis=1), axis=0) * 100
@@ -397,7 +397,7 @@ for ax, r in zip(axes, MAIN):
 fig.colorbar(im, ax=axes, shrink=.5, label='%'); plt.show()
 """)
 
-md("### 3-3. SK — 연령대별 월별 유동인구 지수 (7월 = 100)")
+md("### 3-3. SK: 연령대별 월별 유동인구 지수 (7월 = 100)")
 code(r"""
 mm = sk_long.groupby(['지역', '연령', '기준년월'])['인구'].sum().unstack()
 idx = mm.div(mm['202507'], axis=0) * 100
@@ -410,7 +410,7 @@ axes[0].legend(ncol=3, fontsize=9); plt.tight_layout(); plt.show()
 idx.round(1)
 """)
 
-md("### 3-4. SK — 읍면동 × 연령대별 겨울철 변화 (12월 vs 7~8월 평균, %)")
+md("### 3-4. SK: 읍면동 × 연령대별 겨울철 변화 (12월 vs 7~8월 평균, %)")
 code(r"""
 w = sk_long.groupby(['지역', '읍면동', '유형', '연령', '기준년월'])['인구'].sum().unstack()
 wchg = ((w['202512'] / w[['202507', '202508']].mean(axis=1) - 1) * 100).unstack('연령')[AGE6]
@@ -424,7 +424,7 @@ reg = sk_long.groupby(['지역', '연령', '기준년월'])['인구'].sum().unst
 print('지역 전체 겨울철 변화(%)'); ((reg['202512'] / reg[['202507', '202508']].mean(axis=1) - 1) * 100).unstack().round(1)[AGE6]
 """)
 
-md("### 3-5. 카드 — 연령대별 소비 규모 · 객단가 (일상 소비)")
+md("### 3-5. 카드: 연령대별 소비 규모 · 객단가 (일상 소비)")
 code(r"""
 ga = q.groupby(['지역', '연령'])[['금액', '건수']].sum()
 ga['건수 비중(%)'] = ga['건수'] / ga.groupby('지역')['건수'].transform('sum') * 100
@@ -442,7 +442,7 @@ axes[0].legend(); plt.tight_layout(); plt.show()
 ga[['건수 비중(%)', '금액 비중(%)', '객단가(원)']].unstack(0).reindex(AGE9).round(1)
 """)
 
-md("### 3-6. 카드 — 연령대 × 업종그룹 구성 (건수 비중 %)")
+md("### 3-6. 카드: 연령대 × 업종그룹 구성 (건수 비중 %)")
 code(r"""
 gg = q.groupby(['지역', '연령', '업종그룹'])['건수'].sum()
 sh_g = gg / gg.groupby(['지역', '연령']).transform('sum') * 100
@@ -455,7 +455,7 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 3-7. 카드 — 생애단계별 '특화 업종'
+### 3-7. 카드: 생애단계별 '특화 업종'
 특화지수 = (해당 생애단계의 업종 건수 비중) ÷ (전체의 업종 건수 비중) × 100 입니다. 비중 0.3% 이상인 업종만 대상으로 상위 8개를 보여 줍니다.
 """)
 code(r"""
@@ -472,7 +472,7 @@ for r in MAIN:
 pd.DataFrame(res)
 """)
 
-md("### 3-8. 카드 — 연령대별 시간대 분포 (건수 비중 %)")
+md("### 3-8. 카드: 연령대별 시간대 분포 (건수 비중 %)")
 code(r"""
 gt_ = q.groupby(['지역', '연령', '시간대'])['건수'].sum()
 sh_t = (gt_ / gt_.groupby(['지역', '연령']).transform('sum') * 100)
@@ -484,7 +484,7 @@ for ax, r in zip(axes, MAIN):
 plt.tight_layout(); plt.show()
 """)
 
-md("### 3-9. 카드 — 연령대별 요일 패턴 (공휴일 제외, 평일 평균 = 100)")
+md("### 3-9. 카드: 연령대별 요일 패턴 (공휴일 제외, 평일 평균 = 100)")
 code(r"""
 dd = q[q['일유형'] != '공휴일'].groupby(['지역', '연령6', '일자'])['건수'].sum().reset_index()
 dd['요일'] = dd['일자'].dt.dayofweek
@@ -498,7 +498,7 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 3-10. 카드 — 추석 연휴 효과 (연령 × 성별)
+### 3-10. 카드: 추석 연휴 효과 (연령 × 성별)
 연휴(10/3~10/9) 일평균 건수를 전후 3주(9/12~10/2, 10/10~10/30) 일평균과 비교한 변화율입니다.
 """)
 code(r"""
@@ -512,16 +512,16 @@ he = holiday_effect(['지역', '연령6', '성별']).unstack()
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.4), sharey=True)
 for ax, r in zip(axes, MAIN):
     sex_bars(ax, he.loc[r].reindex(AGE6), r, AGE6); ax.axhline(0, color=INK2, lw=.8)
-    ax.set_title(f'{r} — 추석 연휴 결제건수 변화'); pct_axis(ax); ax.legend(fontsize=9)
+    ax.set_title(f'{r}: 추석 연휴 결제건수 변화'); pct_axis(ax); ax.legend(fontsize=9)
 plt.tight_layout(); plt.show()
 hg = holiday_effect(['지역', '연령6', '업종그룹']).unstack()[[g for g in GORDER if g not in ('교육·육아', '공과금·금융·기타서비스')]]
 fig, axes = plt.subplots(2, 1, figsize=(13, 5.6))
 for ax, r in zip(axes, MAIN):
-    heat(ax, hg.loc[r].reindex(AGE6), cmap=DIV, center=0, clip=60, fmt='{:.0f}', rot=25); ax.set_title(f'{r} — 업종그룹별 추석 연휴 변화(%) · 파랑=감소 · 빨강=증가')
+    heat(ax, hg.loc[r].reindex(AGE6), cmap=DIV, center=0, clip=60, fmt='{:.0f}', rot=25); ax.set_title(f'{r}: 업종그룹별 추석 연휴 변화(%) · 파랑=감소 · 빨강=증가')
 plt.tight_layout(); plt.show()
 """)
 
-md("### 3-11. 카드 — 연령대별 월별 추이 (건수, 7월 = 100)")
+md("### 3-11. 카드: 연령대별 월별 추이 (건수, 7월 = 100)")
 code(r"""
 fig, axes = plt.subplots(2, 2, figsize=(12, 6.4), sharey='row')
 for j, (lab, mask) in enumerate([('일상 소비 전체', q['일상소비']), ('외부·사회활동형 업종', q['업종그룹'].isin(OUTDOOR))]):
@@ -536,7 +536,7 @@ axes[0, 0].legend(ncol=3, fontsize=8); plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 3-12. 카드(데이터2) — 연령대별 관내 거주 고객 비중
+### 3-12. 카드(데이터2): 연령대별 관내 거주 고객 비중
 관내 = 가맹점과 같은 시도에 사는 고객(강남: 서울, 춘천: 강원)이며, '정보없음'은 뺐습니다. 관내 비중이 높을수록 이동 반경이 좁은 생활권 소비로 볼 수 있습니다.
 """)
 code(r"""
@@ -553,7 +553,7 @@ local.round(1)
 md(r"""
 ## 4. 성별 분석
 
-### 4-1. SK — 연령대별 성비 (여성 = 100)
+### 4-1. SK: 연령대별 성비 (여성 = 100)
 """)
 code(r"""
 sr = sk_long.groupby(['지역', '연령', '성별'])['인구'].sum().unstack()
@@ -573,7 +573,7 @@ for ax, r in zip(axes, MAIN):
 fig.colorbar(im, ax=axes, shrink=.5); plt.show()
 """)
 
-md("### 4-2. 카드 — 연령대별 성별 결제건수비 · 객단가비 (남 ÷ 여 × 100)")
+md("### 4-2. 카드: 연령대별 성별 결제건수비 · 객단가비 (남 ÷ 여 × 100)")
 code(r"""
 gs = q.groupby(['지역', '연령', '성별'])[['금액', '건수']].sum()
 gs['객단가'] = gs['금액'] / gs['건수']
@@ -588,7 +588,7 @@ axes[0].legend(); plt.tight_layout(); plt.show()
 ratio.unstack(0).reindex(AGE9).round(0)
 """)
 
-md("### 4-3. 카드 — 성별 업종그룹 비중 차이 (남성 비중 − 여성 비중, %p)")
+md("### 4-3. 카드: 성별 업종그룹 비중 차이 (남성 비중 − 여성 비중, %p)")
 code(r"""
 gsx = q.groupby(['지역', '성별', '연령', '업종그룹'])['건수'].sum()
 shx = gsx / gsx.groupby(['지역', '성별', '연령']).transform('sum') * 100
@@ -602,7 +602,7 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 4-4. 카드 — 고립 관련 후보 지표 (연령 × 성별 × 지역)
+### 4-4. 카드: 고립 관련 후보 지표 (연령 × 성별 × 지역)
 모든 값은 해당 그룹 일상 소비 건수 중 비중(%)입니다.
 - **외부·사회활동형**: 외식·여가문화·스포츠·음주유흥·여행교통 → 낮으면 대외 활동이 적다는 신호 후보
 - **편의점**: 1인 가구 소비 패턴 후보 · **음주·유흥**: 유흥업소+주류판매 · **심야**: 00~05시
@@ -624,7 +624,7 @@ plt.tight_layout(rect=[0, 0, 1, .95]); fig.legend(loc='upper center', ncol=4, bb
 IND.unstack(['지역', '성별']).reindex(AGE9).round(1)
 """)
 
-md("### 4-5. 카드 — 겨울철 변화 (12월 vs 7~8월, 건수 %) — 연령 × 성별")
+md("### 4-5. 카드: 겨울철 변화 (12월 vs 7~8월, 건수 %): 연령 × 성별")
 code(r"""
 def winter(mask):
     m = q[mask].groupby(['지역', '성별', '연령', '기준년월'])['건수'].sum().unstack()
@@ -684,7 +684,7 @@ axes[1].set_title('요일 지수 (평일 평균=100)'); plt.tight_layout(); plt.
 wd.round(1).set_axis(list('월화수목금토일'), axis=1)
 """)
 
-md("### 5-3. 지도 — 격자별 생애단계 비중 (6개월 합계, 평균 유동인구 5명 이상 격자)")
+md("### 5-3. 지도: 격자별 생애단계 비중 (6개월 합계, 평균 유동인구 5명 이상 격자)")
 code(r"""
 cs = age.groupby(['지역', 'X좌표', 'Y좌표'])[ALL].sum()
 cs = cs[cs.sum(axis=1) >= 30]
@@ -721,7 +721,7 @@ for ax, r in zip(axes, MAIN):
 plt.tight_layout(); plt.show()
 """)
 
-md("### 5-5. 카드 — 지역 차이 (강남 비중 − 춘천 비중, %p) 연령 × 업종그룹")
+md("### 5-5. 카드: 지역 차이 (강남 비중 − 춘천 비중, %p) 연령 × 업종그룹")
 code(r"""
 dreg = (sh_g.xs('서울 강남구', level='지역') - sh_g.xs('강원 춘천시', level='지역')).unstack().reindex(index=AGE9, columns=GORDER)
 fig, ax = plt.subplots(figsize=(13, 4.2))
@@ -749,10 +749,10 @@ kpi.round(2)
 
 # ------------------------------------------------------------------ 6. 결합
 md(r"""
-## 6. 결합 — 유동인구 대비 소비 참여도
+## 6. 결합: 유동인구 대비 소비 참여도
 
 **참여도** = (그룹의 카드 결제건수 비중) ÷ (그룹의 유동인구 비중)입니다. 1보다 작으면 그 지역에 머무는 정도에 비해 카드 소비 활동이 적다는 뜻입니다.
-⚠ 고령층은 현금 사용이 많고 신한카드 점유율도 연령마다 다를 수 있으므로, 절대 수준보다는 **지역 간·시점 간 비교**에 쓰는 것이 안전합니다.
+고령층은 현금 사용이 많고 신한카드 점유율도 연령마다 다를 수 있으므로, 절대 수준보다는 **지역 간·시점 간 비교**에 쓰는 것이 안전합니다.
 """)
 code(r"""
 pop = sk_long.groupby(['지역', '성별', '연령'])['인구'].sum(); pop_sh = pop / pop.groupby('지역').transform('sum') * 100
@@ -762,7 +762,7 @@ part = (cd_sh / pop_sh).unstack('성별')
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.5), sharey=True)
 for ax, r in zip(axes, MAIN):
     sex_bars(ax, part.loc[r].reindex(AGE6), r, AGE6); ax.axhline(1, color=INK2, lw=.8)
-    ax.set_title(f'{r} — 소비 참여도 (1 = 유동 비중만큼 소비)'); ax.legend(fontsize=9)
+    ax.set_title(f'{r}: 소비 참여도 (1 = 유동 비중만큼 소비)'); ax.legend(fontsize=9)
 plt.tight_layout(); plt.show()
 display(pd.concat({'유동 비중%': pop_sh.unstack('성별'), '카드건수 비중%': cd_sh.unstack('성별'), '참여도': part}, axis=1)
         .reindex(AGE6, level='연령').round(2))
@@ -773,7 +773,7 @@ pm = (cdm / popm).unstack('기준년월')
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.3), sharey=True)
 for ax, r in zip(axes, MAIN):
     for s in STAGES: ax.plot(pm.columns, pm.loc[(r, s)], color=STAGE_C[s], marker='o', ms=4, label=s)
-    ax.axhline(1, color=INK2, lw=.6); ax.set_title(f'{r} — 월별 소비 참여도')
+    ax.axhline(1, color=INK2, lw=.6); ax.set_title(f'{r}: 월별 소비 참여도')
 axes[0].legend(fontsize=8.5, ncol=2); plt.tight_layout(); plt.show()
 pm.round(3)
 """)

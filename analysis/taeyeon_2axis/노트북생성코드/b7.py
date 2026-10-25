@@ -14,7 +14,7 @@ md(r"""
 이 프로젝트는 처음부터 전 연령을 분석했습니다. 이 노트북은 그 출발점을 **가설로 세우고, 실행 전에 고정한 기준으로 판정**합니다.
 """)
 
-md("## 1. 배경 — 왜 이 가설을 세웠나")
+md("## 1. 배경: 왜 이 가설을 세웠나")
 md(r"""
 | 배경 | 내용 | 출처 |
 |---|---|---|
@@ -105,7 +105,7 @@ TAB = E.pivot_table(index=['지표', '지역', '내용', '위험 방향'], colum
 TAB.round(2)
 """)
 
-md("## 4. 판정 — 지표마다 '청년·중년 중 노년과 같거나 더 위험한 연령대가 있는가'")
+md("## 4. 판정: 지표마다 '청년·중년 중 노년과 같거나 더 위험한 연령대가 있는가'")
 code(r"""
 rows = []
 for (key, reg, name, d), r in TAB.iterrows():
@@ -130,17 +130,17 @@ for ax, key in zip(axes.flat, keys):
     ax.axhline(r['60대+'], color=STAGE_C['노년'], lw=1, ls='--')
     ok = J[(J['지표'] == key[0]) & (J['지역'] == key[1])]['H1 성립'].iloc[0]
     ax.set_xticks(x, r.index, fontsize=8); ax.tick_params(axis='y', labelsize=8)
-    ax.set_title(f"{key[0]} {key[1].replace('서울 ', '').replace('강원 ', '')} — {'H1 성립' if ok else 'H1 불성립'}\n{key[2]} ({key[3]} 위험)", fontsize=9)
+    ax.set_title(f"{key[0]} {key[1].replace('서울 ', '').replace('강원 ', '')}: {'H1 성립' if ok else 'H1 불성립'}\n{key[2]} ({key[3]} 위험)", fontsize=9)
 for ax in axes.flat[len(keys):]: ax.axis('off')
 handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in STAGE_C.values()]
 fig.legend(handles, list(STAGE_C), loc='lower center', ncol=3, fontsize=9); plt.tight_layout(rect=(0, .05, 1, 1)); plt.show()
 """)
 code(r"""
-print('참고: 성별로 나눈 혼자 사는 비율(%) — 남녀 모두에서 같은 패턴인지')
+print('참고: 성별로 나눈 혼자 사는 비율(%): 남녀 모두에서 같은 패턴인지')
 display(alone_sex.unstack('연령5').reindex(columns=AGE5).round(1))
 """)
 
-md("## 5. 보조 — 고립 대응 서비스는 연령별로 어떻게 공급되나 (판정 제외)")
+md("## 5. 보조: 고립 대응 서비스는 연령별로 어떻게 공급되나 (판정 제외)")
 code(r"""
 G = pd.read_csv(OUTD / '복지자원_공급공백_생애단계.csv')
 G['위험 인구(이중 위험+행동형)'] = G['이중 위험 인구'] + G['행동형 인구']
@@ -153,7 +153,7 @@ R = pd.read_csv(OUTD / '위험도_2축_강남_춘천_동x성x연령.csv')
 def top_share(g, col):                               # 지역 안 상위 1/3(인구 가중)에 드는 인구 비중
     return g.groupby('연령5').apply(lambda x: (x[col] >= R.loc[g.index, col].quantile(2 / 3)).mean() * 100)
 chk = pd.concat({reg: top_share(R[R['지역'] == reg], '적용 H') for reg in MAIN}, axis=1).reindex(AGE5)
-print("행동 고립 H가 지역 상위 1/3에 드는 집단 비중(%) — 연령마다 비슷하게 나오는 것은 설계 때문"); display(chk.round(1))
+print("행동 고립 H가 지역 상위 1/3에 드는 집단 비중(%): 연령마다 비슷하게 나오는 것은 설계 때문"); display(chk.round(1))
 """)
 md("## 7. 요약")
 SUM = Path(__file__).with_name('s7.md')

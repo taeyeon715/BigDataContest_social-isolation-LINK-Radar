@@ -153,7 +153,7 @@ TOOL
 
 # ---------------------------------------------------------------- 2
 md(r"""
-## 2. 날씨 결합 검증 — 날씨는 소비 변동 보정 변수로 의미가 있는가
+## 2. 날씨 결합 검증: 날씨는 소비 변동 보정 변수로 의미가 있는가
 
 - **타깃**: 카드 일별 결제건수(개인·일상 소비, 로그)
 - **비교**: 달력 모델(요일·공휴일·추석·연말·월) vs 달력+날씨 모델(강수 구간·같은 달 평균 대비 기온 편차·폭염)
@@ -196,7 +196,7 @@ if KMA.exists():      # 기상청 공식 ASOS 일자료 우선 사용 (fetch_kma
         '다음날 값과의 강수 상관': g['일강수량_기상청'].fillna(0).corr(g['일강수량_Meteostat'].fillna(0).shift(-1))}))
     print('기상청 ASOS vs Meteostat 일별 일치도 (날짜 경계 차이 점검)'); display(agree.round(3))
 else:
-    W = W_MS; WSRC = 'Meteostat (기상청 관측소 값, NOAA 경유) — 기상청 키 확보 시 교체'
+    W = W_MS; WSRC = 'Meteostat (기상청 관측소 값, NOAA 경유): 기상청 키 확보 시 교체'
 print('사용 기상 자료:', WSRC)
 W['일강수량'] = W['일강수량'].fillna(0)
 W.to_csv(EXT / 'weather/일별기상_서울_춘천_202507_202512.csv', index=False, encoding='utf-8-sig')
@@ -266,7 +266,7 @@ for ax, reg in zip(axes, MAIN):
         y = np.arange(len(segs)) + j * .18 - .27
         ax.errorbar(tt['효과(%)'], y, xerr=1.96 * tt['SE(%)'], fmt='o', ms=5, capsize=0, lw=1.2,
                     color=['#86b6ef', '#3987e5', '#0d366b', '#eb6834'][j], label=v)
-    ax.axvline(0, color=INK2, lw=.8); ax.set_yticks(range(len(segs)), segs); ax.set_title(f'{reg} — 날씨 효과 (95% 신뢰구간)')
+    ax.axvline(0, color=INK2, lw=.8); ax.set_yticks(range(len(segs)), segs); ax.set_title(f'{reg}: 날씨 효과 (95% 신뢰구간)')
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
 axes[0].legend(fontsize=8.5, loc='lower left'); plt.tight_layout(); plt.show()
 CF.pivot_table(index=['지역', '집단'], columns='변수', values=['효과(%)', 't']).round(1)
@@ -277,8 +277,8 @@ md(r"""
 
 # ---------------------------------------------------------------- 3
 md(r"""
-## 3. 주민등록(거주) 구조 — 지역 구조 위험과 'SK 유동인구 = 거주자?' 점검
-⚠ 주민등록 자료는 **2026.9.30 기준**입니다(공공데이터포털 최신본). 분석 기간(2025.7~12)과 약 1년 차이가 있습니다.
+## 3. 주민등록(거주) 구조: 지역 구조 위험과 'SK 유동인구 = 거주자?' 점검
+주민등록 자료는 **2026.9.30 기준**입니다(공공데이터포털 최신본). 분석 기간(2025.7~12)과 약 1년 차이가 있습니다.
 """)
 code(r"""
 pop = pd.read_csv(EXT / 'mois/행정동_성별연령별_주민등록인구_20260930.csv', encoding='cp949')
@@ -345,13 +345,13 @@ for ax, reg in zip(axes, MAIN):
     ax.scatter(s['주민인구'] / 1e3, s['SK 주간(09~17) 평균'], facecolor='none', edgecolor=C[reg], s=40, label='주간(09~17시)')
     for code_, row in s.iterrows():
         if row['주간/야간'] > s['주간/야간'].quantile(.8): ax.annotate(row['읍면동명'], (row['주민인구'] / 1e3, row['SK 주간(09~17) 평균']), fontsize=8, color=INK2, xytext=(4, 2), textcoords='offset points')
-    ax.set_xlabel('주민등록 인구 (천 명)'); ax.set_ylabel('SK 시간당 유동인구 (격자 합)'); ax.set_title(f'{reg} — 거주 인구 vs SK 유동인구'); ax.legend(fontsize=8.5)
+    ax.set_xlabel('주민등록 인구 (천 명)'); ax.set_ylabel('SK 시간당 유동인구 (격자 합)'); ax.set_title(f'{reg}: 거주 인구 vs SK 유동인구'); ax.legend(fontsize=8.5)
 plt.tight_layout(); plt.show()
 """)
 
 # ---------------------------------------------------------------- 4
 md(r"""
-## 4. 강남구 정답 데이터 탐색 — 서울 '행정동단위 10개 관심집단수'
+## 4. 강남구 정답 데이터 탐색: 서울 '행정동단위 10개 관심집단수'
 
 매뉴얼(`seoul_living_docs/서울시민생활데이터_매뉴얼.pdf` p.17, p.22) 기준 정의입니다.
 - **커뮤니케이션이 적은 집단**: 서울 1인가구 중 통화·문자 대상자 수, 통화·문자량, SNS 사용량 지수 **하위 10%**
@@ -382,7 +382,7 @@ T['1인가구 비율(%)'] = T['1인가구수'] / T['총인구'] * 100
 TG = ['고립(외출·소통 모두 적음, 인구 %)', '외출 매우 적음(인구 %)', '소통 적음(1인가구 %)', '재정 관심(1인가구 %)']
 zero = T.groupby('SGIS코드')[G].apply(lambda g: (g == 0).mean() * 100)
 zero = zero[(zero > 50).any(axis=1)]
-if len(zero): print('⚠ 관심집단 값이 절반 이상 0인 동 (데이터 품질 의심):'); display(zero.rename(index=NAME).round(0))
+if len(zero): print('관심집단 값이 절반 이상 0인 동 (데이터 품질 의심):'); display(zero.rename(index=NAME).round(0))
 T = T.reset_index(); T['읍면동명'] = T['SGIS코드'].map(NAME)
 # 총인구 정합성 (서울 데이터 vs 주민등록)
 chk = T[T['기준년월'] == '202512'].groupby('SGIS코드')['총인구'].sum().to_frame('서울데이터 20세+').join(
@@ -399,13 +399,13 @@ for ax, t in zip(axes, TG):
     ax.set_title(t, fontsize=10); ax.tick_params(axis='x', labelsize=8)
 axes[0].legend(); plt.tight_layout(); plt.show()
 
-# 동 × 연령 (6개월·성별 평균) — 주 타깃
+# 동 × 연령 (6개월·성별 평균): 주 타깃
 TGT = TG[0]
 hm = T.groupby(['읍면동명', '연령6'])[TGT].mean().unstack()[AGE5]
 hm = hm.loc[hm.mean(axis=1).sort_values(ascending=False).index]
-fig, ax = plt.subplots(figsize=(7.5, 8)); heat(ax, hm, fmt='{:.2f}'); ax.set_title(f'{TGT} — 동 × 연령'); plt.show()
+fig, ax = plt.subplots(figsize=(7.5, 8)); heat(ax, hm, fmt='{:.2f}'); ax.set_title(f'{TGT}: 동 × 연령'); plt.show()
 """)
-md("### 4-1. 정답 데이터의 월별 안정성 — 같은 (동·성·연령)의 값이 달마다 얼마나 일관된가")
+md("### 4-1. 정답 데이터의 월별 안정성: 같은 (동·성·연령)의 값이 달마다 얼마나 일관된가")
 code(r"""
 stab = {}
 for t in TG:
@@ -421,13 +421,13 @@ STAB.round(3)
 
 # ---------------------------------------------------------------- 5
 md(r"""
-## 5. 정답 예측 모델 검증 — 우리 데이터로 강남구 고립 지표를 맞힐 수 있는가
+## 5. 정답 예측 모델 검증: 우리 데이터로 강남구 고립 지표를 맞힐 수 있는가
 
 **핵심 질문**: 성·연령만 알면 되는가(기본값), 아니면 SK 유동인구·주민등록·카드 정보가 **동 간 차이**를 추가로 설명하는가?
 
 | 모델 | 입력 변수 |
 |---|---|
-| M0 기본값 | 같은 (성·연령·월)의 다른 동 평균 — 사회조사식 '성·연령 기본 위험률'과 같은 역할 |
+| M0 기본값 | 같은 (성·연령·월)의 다른 동 평균: 사회조사식 '성·연령 기본 위험률'과 같은 역할 |
 | M1 SK | 성·연령 + SK (동·집단 유동인구, 유동/거주 비, 주간/야간, 주말/평일, 60대+ 비중) |
 | M2 SK+주민등록 | M1 + 동 1인세대 비율·65세+ 비율 |
 | M3 전체(LightGBM) | M2 + 카드(강남구 성·연령·월 단위: 외부활동·편의점·심야·의료 비중) |
@@ -515,13 +515,13 @@ for ax, P_, tt in [(axes[0], piv, 'R² (동 단위 교차검증)'), (axes[1], pi
     ax.set_yticks(x, P_.index, fontsize=8.5); ax.axvline(0, color=INK2, lw=.8); ax.set_title(tt)
 axes[1].legend(fontsize=8, loc='lower right'); plt.tight_layout(); plt.show()
 """)
-md("### 5-1. 무엇이 설명하는가 — M2(Ridge) 표준화 계수와 동 단위 상관")
+md("### 5-1. 무엇이 설명하는가: M2(Ridge) 표준화 계수와 동 단위 상관")
 code(r"""
 df = ft.assign(_y=ft[TGT])
 mdl = make_pipeline(StandardScaler(), RidgeCV(alphas=np.logspace(-2, 3, 20))).fit(pd.concat([dummies, df[F_SK + F_RES]], axis=1), df['_y'])
 coef = pd.Series(mdl[-1].coef_, index=list(dummies.columns) + F_SK + F_RES).loc[F_SK + F_RES].sort_values()
 fig, ax = plt.subplots(figsize=(7, 3.4)); ax.barh(coef.index, coef.values, color=[C['강원 춘천시'] if v > 0 else C['서울 강남구'] for v in coef.values])
-ax.axvline(0, color=INK2, lw=.8); ax.set_title(f'M2 표준화 계수 — {TGT}\n(주황=높을수록 고립 비율↑)'); plt.show()
+ax.axvline(0, color=INK2, lw=.8); ax.set_title(f'M2 표준화 계수: {TGT}\n(주황=높을수록 고립 비율↑)'); plt.show()
 
 # 동 단위(22개): 성·연령·월 효과를 뺀 '동 고유 수준' vs 동 특징
 df['잔차'] = df['_y'] - df.groupby('cell')['_y'].transform('mean')
@@ -565,7 +565,7 @@ blk = cells[i0:i0 + 2]; del cells[i0:i0 + 2]
 blk[0].source = blk[0].source.replace('## 0. 코드 대응표', '### 3-1. 코드 대응표')
 i3 = next(i for i, c in enumerate(cells) if c.cell_type == 'markdown' and c.source.startswith('## 3.'))
 warn = cells[i3].source.split('\n', 1)[1].strip()
-cells[i3].source = "## 3. 지역 구조 — 코드 대응 · 주민등록 · 'SK 유동인구 = 거주자?'"
+cells[i3].source = "## 3. 지역 구조: 코드 대응 · 주민등록 · 'SK 유동인구 = 거주자?'"
 cells[i3 + 1:i3 + 1] = blk + [nbf.v4.new_markdown_cell('### 3-2. 주민등록 구조 지표 (1인 세대 · 고령 · 청년 · 중장년 남성)\n' + warn)]
 iSK = next(i for i, c in enumerate(cells) if c.cell_type == 'code' and c.source.startswith('# SK 유동인구(성연령, 6개월 평균)'))
 cells.insert(iSK, nbf.v4.new_markdown_cell('### 3-3. SK 유동인구는 거주 인구를 대표하는가'))

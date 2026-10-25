@@ -128,7 +128,7 @@ export default function Home() {
               오늘 기준
             </button>
             <DatePicker value={explicit && STATIC_MODE ? explicit : as_of} min={DATA_FROM} max={DATA_TO} marked={STATIC_MODE ? dates : null} today={todayData} onChange={(d) => set({ as_of: d })} />
-            <span className="text-xs text-ink-600">달력에서 2025년 7~12월 중 아무 날이나 고를 수 있어요</span>
+            <span className="text-xs text-ink-600">달력에서 2025년 7~12월 중 아무 날이나 고를 수 있습니다</span>
           </div>
           <div data-testid="presets">
             <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
@@ -522,7 +522,7 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
           <div className="flex gap-3">
             <AgentAvatar small />
             <div className="rounded-2xl rounded-tl-sm bg-white/10 px-4 py-3 text-sm leading-relaxed">
-              <b>{place}</b>의 근거 카드를 읽고 있어요. 왜 먼저 봐야 하는지, 어떤 자원을 연결할지 물어보세요.
+              <b>{place}</b>의 근거 카드를 읽고 있습니다. 왜 먼저 봐야 하는지, 어떤 자원을 연결할지 물어보세요.
               <div className="mt-1 text-xs text-ink-200">
                 등급은 질문으로 바뀌지 않습니다.{STATIC_MODE ? ' 질문은 Gemini로 보내지니 이름·연락처 같은 개인정보는 적지 마세요.' : ''}
               </div>

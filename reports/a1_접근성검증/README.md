@@ -38,6 +38,6 @@
 
 ## 재현
 
-`python notebooks/a1_access_audit.py` — 보강 전 원장과 현재 원장을 각각 고정 스냅샷으로 열어 같은 기준일·같은 규칙을 실행합니다. 거리·등급 비교 CSV 세 개를 저장합니다. API를 다시 부르지 않습니다.
+`python notebooks/a1_access_audit.py`: 보강 전 원장과 현재 원장을 각각 고정 스냅샷으로 열어 같은 기준일·같은 규칙을 실행합니다. 거리·등급 비교 CSV 세 개를 저장합니다. API를 다시 부르지 않습니다.
 
 원본·좌표·해시는 `external/resources/chuncheon_centers/README.md`와 `출처.json`에 있습니다. 현재 운영은 핵심 자원 확인 보고서에서 별도로 다룹니다.

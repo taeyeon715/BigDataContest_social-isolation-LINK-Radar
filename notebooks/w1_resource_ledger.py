@@ -171,7 +171,7 @@ for dong, group, need, cause in cases:
     if sel.crisis:
         r.p(f"**위급 시 안내** (순위 밖): " + ", ".join(f"{m.resource_id} {m.name}" for m in sel.crisis))
     if sel.excluded:
-        r.p("**확인할 자원** (추천 제외): " + "; ".join(f"{m.resource_id} {m.name} — {', '.join(w)}" for m, w in sel.excluded))
+        r.p("**확인할 자원** (추천 제외): " + "; ".join(f"{m.resource_id} {m.name}: {', '.join(w)}" for m, w in sel.excluded))
 r.p()
 r.p("- 이 결과는 담당자가 볼 **후보 목록**입니다. 이용 가능 여부와 자격은 담당자가 확인합니다.")
 r.p("- '확인 필요 이유'는 섞지 않고 따로 적습니다: 자격 미상 / 휴일 운영 미상 / 위치 미확인 / 운영 상태 미상 / 좌표 탐색용 / 관할 밖 거점.")

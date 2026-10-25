@@ -203,13 +203,13 @@ for c in CITIES:
         bk, bv = best_base[(c, h)]
         drows.append({"도시·h": f"{c} h={h}", "더 나은 기준선": f"{bk} ({bv:.1%})",
                       "STL": f"{m_city.loc[('1', c, h), 'rel_mae']:.1%} ({m_city.loc[('1', c, h), 'rel_mae'] / bv - 1:+.1%})",
-                      "STL 기준 통과(≤ −5%)": "✅" if stl_ok[(c, h)] else "❌",
+                      "STL 기준 통과(≤ −5%)": "통과" if stl_ok[(c, h)] else "미달",
                       "LightGBM": f"{m_city.loc[('2', c, h), 'rel_mae']:.1%} ({m_city.loc[('2', c, h), 'rel_mae'] / ref[(c, h)] - 1:+.1%} vs 기준선·STL 중 나은 것)",
-                      "LightGBM 기준 통과": "✅" if lgb_ok[(c, h)] else "❌",
-                      "LightGBM 80대+ 악화 없음": "✅" if old_ok[(c, h)] else "❌"})
+                      "LightGBM 기준 통과": "통과" if lgb_ok[(c, h)] else "미달",
+                      "LightGBM 80대+ 악화 없음": "통과" if old_ok[(c, h)] else "미달"})
 r.table(pd.DataFrame(drows).set_index("도시·h"))
-r.p(f"- STLForecast: **{'채택' if stl_adopt else '채택 안 함'}** — 규칙: {MCFG['adoption']['stl_rule']}")
-r.p(f"- LightGBM: **{'채택' if lgb_adopt else '채택 안 함'}** — 규칙: {MCFG['adoption']['lgbm_rule']}")
+r.p(f"- STLForecast: **{'채택' if stl_adopt else '채택 안 함'}**. 규칙: {MCFG['adoption']['stl_rule']}")
+r.p(f"- LightGBM: **{'채택' if lgb_adopt else '채택 안 함'}**. 규칙: {MCFG['adoption']['lgbm_rule']}")
 r.p(f"- 기준선 중에서는 도시·h 네 칸 중 {int((base_pick == base_choice).sum())}칸에서 **{LABEL[base_choice]}** 가 더 나았습니다.")
 if adopted_fc in ("0a", "0b"):
     r.p(f"- 결론: **단순 모델 채택** ({LABEL[adopted_fc]}). 184일·공휴일이 거의 없는 학습 자료로는 복잡한 모델이 기준선을 정해 둔 차이만큼 이기지 못했습니다. 이것도 정당한 결과입니다.")
@@ -456,7 +456,7 @@ det_choice = next((k for k, v in det_dec.items() if v["adopted"]), "EDA-6")
 dec["detection"] = {"rule": MCFG["adoption"]["detection_rule"], "by_model": det_dec, "expected_value_for_alarm": det_choice,
                     "pairs": len(pairs), "start_from": str(dates[S_MIN].date())}
 r.p(f"- 채택된 예측 모델 0b의 15% 탐지 {det_dec['0b']['detect15_local']:.1%} vs EDA-6 규칙 {det_dec['0b']['eda6_detect15_local']:.1%} (각자 분모. 공통 분모에서는 {B0C:.1%} vs {E6C:.1%}), 배경(새로 난 창) {det_dec['0b']['background_new_window']:.1%} vs {det_dec['0b']['eda6_background_new_window']:.1%}, 합성 오경보(새로 난 창) {det_dec['0b']['synthetic_new_window']:.1%} vs {det_dec['0b']['eda6_synthetic_new_window']:.1%}.")
-r.p(f"- 경보 기대값 교체: **{'EDA-6 규칙 유지' if det_choice == 'EDA-6' else DLABEL[det_choice] + '로 교체'}** — 규칙: {MCFG['adoption']['detection_rule']}")
+r.p(f"- 경보 기대값 교체: **{'EDA-6 규칙 유지' if det_choice == 'EDA-6' else DLABEL[det_choice] + '로 교체'}**. 규칙: {MCFG['adoption']['detection_rule']}")
 
 # ------------------------------------------------------------ 4. 관측 후 이탈 판정
 r.h("4. 관측 후 이탈 판정: 같은 날 공통요인·강수")
@@ -615,7 +615,7 @@ r.p("| 예측 상대 MAE h=7 (더 나은 기준선 / STL / LightGBM) | " + "; ".
 r.p(f"| 채택 (사전 규칙) | 예측 {LABEL[adopted_fc]}; STL {'채택' if stl_adopt else '안 함'}, LightGBM {'채택' if lgb_adopt else '안 함'}; 경보 기대값 {DLABEL[det_choice]} | 계산 재현 |")
 for k in DET_MODELS:
     d = det.loc[DLABEL[k]]
-    r.p(f"| 15% 하락 감지(raw 경보, 반증 전) — {DLABEL[k]} | {d['15% 탐지']:.0%} (새 탐지 {d['새 탐지 n']:,} / 대조 음성 {d['대조 음성 n']:,}), 순증 {d['순증 경보율 차이(%p)']:+.0f}%p, 지연 중앙값 {d['지연 중앙값(일)']:.0f}일, 배경 {d['배경: 새로 경보 난 창']:.1%}(평가창)·{d['배경: 경보일/판정 가능 코호트·일']:.2%}(판정 가능 코호트·일), 합성 오경보 {d['합성 오경보: 새로 경보 난 창']:.1%}·{d['합성 오경보: 경보일/판정 가능 코호트·일']:.2%} | 계산 재현 |")
+    r.p(f"| 15% 하락 감지(raw 경보, 반증 전): {DLABEL[k]} | {d['15% 탐지']:.0%} (새 탐지 {d['새 탐지 n']:,} / 대조 음성 {d['대조 음성 n']:,}), 순증 {d['순증 경보율 차이(%p)']:+.0f}%p, 지연 중앙값 {d['지연 중앙값(일)']:.0f}일, 배경 {d['배경: 새로 경보 난 창']:.1%}(평가창)·{d['배경: 경보일/판정 가능 코호트·일']:.2%}(판정 가능 코호트·일), 합성 오경보 {d['합성 오경보: 새로 경보 난 창']:.1%}·{d['합성 오경보: 경보일/판정 가능 코호트·일']:.2%} | 계산 재현 |")
 r.p(f"| 15% 하락 감지, **공통 분모** {int(CM['step15'].sum()):,}쌍 | " + "; ".join(f"{DLABEL[k].split(' (')[0]} {cdet.loc[DLABEL[k], '15% 탐지']:.1%}" for k in DET_MODELS) + " | 계산 재현 |")
 r.p(f"| LightGBM 근사 확인 | {LGB['agree']} / {LGB['n']}쌍 일치 ({LGB['agree'] / LGB['n']:.1%}). 15% 계단·local·주입 쪽만, 목표 코호트만 다시 학습 | 표본 점검 (완전 재계산 아님) |")
 r.p(f"| 관측 후 판정: 같은 날 공통요인+강수 R² | " + ", ".join(f"{c} {p01.loc[c, '공통요인+강수 R²']:.0%} (강수만 {p01.loc[c, '강수만 R²']:.0%})" for c in CITIES) + " | 계산 재현 (사후 기술) |")

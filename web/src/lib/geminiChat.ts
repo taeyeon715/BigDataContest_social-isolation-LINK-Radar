@@ -16,7 +16,7 @@ export type ChatResult =
   | { status: 'limit'; message: string }
   | { status: 'error'; message: string }
 
-export const LIMIT_MESSAGE = '오늘 무료 질문 한도가 찼어요. 근거 카드에서 찾은 답으로 대신합니다.'
+export const LIMIT_MESSAGE = '오늘 무료 질문 한도가 찼습니다. 근거 카드에서 찾은 답으로 대신합니다.'
 
 /** 요청 검사: 질문 길이, 기준일 모양, 도시 */
 export function parseRequest(body: unknown): ChatRequest | string {

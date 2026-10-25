@@ -92,7 +92,7 @@ print('기능별 서비스 수 (지역별, 중복 포함)'); display(A.groupby('
 print('고립 직접 대응 서비스'); display(A[A['고립 직접']][['지역', '수준', 'servNm', '생애주기', '관심주제']].sort_values(['지역', '수준']))
 """)
 
-md("## 3. 공급 공백 — 위험 인구에 비해 서비스가 비는 곳")
+md("## 3. 공급 공백: 위험 인구에 비해 서비스가 비는 곳")
 code(r"""
 STAGE = {'20대': '청년', '30대': '청년', '40대': '중장년', '50대': '중장년', '60대+': '노년'}
 rows = []
@@ -113,7 +113,7 @@ for ax, reg in zip(axes, MAIN):
     g = GAP.loc[reg][F]; x = np.arange(len(g.index)); wd = .2
     for i, (f, c) in enumerate(zip(F, ['#eb6834', '#1c5cab', '#c43a39', '#b5b4ae'])):
         ax.bar(x + (i - 1.5) * wd, g[f], width=wd, color=c, label=f)
-    ax.set_xticks(x, g.index); ax.set_title(f'{reg} — 생애단계별 쓸 수 있는 서비스 수 (기능별)')
+    ax.set_xticks(x, g.index); ax.set_title(f'{reg}: 생애단계별 쓸 수 있는 서비스 수 (기능별)')
 axes[0].legend(fontsize=8.5); plt.tight_layout(); plt.show()
 """)
 

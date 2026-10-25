@@ -9,7 +9,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip()))
 
 md(r"""
 # 04
-**위험도의 구조** — 네 축 중 세 축을 제공 데이터가 맡고, 외부 데이터는 기준점·보정·검증만 맡습니다.
+**위험도의 구조**: 네 축 중 세 축을 제공 데이터가 맡고, 외부 데이터는 기준점·보정·검증만 맡습니다.
 
 | 축 | 질문 | 담당 데이터 | 노트북 기호 |
 |---|---|---|---|
@@ -91,11 +91,11 @@ print(f"서울 정답: {TS['k7'].nunique()}개 동 × 성 2 × 연령 5 = {len(T
 display(TS.groupby('연령5')['y'].describe()[['mean', '50%', 'std']].T.round(2))
 """)
 md(r"""
-⚠ 정답 지표는 매뉴얼상 **연령대별 상위 2%**로 정의돼 있어, 연령 간 평균 차이가 설계상 거의 없습니다(위 표). 그래서 이 정답으로는 **같은 성·연령 안에서 동끼리의 차이**만 검증할 수 있습니다. 연령별 위험 수준은 **공식 고립률(B)**로 정합니다.
+정답 지표는 매뉴얼상 **연령대별 상위 2%**로 정의돼 있어, 연령 간 평균 차이가 설계상 거의 없습니다(위 표). 그래서 이 정답으로는 **같은 성·연령 안에서 동끼리의 차이**만 검증할 수 있습니다. 연령별 위험 수준은 **공식 고립률(B)**로 정합니다.
 """)
 
 # ------------------------------------------------------------------ 2
-md("## 2. 기본 위험 B — 공식 사회적 고립도 (성 · 연령)")
+md("## 2. 기본 위험 B: 공식 사회적 고립도 (성 · 연령)")
 code(r"""
 AGE_RATE = {'20대': 24.4, '30대': 26.5, '40대': 29.5, '50대': 37.2, '60대+': 39.4}     # 통계청 사회조사 2025 (19~29세를 20대로)
 SEX_MULT = {'남성': 35.7 / 33.0, '여성': 30.5 / 33.0}                                 # 남 35.7%, 여 30.5%, 전체 33.0%
@@ -104,7 +104,7 @@ B.pivot(index='연령5', columns='성별', values='B 기본 고립률(%)').reind
 """)
 
 # ------------------------------------------------------------------ 3
-md("## 3. 구조 위험 S — 서울 전체 동으로 학습 (외부: 주민등록)")
+md("## 3. 구조 위험 S: 서울 전체 동으로 학습 (외부: 주민등록)")
 code(r"""
 pop = pd.read_csv(EXT / 'mois/행정동_성별연령별_주민등록인구_20260930.csv', encoding='cp949')
 hh = pd.read_csv(EXT / 'mois/행정동_세대원수별_세대수_20260930.csv', encoding='cp949')
@@ -140,7 +140,7 @@ display(coefS.round(3).to_frame('표준화 계수 (+ = 고립 지표↑)'))
 """)
 
 # ------------------------------------------------------------------ 4
-md("## 4. 행동 위험 A — SK 유동인구 (제공 데이터)")
+md("## 4. 행동 위험 A: SK 유동인구 (제공 데이터)")
 code(r"""
 %%time
 age = pd.read_csv(DATA / 'SK_유동인구_성연령.csv', dtype={'기준년월': str, '소지역코드': str})
@@ -187,7 +187,7 @@ print('분석 단위:', U.groupby('지역').size().to_dict(), '| 결측:', int(U
 U.groupby('지역')[F_A].median().round(3)
 """)
 md(r"""
-### 4-1. 학습 — 강남 정답으로 '구조(S)'와 'SK 행동 지표'의 비중을 함께 학습 (동 하나씩 빼고 검증)
+### 4-1. 학습: 강남 정답으로 '구조(S)'와 'SK 행동 지표'의 비중을 함께 학습 (동 하나씩 빼고 검증)
 정답의 '같은 성·연령 대비 상대값(log y_rel)'을 S와 SK 지표로 설명합니다. S를 고정된 출발점이 아니라 **변수 하나로** 넣어서, 외부 구조를 얼마나 믿을지 모델이 스스로 정하게 합니다.
 """)
 code(r"""
@@ -207,13 +207,13 @@ SA_MODEL = ridge().fit(G[F_ALL], np.log(G['y_rel']))
 coefA = pd.Series(SA_MODEL[-1].coef_, index=F_A + ['구조 S (주민등록)'])
 fig, ax = plt.subplots(figsize=(7, 3.4))
 ax.barh(coefA.index, coefA.values, color=['#eb6834' if v > 0 else '#2a78d6' for v in coefA.values]); ax.axvline(0, color=INK2, lw=.8)
-ax.set_title('구조 + SK 결합 모델의 표준화 계수 — 주황 = 높을수록 고립 지표↑'); plt.show()
+ax.set_title('구조 + SK 결합 모델의 표준화 계수: 주황 = 높을수록 고립 지표↑'); plt.show()
 U['SA'] = np.exp(SA_MODEL.predict(U[F_ALL]))       # 구조 + SK 행동을 합친 상대 위험 (1 = 같은 성·연령 평균)
 U.groupby('지역')['SA'].describe()[['mean', 'min', '50%', 'max']].round(3)
 """)
 
 # ------------------------------------------------------------------ 5
-md("## 5. 집단 행동 C — 신한카드 (제공 데이터)")
+md("## 5. 집단 행동 C: 신한카드 (제공 데이터)")
 code(r"""
 %%time
 REN = {'기준일자': '일자', '가맹점 위치정보(시·군·구)': '지역', '가맹점 업종': '업종', '이용고객 성별': '성별', '이용고객 연령대': '연령대',
@@ -246,7 +246,7 @@ U = U.merge(CI[['C']].reset_index(), on=k, how='left')
 md("## 6. 위험도 산출 · 5단계")
 code(r"""
 U['위험점수'] = U['B 기본 고립률(%)'] * U['SA'] * U['C']
-# 5단계: 거주 인구 가중 누적 비중으로 구분 — '주의' 이상 = 공식 사회적 고립도 33.0%에 맞춤 (유병률 기준점)
+# 5단계: 거주 인구 가중 누적 비중으로 구분. '주의' 이상 = 공식 사회적 고립도 33.0%에 맞춤 (유병률 기준점)
 CUTS = [('심각', .05), ('경계', .15), ('주의', .33), ('관심', .60), ('정상', 1.0)]
 def levels(df, score='위험점수', w='주민'):
     d = df.sort_values(score, ascending=False); cum = d[w].fillna(0).cumsum() / d[w].fillna(0).sum()
@@ -260,16 +260,16 @@ U['생애단계 내 단계'] = pd.concat([levels(g) for _, g in U.groupby(['지�
 ORDER = ['심각', '경계', '주의', '관심', '정상']
 summ = U.groupby(['지역', '단계'])['주민'].sum().unstack().reindex(columns=ORDER).fillna(0)
 summ = (summ.div(summ.sum(axis=1), axis=0) * 100).round(1)
-print('① 지역 내 단계 — 지역별 거주 인구 분포(%) (정의상 각 지역 5/10/18/27/40%)'); display(summ)
+print('① 지역 내 단계: 지역별 거주 인구 분포(%) (정의상 각 지역 5/10/18/27/40%)'); display(summ)
 lv = U.groupby(['지역', '연령5', '단계'])['주민'].sum().unstack().reindex(columns=ORDER).fillna(0)
-print('① 지역 내 단계 — 지역 × 연령별 거주 인구 분포(%)'); display((lv.div(lv.sum(axis=1), axis=0) * 100).round(1))
+print('① 지역 내 단계: 지역 × 연령별 거주 인구 분포(%)'); display((lv.div(lv.sum(axis=1), axis=0) * 100).round(1))
 lv2 = U.groupby(['지역', '연령5', '생애단계 내 단계'])['주민'].sum().unstack().reindex(columns=ORDER).fillna(0)
-print('② 생애단계 내 단계 — 지역 × 연령별 거주 인구 분포(%)'); display((lv2.div(lv2.sum(axis=1), axis=0) * 100).round(1))
+print('② 생애단계 내 단계: 지역 × 연령별 거주 인구 분포(%)'); display((lv2.div(lv2.sum(axis=1), axis=0) * 100).round(1))
 fig, axes = plt.subplots(1, 2, figsize=(14, 7.5))
 for ax, r in zip(axes, MAIN):
     p = U[U['지역'] == r].pivot_table(index='읍면동명', columns=['성별', '연령5'], values='위험점수')
     p = p.loc[p.mean(axis=1).sort_values(ascending=False).index]; p.columns = [f'{s[0]}{a}' for s, a in p.columns]
-    heat(ax, p, fmt='{:.0f}', vmin=U['위험점수'].quantile(.02), vmax=U['위험점수'].quantile(.98), fs=7, rot=45); ax.set_title(f'{r} — 위험점수 (남·여 × 연령)')
+    heat(ax, p, fmt='{:.0f}', vmin=U['위험점수'].quantile(.02), vmax=U['위험점수'].quantile(.98), fs=7, rot=45); ax.set_title(f'{r}: 위험점수 (남·여 × 연령)')
 plt.tight_layout(); plt.show()
 """)
 code(r"""
@@ -284,7 +284,7 @@ for r in MAIN:
 
 # ------------------------------------------------------------------ 7
 md(r"""
-## 7. 성능 평가 — 제공 데이터를 빼면 얼마나 떨어지는가 (제거 실험)
+## 7. 성능 평가: 제공 데이터를 빼면 얼마나 떨어지는가 (제거 실험)
 - **동 순위 ρ**: 같은 성·연령 안에서 21개 동의 순위를 정답과 얼마나 같게 매기는가 (0 = 무작위, 1 = 완벽)
 - **향상도**: 점수 상위 20% 동(4~5개)의 실제 고립 비율이 그 성·연령 평균의 몇 배인가 (1.0 = 무작위). 정답으로 고른 경우(이론상 최대)도 함께 표시
 """)
@@ -315,14 +315,14 @@ A_ = ABL.iloc[:-1][::-1]; colors = [GRAY, '#b7d3f6', '#2a78d6', '#1c5cab', '#0d3
 axes[0].barh(A_['모델'], A_['동 순위 ρ'], color=colors, height=.6); axes[0].set_title('같은 성·연령 안 동 순위 ρ (동 하나씩 빼고 검증)')
 axes[1].barh(A_['모델'], A_['향상도 (상위 20% 동)'], color=colors, height=.6); axes[1].axvline(1, color=INK2, lw=.8)
 axes[1].axvline(ABL.iloc[-1]['향상도 (상위 20% 동)'], color='#c43a39', lw=1); axes[1].set_xlim(.8, None)
-axes[1].text(ABL.iloc[-1]['향상도 (상위 20% 동)'], 4.4, ' 이론상 최대', color='#c43a39', fontsize=8.5); axes[1].set_title('향상도 — 상위 20% 동의 고립 비율 / 평균')
+axes[1].text(ABL.iloc[-1]['향상도 (상위 20% 동)'], 4.4, ' 이론상 최대', color='#c43a39', fontsize=8.5); axes[1].set_title('향상도: 상위 20% 동의 고립 비율 / 평균')
 for ax, col in zip(axes, ['동 순위 ρ', '향상도 (상위 20% 동)']):
     for y_, v in enumerate(A_[col]): ax.text(v, y_, f' {v:.2f}', va='center', fontsize=8.5, color=INK2)
 plt.tight_layout(); plt.show()
 """)
 
 # ------------------------------------------------------------------ 8
-md("## 8. 요인 기여도 — 왜 이 동·집단이 위험한가 (에이전트 '원인 분석'의 근거)")
+md("## 8. 요인 기여도: 왜 이 동·집단이 위험한가 (에이전트 '원인 분석'의 근거)")
 code(r"""
 sc, mu, cf = SA_MODEL[0].scale_, SA_MODEL[0].mean_, SA_MODEL[-1].coef_
 contrib = pd.DataFrame({('SK: ' + f if f != 'logS' else '구조(주민등록)'): cf[i] * (U[fp] - mu[i]) / sc[i]
@@ -343,7 +343,7 @@ U.sort_values('위험점수', ascending=False)[['지역', '읍면동명', '성�
 
 # ------------------------------------------------------------------ 9
 md(r"""
-## 9. 시점 신호 T — 신한카드 일별 + 기상청 보정 → '지속 감소' 시 단계 상향
+## 9. 시점 신호 T: 신한카드 일별 + 기상청 보정 → '지속 감소' 시 단계 상향
 - 대상: 지역 × 성 × 연령(20개 집단)의 **외부·사회활동형 소비** 일별 건수
 - 기준선: 요일·공휴일·추석·월 + **날씨**(기상청 ASOS)로 예측한 '평소 값' → 실제와의 차이(잔차)
 - **상향 규칙**: 잔차의 7일 이동평균이 −10% 이하로 **7일 이상 지속** → 해당 집단의 단계를 한 칸 올림 (일시적 감소는 무시)
@@ -403,19 +403,19 @@ for D in [-.10, -.15, -.20, -.30]:
             sim.append({'실제 감소폭': f'{int(D * 100)}%', '탐지': hit, '지연(일)': (a - start) if hit else np.nan})
 SIM = pd.DataFrame(sim).groupby('실제 감소폭', sort=False).agg(탐지율=('탐지', 'mean'), 평균지연일=('지연(일)', 'mean'))
 SIM['탐지율'] = (SIM['탐지율'] * 100).round(1)
-print('기본 규칙(−10%, 7일)의 탐지 성능 — 3주간 지속 감소를 넣고, 평소 값은 그 구간을 뺀 데이터로 학습 (20개 집단 × 5회)'); display(SIM.round(1))
+print('기본 규칙(−10%, 7일)의 탐지 성능: 3주간 지속 감소를 넣고, 평소 값은 그 구간을 뺀 데이터로 학습 (20개 집단 × 5회)'); display(SIM.round(1))
 fig, axes = plt.subplots(2, 1, figsize=(12, 5.4), sharex=True)
 for ax, reg in zip(axes, MAIN):
     for ag, col in zip(AGE5, ['#86b6ef', '#3987e5', '#2a78d6', '#1c5cab', '#0d366b']):
         s = sum(resid(SER[(reg, sx, ag)], np.log(SER[(reg, sx, ag)]['y'].values)).rolling(7).mean() for sx in SEX) / 2
         ax.plot(s.index, (np.exp(s.values) - 1) * 100, color=col, lw=1.2, label=ag)
     ax.axhline(-10, color='#c43a39', lw=1); ax.axhline(0, color=INK2, lw=.6)
-    ax.set_title(f'{reg} — 외부활동 소비, 평소 대비 7일 이동평균 편차 (빨간선 = 상향 기준 -10%)'); ax.yaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
+    ax.set_title(f'{reg}: 외부활동 소비, 평소 대비 7일 이동평균 편차 (빨간선 = 상향 기준 -10%)'); ax.yaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
 axes[0].legend(ncol=5, fontsize=8.5); plt.tight_layout(); plt.show()
 """)
 
 # ------------------------------------------------------------------ 10
-md("## 10. 민감도 — 가중치를 바꿔도 우선순위가 유지되는가")
+md("## 10. 민감도: 가중치를 바꿔도 우선순위가 유지되는가")
 code(r"""
 def score(wA=1., wS=1., wC=1.): return np.exp(U['logB'] + wA * U['logSK'] + wS * U['logST'] + wC * U['logC'])
 base_rank = U['위험점수'].rank(ascending=False); base_top = set(U.nlargest(int(len(U) * .15), '위험점수').index)
@@ -437,7 +437,7 @@ print('저장: outputs/위험도_강남_춘천_동x성x연령.csv, outputs/시�
 
 # ------------------------------------------------------------------ 11 (견고성)
 md(r"""
-## 11. 견고성 점검 — 설계 동결 · 시간 분할 검증 · 모델 비교 · 성별 분리 단계
+## 11. 견고성 점검: 설계 동결 · 시간 분할 검증 · 모델 비교 · 성별 분리 단계
 04의 설계는 결과를 보면서 몇 차례 고쳤기 때문에, 같은 데이터로 평가하면 성능이 낙관적일 수 있습니다. 그래서 **설계를 고정(동결)한 뒤**, 학습에 쓰지 않은 **미래 기간**으로 다시 평가합니다.
 """)
 code(r"""
@@ -448,7 +448,7 @@ json.dump(CONFIG, open(OUTD / '모델설정_동결.json', 'w', encoding='utf-8')
 print('설계 동결: outputs/모델설정_동결.json'); pd.Series({k: str(v)[:90] for k, v in CONFIG.items()}).to_frame('값')
 """)
 md(r"""
-### 11-1. 시간 분할 검증 — 7~9월로 학습하고 10~12월을 맞히는가
+### 11-1. 시간 분할 검증: 7~9월로 학습하고 10~12월을 맞히는가
 - SK 지표와 정답을 기간별로 다시 만듭니다. '겨울 변화'는 3개월 안에서 정의할 수 없어 **기간 내 변화(마지막 달 ÷ 첫 달)**로 바꿉니다.
 - (a) 같은 기간 안에서 동 하나씩 빼고 검증 → (b) 과거로 학습해 미래를 예측(같은 동) → (c) **과거 + 다른 동으로 학습해 미래의 처음 보는 동을 예측**(가장 엄격)
 - 비교 기준: '지난 기간 정답을 그대로 다음 기간 예측으로 쓰기'(정답 자체의 시간 안정성)
@@ -500,7 +500,7 @@ rows.append(('참고: 7~9월 정답을 10~12월 예측으로 그대로 사용', 
 TSPLIT = pd.DataFrame(rows, columns=['검증 방식', '동 순위 ρ', '95% 구간'])
 TSPLIT.round(3)
 """)
-md("### 11-2. 모델 비교 — 왜 릿지 회귀인가 (6개월 데이터, 동 하나씩 빼고 검증)")
+md("### 11-2. 모델 비교: 왜 릿지 회귀인가 (6개월 데이터, 동 하나씩 빼고 검증)")
 code(r"""
 %%time
 from sklearn.linear_model import LassoCV, LinearRegression
@@ -524,7 +524,7 @@ for name, mk in MODELS.items():
                  '요인별 설명 가능': '예' if name in ('선형회귀 (규제 없음)', '릿지 회귀 (채택)', '라쏘 회귀') else '제한적', '소요(초)': round(time.time() - t0, 1)})
 MCOMP = pd.DataFrame(rows); MCOMP.round(3)
 """)
-md("### 11-3. 성별 분리 단계 — 여성 고립을 놓치지 않도록")
+md("### 11-3. 성별 분리 단계: 여성 고립을 놓치지 않도록")
 code(r"""
 U['성별 내 단계'] = pd.concat([levels(g) for _, g in U.groupby(['지역', '성별'])])
 hi = ['심각', '경계']

@@ -2,7 +2,7 @@
 한국사회보장정보원 복지서비스 목록 수집 → external/welfare/
 
 - 중앙부처복지서비스 (NationalWelfareInformationsV001) 전체 목록
-- 지자체복지서비스 (LocalGovernmentWelfareInformations) — 서울특별시 · 강원특별자치도 전체 목록
+- 지자체복지서비스 (LocalGovernmentWelfareInformations): 서울특별시 · 강원특별자치도 전체 목록
 - 인증키는 이 폴더의 .env 파일(KMA_API_KEY=...)에서 읽습니다(공공데이터포털 일반 인증키, 두 서비스 활용신청 필요).
 
 실행: python fetch_welfare.py

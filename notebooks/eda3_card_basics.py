@@ -178,7 +178,7 @@ fig, ax = plt.subplots(figsize=(11, 3.5))
 ax.plot(ex.index, ex["res"], lw=1, color="#a0aec0", label="잔차 (요일 효과 뺀 값)")
 ax.plot(ex.index, ex["own"], lw=1, color="#c05621", label="고유 변동 (도시 공통까지 뺀 값)")
 ax.axhline(0, color="#4a5568", lw=0.6)
-ax.set_title("예: 춘천 70대 여성 — 도시 공통 변동을 빼면 흔들림이 줄어든다")
+ax.set_title("예: 춘천 70대 여성: 도시 공통 변동을 빼면 흔들림이 줄어든다")
 ax.legend()
 r.fig(fig, "f05_common_factor.png", "공통 변동")
 
