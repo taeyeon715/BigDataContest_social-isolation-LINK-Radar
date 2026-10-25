@@ -11,12 +11,16 @@ import {
   STATIC_MODE,
   loadHome,
   loadIndex,
+  askGemini,
+  geminiLimited,
   localAnswer,
+  markGeminiLimited,
   sameDayLastData,
   snapDate,
   todayKST,
   upcomingEvents,
 } from '../lib/home'
+import { LIMIT_MESSAGE } from '../lib/geminiChat'
 import { LEVEL_LEGEND, plainText } from '../lib/labels'
 
 // 첫 화면: ① 요약 → ② 먼저 볼 곳 지도 → ③ 근거 → ④ 질문. '오늘 기준'은 작년 같은 날의 결과다 (자료는 2025년 7~12월).
@@ -295,7 +299,19 @@ function Chat({ home, picked, as_of, city }: { home: HomeResponse; picked: HomeC
     setMsgs((m) => [...m, { who: 'me', lines: [question] }])
     setQ('')
     if (STATIC_MODE) {
-      setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: '이 화면의 근거 카드에서 찾은 답 (LLM 아님)' }])
+      if (geminiLimited()) {
+        setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: LIMIT_MESSAGE }])
+        return
+      }
+      setBusy(true)
+      const r = await askGemini({ question, as_of: home.as_of, city, adm_cd: picked?.adm_cd ?? picked?.check_first_adm[0] ?? null })
+      setBusy(false)
+      if (r.status === 'ok') {
+        setMsgs((m) => [...m, { who: 'bot', lines: r.lines, note: `Gemini(무료 등급)가 이 화면 근거만 보고 쓴 답${r.dropped ? ` · 근거에 없는 숫자가 든 문장 ${r.dropped}개 뺌` : ''}` }])
+      } else {
+        if (r.status === 'limit') markGeminiLimited()
+        setMsgs((m) => [...m, { who: 'bot', lines: localAnswer(question, home, picked), note: r.status === 'limit' ? r.message : `근거 카드에서 찾은 답 (${r.message})` }])
+      }
       return
     }
     setBusy(true)
@@ -312,7 +328,11 @@ function Chat({ home, picked, as_of, city }: { home: HomeResponse; picked: HomeC
   return (
     <Card title="④ 질문하기">
       <div className="flex max-h-[360px] flex-col gap-3 overflow-y-auto" data-testid="home-chat">
-        {msgs.length === 0 && <div className="text-sm text-ink-600">고른 동과 이 기준일 근거에 대해 물어보세요. 등급은 질문으로 바뀌지 않습니다.</div>}
+        {msgs.length === 0 && (
+          <div className="text-sm text-ink-600">
+            고른 동과 이 기준일 근거에 대해 물어보세요. 등급은 질문으로 바뀌지 않습니다.{STATIC_MODE ? ' 질문은 Gemini(무료 등급)로 보내지니 이름·연락처 같은 개인정보는 적지 마세요.' : ''}
+          </div>
+        )}
         {msgs.map((m, i) => (
           <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${m.who === 'me' ? 'self-end bg-brand-600 text-white' : 'self-start bg-canvas text-ink-900'}`}>
             {m.lines.map((l, j) => (

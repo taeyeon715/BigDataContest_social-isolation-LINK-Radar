@@ -1,5 +1,6 @@
 // 첫 화면 자료: 실제 API(GET /home) 또는 정적 배포 JSON(/data/home). '오늘 기준'은 작년 같은 날의 결과다.
 import { api, type City, type HomeCandidate, type HomeResponse, type ReqOpts, type StaticIndex } from '../api'
+import { type ChatRequest, type ChatResult } from './geminiChat'
 import { plainText } from './labels'
 
 /** 정적 배포(Vercel): 미리 계산한 집계 JSON 만 읽는다. 원자료·실제 에이전트는 없음 */
@@ -91,4 +92,33 @@ export function localAnswer(q: string, home: HomeResponse, picked: HomeCandidate
     ]
   }
   return [`${where} · ${top.candidate_level ?? '등급 전'}`, plainText(top.level_reason ?? '등급 이유 없음')]
+}
+
+// ---- 정적 배포 질문: Vercel 함수 /api/chat → Gemini(무료 등급). 한도(429)에 걸리면 그날은 다시 부르지 않는다
+const LIMIT_KEY = 'linkradar.gemini.limitedOn'
+
+export function geminiLimited(today: string = todayKST()): boolean {
+  try {
+    return localStorage.getItem(LIMIT_KEY) === today
+  } catch {
+    return false
+  }
+}
+
+export function markGeminiLimited(today: string = todayKST()) {
+  try {
+    localStorage.setItem(LIMIT_KEY, today)
+  } catch {
+    /* 저장 못 해도 서버가 계속 429 로 막음 */
+  }
+}
+
+export async function askGemini(req: ChatRequest): Promise<ChatResult> {
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+    const d = (await r.json().catch(() => null)) as ChatResult | null
+    return d ?? { status: 'error', message: `질문 서버 응답 오류 (HTTP ${r.status})` }
+  } catch {
+    return { status: 'error', message: '질문 서버에 연결하지 못했습니다' }
+  }
 }
