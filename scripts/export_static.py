@@ -1,12 +1,12 @@
 """정적 배포용 첫 화면 JSON (Vercel). 실제 에이전트(정기 감시 그래프)를 기준일마다 돌려 두 도시 결과를 저장한다.
 
-    uv run python scripts/export_static.py            # 기본 기준일 전부 (약 20분)
+    uv run python scripts/export_static.py            # 2025-07-01~12-31 하루 단위 184일 (약 2시간)
+    uv run python scripts/export_static.py --missing  # 아직 파일이 없는 날만 (중간에 멈췄을 때 이어서)
     uv run python scripts/export_static.py 2025-09-26 # 몇 날짜만 (index.json 은 있는 파일로 다시 씀)
 
 - 결과: web/public/data/home/<기준일>_<GN|CC>.json (api/services/home.py build_home 과 같은 모양), index.json (기준일 목록)
 - 원자료는 싣지 않는다: 후보·등급·근거 문장·자원 이름 같은 집계 결과만 (대회 자료 재배포 금지, NOTICE.md)
-- 기본 기준일: 2025-07-01 부터 7일마다 + 시연 기준일(연휴 7일 전 등). 화면의 '오늘 기준'은 작년 같은 날 이전의
-  가장 가까운 기준일을 쓴다.
+- 기본 기준일: 2025-07-01~12-31 하루 단위 (달력에서 어느 날을 골라도 그날 결과). 화면의 '오늘 기준'은 작년 같은 날.
 """
 
 from __future__ import annotations
@@ -23,15 +23,14 @@ sys.path.insert(0, str(ROOT / "src"))
 OUT = ROOT / "web" / "public" / "data" / "home"
 CITIES = ("강남", "춘천")
 CODE = {"강남": "GN", "춘천": "CC"}  # 파일 이름은 영문 코드 (배포 주소 인코딩 문제 피함)
-EXTRA = ("2025-08-08", "2025-09-26", "2025-10-13", "2025-12-20")  # 광복절 7일 전, 추석 7일 전·뒤, 동절기
 
 
 def default_dates() -> list[str]:
-    d, end, out = date(2025, 7, 1), date(2025, 12, 31), set(EXTRA)
+    d, end, out = date(2025, 7, 1), date(2025, 12, 31), []
     while d <= end:
-        out.add(d.isoformat())
-        d += timedelta(days=7)
-    return sorted(out)
+        out.append(d.isoformat())
+        d += timedelta(days=1)
+    return out
 
 
 def export_day(d: str) -> None:
@@ -67,7 +66,10 @@ def write_index() -> None:
 
 def main(argv: list[str]) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    days = argv or default_dates()
+    missing = "--missing" in argv
+    days = [a for a in argv if a != "--missing"] or default_dates()
+    if missing:
+        days = [d for d in days if not all((OUT / f"{d}_{CODE[c]}.json").exists() for c in CITIES)]
     for i, d in enumerate(days, 1):
         export_day(d)
         print(f"[{i}/{len(days)}] {d}", flush=True)

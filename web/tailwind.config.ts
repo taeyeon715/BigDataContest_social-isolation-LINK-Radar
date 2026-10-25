@@ -28,7 +28,7 @@ export default {
       borderRadius: { card: '20px', pill: '999px' },
       boxShadow: { card: '0 4px 20px rgba(43,39,32,0.06)', lift: '0 10px 30px rgba(43,39,32,0.12)' },
       fontFamily: {
-        sans: ['Pretendard', '"Apple SD Gothic Neo"', '"Malgun Gothic"', 'system-ui', 'sans-serif'],
+        sans: ['"Pretendard Variable"', 'Pretendard', '"Apple SD Gothic Neo"', '"Malgun Gothic"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         xs: ['12px', '18px'],

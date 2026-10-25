@@ -1,6 +1,7 @@
 import { lazy, StrictMode, Suspense, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css' // 글꼴 (OFL, 쓰는 글자 묶음만 받음)
 import './index.css'
 import Layout from './components/Layout'
 import { syncRole } from './api'

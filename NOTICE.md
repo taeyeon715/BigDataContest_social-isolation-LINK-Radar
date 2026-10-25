@@ -15,6 +15,7 @@
 |---|---|---|---|
 | 행정동 경계·코드 (vuski/admdongkor) | `ref/adm_cd_names.csv`, 지도 | https://github.com/vuski/admdongkor (원천: 통계청 SGIS) | CC BY 4.0. 출처 표시 필요 |
 | Open-Meteo 과거 날씨 | `external/weather/openmeteo_*.json` (비교용) | https://open-meteo.com/ | CC BY 4.0. 출처 표시 필요 |
+| Pretendard 글꼴 (orioncactus/pretendard) | 웹 화면 글꼴 (`web` 빌드에 포함) | https://github.com/orioncactus/pretendard | SIL OFL 1.1. 글꼴 파일만 단독 판매 금지 |
 | 기상청 ASOS 일자료 (기상특보는 받지 않고 이 일자료로 근사) | `external/weather/kma_asos_daily_2025-07_12.csv` (원문은 `raw/`, 올리지 않음) | 공공데이터포털 15059093 (기상청) | 공공누리 1유형 (출처 표시) |
 | 공휴일 (2025년 월력요항) | `configs/project.yaml` `holidays`, `external/holidays/공휴일_2025-07_12.csv` | 한국천문연구원 천문우주지식정보 https://astro.kasi.re.kr/kor/life/post/calendarData?year=2025 (우주항공청 관보 게재 자료) | 공공 정보. 출처 표시 |
 | 주민등록 인구·세대, 성·연령별 1인세대수 | `external/resident/` | 공공데이터포털 15097972, 15097974 (행정안전부), 행정안전부 주민등록 인구통계 jumin.mois.go.kr (성/연령별 주민등록 1인세대수) | 이용허락범위 제한 없음 |
