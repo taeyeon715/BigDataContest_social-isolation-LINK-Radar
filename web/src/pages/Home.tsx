@@ -98,11 +98,19 @@ export default function Home() {
     <>
       <div className="bg-hero px-4 pb-28 pt-10 sm:px-6">
         <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-brand-700">LINK-Radar · 사회적 고립 예방 에이전트</div>
-              <h1 className="mt-1 text-4xl font-black tracking-tight text-ink-900">한눈에 보기</h1>
-            </div>
+          <header className="flex flex-col items-center gap-2 text-center" data-testid="home-title">
+            <h1 className="text-4xl font-black tracking-tight text-ink-900 sm:text-5xl">
+              LINK-Radar <span className="text-brand-700">·</span> 사회적 고립 예방 에이전트
+            </h1>
+            <p className="text-sm font-semibold text-ink-800 sm:text-base">2026 빅콘테스트 AI데이터 활용 분야 · 사회적 고립 예방 및 대응을 위한 AI 에이전트</p>
+            <p className="flex flex-wrap justify-center gap-1.5 text-xs font-semibold text-ink-800">
+              <span className="rounded-pill bg-white/70 px-3 py-1">신한카드 결제 데이터</span>
+              <span className="rounded-pill bg-white/70 px-3 py-1">SK텔레콤 유동인구 데이터</span>
+              <span className="rounded-pill bg-white/70 px-3 py-1">공공 통계·지역 자원 (참고)</span>
+            </p>
+          </header>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-2xl font-black tracking-tight text-ink-900">한눈에 보기</h2>
             <div className="rounded-pill bg-white/70 px-4 py-2 text-sm font-semibold text-ink-900" data-testid="basis-line">
               {explicit ? (
                 <>기준일 {explicit}{explicit !== as_of ? ` · 계산일 ${as_of}` : ''} 결과</>

@@ -107,6 +107,9 @@ def test_prereg_committed_before_results():
         r = subprocess.run(["git", "log", "--diff-filter=A", "--format=%H", "--", path], cwd=ROOT, capture_output=True, text=True)
         return r.stdout.split()[-1] if r.returncode == 0 and r.stdout.strip() else None
 
+    shallow = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT, capture_output=True, text=True)
+    if shallow.stdout.strip() == "true":
+        pytest.skip("얕은 clone 이라 처음 커밋을 알 수 없음")
     pre, res = first_commit("reports/t1_5_집단별S1/사전등록.json"), first_commit("reports/t1_5_집단별S1/README.md")
     if pre is None or res is None:
         pytest.skip("git 기록 없음")
