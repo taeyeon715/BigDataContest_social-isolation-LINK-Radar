@@ -23,4 +23,10 @@ describe('DatePicker', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByTestId('calendar')).toBeNull()
   })
+  it('hides dots when every day is computed', () => {
+    render(<DatePicker value="2025-07-02" min="2025-07-01" max="2025-07-03" marked={['2025-07-01', '2025-07-02', '2025-07-03']} onChange={() => {}} />)
+    fireEvent.click(screen.getByTestId('date-picker'))
+    expect(screen.getByLabelText('2025-07-01')).toBeInTheDocument()
+    expect(screen.queryByText(/계산해 둔 날/)).toBeNull()
+  })
 })

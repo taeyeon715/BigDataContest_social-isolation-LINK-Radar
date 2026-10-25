@@ -38,7 +38,9 @@ export function DatePicker({ value, min, max, onChange, marked, today }: Props) 
     }
   }, [open])
 
-  const marks = new Set(marked ?? [])
+  const span = Math.round((Date.parse(max) - Date.parse(min)) / 86_400_000) + 1
+  // 모든 날을 계산해 두었으면 점을 찍지 않는다 (점은 '계산한 날이 드문드문일 때'만 뜻이 있음)
+  const marks = new Set(marked && new Set(marked).size < span ? marked : [])
   const first = new Date(view.y, view.m, 1).getDay()
   const days = new Date(view.y, view.m + 1, 0).getDate()
   const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
@@ -112,7 +114,7 @@ export function DatePicker({ value, min, max, onChange, marked, today }: Props) 
             })}
           </div>
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-3 text-xs text-ink-600">
-            {marked && (
+            {marks.size > 0 && (
               <span className="flex items-center gap-1">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-600" /> 계산해 둔 날 (다른 날은 가장 가까운 이전 계산일)
               </span>

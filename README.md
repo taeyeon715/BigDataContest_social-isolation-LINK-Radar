@@ -380,7 +380,7 @@ Claude를 연결하려면 `ANTHROPIC_API_KEY`를 설정하고 `LINKRADAR_LLM=cla
 대회 자료는 재배포할 수 없어서, 배포본에는 실제 에이전트로 미리 계산한 **집계 결과(JSON)** 만 올립니다. 원자료와 서버는 올리지 않습니다.
 
 ```bash
-# 1) 실제 데이터 모드에서 기준일별 첫 화면 결과를 내보냄 (2025-07-01부터 7일마다 + 시연 기준일, 약 20분)
+# 1) 실제 데이터 모드에서 기준일별 첫 화면 결과를 내보냄 (2025-07-01~12-31 하루 단위 184일, 중간에 멈추면 --missing 으로 이어서)
 uv run python scripts/export_static.py          # → web/public/data/home/<기준일>_<GN|CC>.json, index.json
 
 # 2) 정적 모드로 빌드·미리보기 (VITE_STATIC=1, web/.env.static)
