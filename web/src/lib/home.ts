@@ -67,6 +67,14 @@ export async function loadHome(as_of: string, city: City, o?: ReqOpts): Promise<
   return (await r.json()) as HomeResponse
 }
 
+// ---- 첫 화면 ①~④: 왼쪽 바 바로가기와 섹션 id 가 같이 쓴다
+export const HOME_SECTIONS = [
+  { id: 'home-1', no: '1', label: '요약' },
+  { id: 'home-2', no: '2', label: '먼저 볼 곳' },
+  { id: 'home-3', no: '3', label: '근거' },
+  { id: 'home-4', no: '4', label: '질문하기' },
+] as const
+
 // ---- 정적 모드 질문: 이 화면의 근거 카드에서만 답을 찾는다 (LLM 아님, 새 숫자를 만들지 않음)
 export const EXAMPLE_QUESTIONS = ['왜 이 동을 먼저 봐야 해?', '어떤 자원을 연결하면 돼?', '담당자는 무엇을 하면 돼?', '이 결과의 한계는?']
 

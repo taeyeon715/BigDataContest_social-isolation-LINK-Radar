@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { DISCLAIMER, api, dataSources, onDataSource, type Source, type SnapshotInfo } from '../api'
 import { CITIES } from '../api'
 import { PRESETS, useFilters } from '../lib/filters'
-import { STATIC_MODE, loadIndex } from '../lib/home'
+import { HOME_SECTIONS, STATIC_MODE, loadIndex } from '../lib/home'
 
 // ---- 하단 영역에 보일 실행 ID (페이지가 정함)
 const RunCtx = createContext<{ runId: string | null; setRunId: (id: string | null) => void }>({ runId: null, setRunId: () => {} })
@@ -32,6 +32,47 @@ function Icon({ children }: { children: ReactNode }) {
   )
 }
 
+/** 첫 화면에서만: ①~④ 바로가기. 지금 보고 있는 섹션을 칠한다 */
+export function HomeJump() {
+  const [on, setOn] = useState<string>(HOME_SECTIONS[0].id)
+  useEffect(() => {
+    const pick = () => {
+      let cur: string = HOME_SECTIONS[0].id
+      for (const s of HOME_SECTIONS) {
+        const el = document.getElementById(s.id)
+        if (el && el.getBoundingClientRect().top <= 140) cur = s.id
+      }
+      // 맨 아래까지 내리면 마지막 섹션
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) cur = HOME_SECTIONS[HOME_SECTIONS.length - 1].id
+      setOn(cur)
+    }
+    pick()
+    window.addEventListener('scroll', pick, { passive: true })
+    return () => window.removeEventListener('scroll', pick)
+  }, [])
+  return (
+    <div className="flex items-center gap-1 md:mt-1 md:w-full md:flex-col md:px-2" data-testid="home-jump">
+      {HOME_SECTIONS.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          onClick={() => {
+            document.getElementById(s.id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+            setOn(s.id)
+          }}
+          aria-current={on === s.id ? 'location' : undefined}
+          className={`flex min-w-[56px] flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[11px] font-bold leading-tight md:w-full ${
+            on === s.id ? 'text-brand-700' : 'text-ink-600 hover:bg-canvas'
+          }`}
+        >
+          <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${on === s.id ? 'bg-brand-600 text-white' : 'bg-canvas text-ink-800'}`}>{s.no}</span>
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Sidebar({ query }: { query: string }) {
   const loc = useLocation()
   return (
@@ -43,16 +84,18 @@ function Sidebar({ query }: { query: string }) {
       {NAV.filter((n) => !STATIC_MODE || n.to === '/').map((n) => {
         const active = n.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.to)
         return (
-          <NavLink
-            key={n.to}
-            to={`${n.to}${query}`}
-            className={`flex min-w-[64px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold ${
-              active ? 'bg-brand-50 text-brand-600' : 'text-ink-600 hover:bg-canvas'
-            }`}
-          >
-            <Icon>{n.icon}</Icon>
-            {n.label}
-          </NavLink>
+          <Fragment key={n.to}>
+            <NavLink
+              to={`${n.to}${query}`}
+              className={`flex min-w-[64px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold ${
+                active ? 'bg-brand-50 text-brand-600' : 'text-ink-600 hover:bg-canvas'
+              }`}
+            >
+              <Icon>{n.icon}</Icon>
+              {n.label}
+            </NavLink>
+            {n.to === '/' && active && <HomeJump />}
+          </Fragment>
         )
       })}
     </nav>
@@ -182,6 +225,7 @@ export function Footer({ runId, snapshot }: { runId: string | null; snapshot: Sn
           {DISCLAIMER}
         </div>
         <div className="text-xs text-ink-200">집계 데이터로 먼저 확인할 동·집단을 제안합니다. 개인의 고립을 판정하지 않습니다.</div>
+        <div className="text-xs text-ink-200" data-testid="developers">개발자 : 임준서 / 이태연</div>
       </div>
     </footer>
   )

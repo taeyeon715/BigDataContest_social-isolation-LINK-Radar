@@ -10,6 +10,7 @@ import {
   DATA_FROM,
   DATA_TO,
   EXAMPLE_QUESTIONS,
+  HOME_SECTIONS,
   STATIC_MODE,
   askGemini,
   geminiLimited,
@@ -51,19 +52,19 @@ function l3Names(h: HomeResponse | undefined): string[] {
   return h ? h.areas.filter((a) => a.level === 'Level 3').map((a) => a.adm_nm) : []
 }
 
-/** ①~④ 섹션: 번호 배지 + 큰 굵은 제목 + 한 줄 설명 */
-function Section({ no, title, desc, right, children, testId }: { no: string; title: string; desc?: string; right?: ReactNode; children: ReactNode; testId?: string }) {
+/** ①~④ 섹션: 번호 배지 + 큰 굵은 제목(오른쪽에 aside) + 한 줄 설명. id 는 왼쪽 바 바로가기용 */
+function Section({ no, title, desc, aside, children, testId }: { no: string; title: string; desc?: string; aside?: ReactNode; children: ReactNode; testId?: string }) {
   return (
-    <section className="card p-6 sm:p-8" data-testid={testId}>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-black text-white">{no}</span>
-          <div>
+    <section id={HOME_SECTIONS[Number(no) - 1].id} className="card scroll-mt-6 p-6 sm:p-8" data-testid={testId}>
+      <header className="mb-6 flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-black text-white">{no}</span>
+        <div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">{title}</h2>
-            {desc && <p className="mt-0.5 text-sm text-ink-600">{desc}</p>}
+            {aside}
           </div>
+          {desc && <p className="mt-0.5 text-sm text-ink-600">{desc}</p>}
         </div>
-        {right}
       </header>
       {children}
     </section>
@@ -285,7 +286,7 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
         no="2"
         title={`먼저 볼 곳 · ${city}`}
         desc="동을 누르면 아래에 근거가 열립니다"
-        right={
+        aside={
           <div className="flex rounded-pill bg-canvas p-1" role="group" aria-label="도시">
             {CITIES.map((c) => (
               <button key={c} className={`rounded-pill px-5 py-1.5 text-sm font-bold ${c === city ? 'bg-brand-600 text-white' : 'text-ink-800'}`} onClick={() => setCity(c)} aria-pressed={c === city}>
@@ -464,7 +465,7 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
   }
 
   return (
-    <section className="overflow-hidden rounded-card bg-ink-900 text-white shadow-lift" data-testid="home-chat-card">
+    <section id={HOME_SECTIONS[3].id} className="scroll-mt-6 overflow-hidden rounded-card bg-ink-900 text-white shadow-lift" data-testid="home-chat-card">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 p-6 sm:px-8">
         <div className="flex items-center gap-4">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-black">4</span>
