@@ -24,6 +24,7 @@ import {
   upcomingEvents,
 } from '../lib/home'
 import { LEVEL_NAME, plainText } from '../lib/labels'
+import { useScopedRequest } from '../lib/useScopedRequest'
 
 // 첫 화면: ① 요약 → ② 먼저 볼 곳 지도 → ③ 근거 → ④ 에이전트에게 묻기.
 // '오늘 기준'은 작년 같은 날의 결과다 (자료는 2025년 7~12월).
@@ -239,7 +240,7 @@ function Body({ as_of, city, setCity, events, goDate }: { as_of: string; city: C
     return home.candidates.filter((c) => c.adm_cd === adm || c.check_first_adm.includes(adm))
   }, [home, sel])
   if (h.error) return <ErrorBox error={new ApiError(0, 'LOAD_FAILED', h.error)} />
-  if (h.loading && !home) return <Loading />
+  if (h.as_of !== as_of || (h.loading && !home)) return <Loading />
   if (!home) return null
   const ranked = home.areas.filter((a) => a.level || a.deviation_first)
     .sort((a, b) => (RANK[b.level ?? ''] ?? -1) - (RANK[a.level ?? ''] ?? -1))
@@ -427,7 +428,7 @@ function EvidenceCard({ c, city, as_of }: { c: HomeCandidate; city: City; as_of:
 }
 
 // ---- ④ 에이전트에게 묻기: 어떤 근거를 보고 답하는지 보이고, 답을 만드는 단계를 보여 준다
-type Msg = { who: 'me' | 'bot'; lines: string[]; note?: string; sources?: string[] }
+type Msg = { who: 'me' | 'bot'; lines: string[]; note?: string; sources?: string[]; runHref?: string }
 const STEPS = ['근거 카드 불러오는 중', '등급 이유·자원 확인 중', '답 작성 중']
 
 function AgentAvatar({ small = false }: { small?: boolean }) {
@@ -447,9 +448,12 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
   const [step, setStep] = useState(0)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const box = useRef<HTMLDivElement>(null)
+  const scope = `${as_of}|${city}|${picked?.candidate_id ?? ''}`
+  const beginRequest = useScopedRequest(scope)
   useEffect(() => {
     setMsgs([])
-  }, [as_of, city])
+    setBusy(false)
+  }, [scope])
   // 새 메시지가 오면 질문창 안쪽만 아래로 (페이지는 움직이지 않음. 날짜를 바꿔 대화가 비워질 때도 그대로)
   useEffect(() => {
     if (box.current && (msgs.length || busy)) box.current.scrollTop = box.current.scrollHeight
@@ -466,6 +470,7 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
 
   const ask = async (question: string) => {
     if (!question.trim() || busy) return
+    const request = beginRequest()
     setMsgs((m) => [...m, { who: 'me', lines: [question] }])
     setQ('')
     setBusy(true)
@@ -474,7 +479,8 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
       if (geminiLimited()) {
         bot = { who: 'bot', lines: localAnswer(question, home, picked), note: LIMIT_MESSAGE }
       } else {
-        const r = await askGemini({ question, as_of: home.as_of, city, adm_cd: picked?.adm_cd ?? picked?.check_first_adm[0] ?? null })
+        const r = await askGemini({ question, as_of: home.as_of, city, adm_cd: picked?.adm_cd ?? picked?.check_first_adm[0] ?? null }, request.signal)
+        if (!request.current()) return
         if (r.status === 'ok') {
           bot = { who: 'bot', lines: r.lines, sources, note: r.dropped ? `근거에 없는 숫자가 든 문장 ${r.dropped}개를 뺐습니다` : undefined }
         } else {
@@ -484,13 +490,15 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
       }
     } else {
       try {
-        const r = await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city })
+        const r = await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city }, { signal: request.signal })
+        if (!request.current()) return
         const lines = r.status === 'answered' && r.answer ? r.answer.split('\n').filter(Boolean) : [r.abstain_reason ?? '답을 보류했습니다.', ...(r.needed_data.length ? [`필요한 자료: ${r.needed_data.join(', ')}`] : [])]
-        bot = { who: 'bot', lines, sources, note: '사실 검사를 통과한 문장만 보여 줍니다' }
+        bot = { who: 'bot', lines, sources, note: '근거와 대조한 답변입니다', runHref: `/runs?${new URLSearchParams({ run_id: r.run_id, as_of, city })}` }
       } catch (e) {
         bot = { who: 'bot', lines: localAnswer(question, home, picked), sources, note: `에이전트에 묻지 못해 근거 카드에서 찾은 답 (${e instanceof ApiError ? e.message : '오류'})` }
       }
     }
+    if (!request.current()) return
     setMsgs((m) => [...m, bot])
     setBusy(false)
   }
@@ -551,6 +559,7 @@ function AgentChat({ home, picked, as_of, city, place }: { home: HomeResponse; p
                       </span>
                     ))}
                     {m.note && <span>{m.note}</span>}
+                    {m.runHref && <Link to={m.runHref} className="font-semibold text-white underline">조사·검토 기록 열기 →</Link>}
                   </div>
                 )}
               </div>

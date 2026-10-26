@@ -1,11 +1,28 @@
-import { Fragment, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Fragment, useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api, type RunHistoryResponse } from '../api'
 import { PageBody, PageHero } from '../components/Layout'
 import { Badge, Card, Empty, ErrorBox, Loading, PersonName } from '../components/ui'
-import { useFilters } from '../lib/filters'
 import { DECISION_LABEL as DECISION, MODE_LABEL, PHASE_LABEL, REVISION_REASON_LABEL as REASON, fmtTime } from '../lib/labels'
 import { useAsync } from '../lib/useAsync'
+import { useRunPoll } from '../lib/useRunPoll'
+import { candidatePlace, groupOf } from '../lib/labels'
+
+function RunCandidates({ runId }: { runId: string }) {
+  const { run, error, refresh } = useRunPoll(runId)
+  if (error) return <ErrorBox error={error} onRetry={refresh} />
+  if (!run) return <Loading />
+  if (run.mode !== 'qa' || run.route !== 'investigate') return null
+  if (!run.candidates.length) return <p className="mb-3 text-sm text-ink-600">{run.status === 'queued' || run.status === 'running' ? '조사 후보를 준비하는 중입니다.' : '이 조사에는 검토할 후보가 없습니다.'}</p>
+  return <div className="mb-4" data-testid="run-candidates">
+    <p className="mb-2 text-sm font-semibold">조사 후보 {run.candidates.length}개 · 후보를 열어 근거·자원을 검토하고 조사 전체를 승인·보류할 수 있습니다.</p>
+    <div className="flex flex-wrap gap-2">
+      {run.candidates.map((c) => <Link key={c.candidate_id} className="btn-ghost text-brand-700" to={`/candidates/${encodeURIComponent(c.candidate_id)}?${new URLSearchParams({ city: c.city, as_of: run.as_of, run_id: runId })}`}>
+        {candidatePlace(c)} · {groupOf(c)} · 검토 열기 →
+      </Link>)}
+    </div>
+  </div>
+}
 
 
 function HistoryRow({ runId }: { runId: string }) {
@@ -60,13 +77,19 @@ function HistoryRow({ runId }: { runId: string }) {
 }
 
 export default function Runs() {
-  const { query } = useFilters()
+  const [params] = useSearchParams()
+  const pinned = params.get('run_id')
   const runs = useAsync((signal) => api.runs(undefined, 100, { signal }), [])
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(pinned)
+  useEffect(() => setOpen(pinned), [pinned])
   return (
     <>
       <PageHero title="실행 기록" sources={['runs']} />
       <PageBody>
+        {pinned && runs.data && !runs.data.items.some((r) => r.run_id === pinned) && <Card title="지정한 실행">
+          <RunCandidates runId={pinned} />
+          <HistoryRow runId={pinned} />
+        </Card>}
         <Card title="실행" right={<button className="btn-ghost" onClick={runs.reload}>새로 고침</button>}>
           {runs.loading && !runs.data ? (
             <Loading />
@@ -97,7 +120,7 @@ export default function Runs() {
                         <td className="td whitespace-nowrap font-mono text-xs">{open === r.run_id ? '▾' : '▸'} {r.run_id}</td>
                         <td className="td min-w-[180px]">
                           {r.candidate_id ? (
-                            <Link className="text-brand-600 hover:underline" to={`/candidates/${r.candidate_id}${query}`} onClick={(e) => e.stopPropagation()}>
+                            <Link className="text-brand-600 hover:underline" to={`/candidates/${encodeURIComponent(r.candidate_id)}?${new URLSearchParams({ as_of: r.as_of, city: r.city ?? '', run_id: r.run_id })}`} onClick={(e) => e.stopPropagation()}>
                               {r.candidate_id}
                             </Link>
                           ) : (
@@ -116,6 +139,7 @@ export default function Runs() {
                         <tr className="bg-canvas/40">
                           <td className="td" colSpan={9}>
                             <div className="sticky left-3 w-[min(1100px,calc(100vw-160px))]">
+                              <RunCandidates runId={r.run_id} />
                               <HistoryRow runId={r.run_id} />
                             </div>
                           </td>

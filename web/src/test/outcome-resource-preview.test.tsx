@@ -1,5 +1,5 @@
 // 조사 전 자원 미리 보기를 후보의 필요 유형으로 좁힘, 현장 확인 결과 입력·모아 보기
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { api, type Candidate } from '../api'
@@ -68,11 +68,43 @@ describe('현장 확인 결과', () => {
     const userEvent = (await import('@testing-library/user-event')).default
     render(<OutcomeForm runId="run-1" candidateId="C-1" />)
     const box = screen.getByLabelText('확인 가구')
+    await waitFor(() => expect(box).toBeEnabled())
     await userEvent.clear(box)
     await userEvent.type(box, '3')
     await userEvent.click(screen.getByRole('button', { name: '결과 저장' }))
     expect(rec).toHaveBeenCalledWith('run-1', expect.objectContaining({ candidate_id: 'C-1', checked_households: 3, idempotency_key: expect.stringMatching(/^run-1:C-1:/) }))
     expect(await screen.findByTestId('outcome-saved')).toBeInTheDocument()
+  })
+
+  it('조회 실패 시 입력과 저장을 막고 다시 불러온 기존 값을 복원한다', async () => {
+    const { OutcomeForm } = await import('../components/OutcomeForm')
+    const load = vi.spyOn(api, 'runOutcomes').mockRejectedValueOnce(new Error('network')).mockResolvedValue({
+      run_id: 'run-1', history_count: 1, items: [{ candidate_id: 'C-1', checked_households: 12, contacted: 10, absent: 2,
+        new_links: 1, crises_found: 0, created_at: '', recorded_by: 'w' }],
+    } as never)
+    const save = vi.spyOn(api, 'recordOutcome')
+    render(<OutcomeForm runId="run-1" candidateId="C-1" />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('저장된 결과를 불러오지 못했습니다')
+    expect(screen.getByLabelText('확인 가구')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '결과 저장' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '다시 불러오기' }))
+    await waitFor(() => expect(screen.getByLabelText('확인 가구')).toHaveValue(12))
+    expect(screen.getByRole('button', { name: '고쳐 저장' })).toBeEnabled()
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('다른 후보 조회 중에는 이전 건수를 저장하지 못하고 늦은 응답도 버린다', async () => {
+    const { OutcomeForm } = await import('../components/OutcomeForm')
+    let resolve!: (v: any) => void
+    vi.spyOn(api, 'runOutcomes').mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      .mockResolvedValue({ run_id: 'run-B', items: [], history_count: 0 })
+    const { rerender } = render(<OutcomeForm runId="run-A" candidateId="C-A" />)
+    expect(screen.getByRole('button', { name: '결과 저장' })).toBeDisabled()
+    rerender(<OutcomeForm runId="run-B" candidateId="C-B" />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '결과 저장' })).toBeEnabled())
+    await act(async () => resolve({ items: [{ candidate_id: 'C-A', checked_households: 99 }] }))
+    expect(screen.getByLabelText('확인 가구')).toHaveValue(0)
   })
 
   it('모아 보기는 10 미만 칸을 숫자 없이 보인다', async () => {

@@ -242,7 +242,7 @@ export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?:
     okay: 'bg-okay-soft text-okay',
     dark: 'bg-ink-900 text-white',
   }[tone]
-  return <span className={`chip ${cls}`}>{children}</span>
+  return <span className={`chip max-w-full whitespace-normal ${cls}`}>{children}</span>
 }
 
 /** 지금 역할(짐작)과 need 이상인지. 403 을 받으면 내려가고 화면이 다시 그려짐 */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, OUTCOME_FIELDS, OUTCOME_LABEL, api, type OutcomeCounts, type OutcomeRecord } from '../api'
 import { errorText, fmtTime } from '../lib/labels'
 import { PersonName, RoleNote, useRole } from './ui'
@@ -26,38 +26,55 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
   const { can } = useRole() // 현장 결과 저장은 검토 권한 이상
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [key, setKey] = useState(() => newKey(runId, candidateId))
+  const scope = `${runId}:${candidateId}`
+  const scopeRef = useRef(scope)
+  scopeRef.current = scope
+  const [loadedScope, setLoadedScope] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [loadTick, setLoadTick] = useState(0)
+  const ready = loadedScope === scope
 
   useEffect(() => {
     let alive = true
+    setLoadedScope(null)
+    setLoadError(false)
+    setSaved(null)
+    setDraft(EMPTY)
+    setMsg(null)
+    setBusy(false)
+    setKey(newKey(runId, candidateId))
     api
       .runOutcomes(runId)
       .then((r) => {
         if (!alive) return
         const mine = r.items.find((x) => x.candidate_id === candidateId) ?? null
         setSaved(mine)
-        if (mine) setDraft(Object.fromEntries(OUTCOME_FIELDS.map((f) => [f, mine[f]])) as OutcomeCounts)
+        setDraft(mine ? Object.fromEntries(OUTCOME_FIELDS.map((f) => [f, mine[f]])) as OutcomeCounts : EMPTY)
+        setLoadedScope(scope)
       })
-      .catch(() => {})
+      .catch(() => { if (alive) setLoadError(true) })
     return () => {
       alive = false
     }
-  }, [runId, candidateId])
+  }, [runId, candidateId, loadTick])
 
   const problem = outcomeProblem(draft)
   const save = async () => {
-    if (problem) return
+    if (problem || !ready || busy) return
     setBusy(true)
     setMsg(null)
     try {
       const r = await api.recordOutcome(runId, { candidate_id: candidateId, ...draft, idempotency_key: key })
+      if (scopeRef.current !== scope) return
       setSaved(r.outcome)
       setKey(newKey(runId, candidateId)) // 다음에 고쳐 적으면 새 기록
       setMsg({ ok: true, text: '현장 확인 결과를 저장했습니다.' })
     } catch (e) {
+      if (scopeRef.current !== scope) return
       const t = e instanceof ApiError ? errorText(e.code, e.message) : { title: '저장하지 못했습니다.', detail: null }
       setMsg({ ok: false, text: t.title })
     } finally {
-      setBusy(false)
+      if (scopeRef.current === scope) setBusy(false)
     }
   }
 
@@ -67,6 +84,12 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
       <p className="text-xs text-ink-600">
         이 동·집단의 건수만 적습니다. 이름·주소·전화번호는 적지 않습니다. 모아 보기에서는 10 미만 칸을 숫자 없이 "10 미만"으로 보입니다.
       </p>
+      {!ready && (loadError ? (
+        <div role="alert" className="mt-2 text-sm text-caution">
+          저장된 결과를 불러오지 못했습니다. 다시 불러온 뒤 입력해 주세요.
+          <button className="btn-ghost ml-2" onClick={() => setLoadTick((n) => n + 1)}>다시 불러오기</button>
+        </div>
+      ) : <div role="status" className="mt-2 text-xs text-ink-600">저장된 결과를 불러오는 중입니다.</div>)}
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {OUTCOME_FIELDS.map((f) => (
           <label key={f} className="flex flex-col text-xs text-ink-600">
@@ -79,6 +102,7 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
               className="field mt-1 py-1.5"
               aria-label={OUTCOME_LABEL[f]}
               value={draft[f]}
+              disabled={!ready || busy}
               onChange={(e) => setDraft({ ...draft, [f]: e.target.value === '' ? 0 : Number(e.target.value) })}
             />
           </label>
@@ -90,7 +114,7 @@ export function OutcomeForm({ runId, candidateId }: { runId: string; candidateId
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button className="btn-primary" disabled={busy || !!problem || !can('검토')} onClick={save}>
+        <button className="btn-primary" disabled={!ready || busy || !!problem || !can('검토')} onClick={save}>
           {busy ? '저장 중…' : saved ? '고쳐 저장' : '결과 저장'}
         </button>
         {saved && (

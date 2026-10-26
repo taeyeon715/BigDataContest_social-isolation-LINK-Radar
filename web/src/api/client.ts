@@ -250,7 +250,7 @@ export const api = {
   runResources: (run_id: string, o?: ReqOpts) => request<RunResourcesResponse>('GET', `/runs/${encodeURIComponent(run_id)}/resources`, { ...o }),
   followup: (run_id: string, body: FollowupRequest) =>
     request<FollowupResponse>('POST', `/runs/${encodeURIComponent(run_id)}/followup`, { body }),
-  qa: (body: QARequest) => request<QAResponse>('POST', '/qa', { body }),
+  qa: (body: QARequest, o?: ReqOpts) => request<QAResponse>('POST', '/qa', { body, ...o }),
   resources: (q: {
     adm_cd?: string | null
     need_type?: string

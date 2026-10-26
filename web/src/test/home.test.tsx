@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HomeResponse } from '../api'
+import { api } from '../api'
 import { localAnswer, sameDayLastData, snapDate, upcomingEvents } from '../lib/home'
 
 // 지도는 jsdom 에서 그리지 않음 (Leaflet). 고른 동만 확인
@@ -67,6 +68,27 @@ describe('home helpers', () => {
 })
 
 describe('Home page', () => {
+  it.each(['date', 'city', 'dong'])('discards a pending answer after changing %s', async (change) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const city = decodeURIComponent(String(input)).includes('city=강남') ? '강남' : '춘천'
+      return new Response(JSON.stringify(home(city, true)))
+    })
+    let resolve!: (v: any) => void
+    const qa = vi.spyOn(api, 'qa').mockImplementation(() => new Promise((r) => { resolve = r }))
+    const { default: Home } = await import('../pages/Home')
+    render(<MemoryRouter initialEntries={['/?as_of=2025-09-26&city=춘천']}><Routes><Route path="/" element={<Home />} /></Routes></MemoryRouter>)
+    await screen.findByTestId('home-rank')
+    fireEvent.click(screen.getByRole('button', { name: '왜 이 동을 먼저 봐야 해?' }))
+    await waitFor(() => expect(qa).toHaveBeenCalledTimes(1))
+    const signal = qa.mock.calls[0][1]!.signal!
+    if (change === 'date') fireEvent.click(within(screen.getByTestId('presets')).getByText('동절기 (12/20)'))
+    else if (change === 'city') fireEvent.click(within(screen.getByRole('group', { name: '도시' })).getByRole('button', { name: '강남' }))
+    else fireEvent.click(within(screen.getByTestId('home-rank')).getByText(/효자3동/))
+    await waitFor(() => expect(signal.aborted).toBe(true))
+    await act(async () => resolve({ run_id: 'old', status: 'abstained', abstain_reason: '이전 요청의 답', needed_data: [] }))
+    expect(screen.queryByText('이전 요청의 답')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '왜 이 동을 먼저 봐야 해?' })).toBeEnabled()
+  })
   it('shows the summary, the ranked dongs and evidence for the picked dong', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)

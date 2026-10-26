@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, ApiError, type QAResponse } from '../api'
 import { ClaimsBox, EvidenceTable, withRefs } from '../components/EvidenceTable'
 import { PageBody, PageHero, useFooterRun } from '../components/Layout'
 import { Badge, Card, ErrorBox, HoldNotice, TimeLabelBar , RoleNote, useRole } from '../components/ui'
 import { useFilters } from '../lib/filters'
 import { ERROR_TEXT, evidenceIndex, limitText, reportText, splitAnswer } from '../lib/labels'
+import { useScopedRequest } from '../lib/useScopedRequest'
 
 // 지금 동작과 맞는 예: 카드 결제 시간대는 답함, 체류 인구 × 시간대는 자료 조합이 없어 보류, 1인세대 순위, 추석 전 점검
 export const EXAMPLES = ['강남 60대의 밤 카드 결제는 어때?', '강남 60대의 밤 체류 인구는 어때?', '강남 1인세대 비율 상위 동은?', '이번 추석 전에 춘천에서 어디부터 확인해야 해?']
@@ -108,26 +110,37 @@ export default function QA() {
   const [stage, setStage] = useState('')
   const [res, setRes] = useState<QAResponse | null>(null)
   const [err, setErr] = useState<ApiError | null>(null)
+  const [resultCity, setResultCity] = useState(city)
+  const beginRequest = useScopedRequest(`${city}|${as_of}`)
+  useEffect(() => {
+    setRes(null)
+    setErr(null)
+    setBusy(false)
+  }, [city, as_of])
   useFooterRun(res?.run_id)
   const { can } = useRole()
   const noRole = !can('검토') // 질의응답은 LLM 비용을 써서 검토 권한 이상 (API 명세 §1)
 
   const ask = async (question: string) => {
     if (!question.trim()) return
+    const request = beginRequest()
     setQ(question)
     setBusy(true)
     setErr(null)
     setRes(null)
     setStage('근거 모으는 중')
-    const t = window.setTimeout(() => setStage('사실 검사 중'), 400)
+    const t = window.setTimeout(() => { if (request.current()) setStage('사실 검사 중') }, 400)
     try {
       const city_ = question.includes('강남') ? '강남' : question.includes('춘천') ? '춘천' : city
-      setRes(await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city: city_ }))
+      const response = await api.qa({ question, as_of, analysis_mode: 'simulated_replay', city: city_ }, { signal: request.signal })
+      if (!request.current()) return
+      setResultCity(city_)
+      setRes(response)
     } catch (e) {
-      setErr(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '답을 받지 못했습니다.'))
+      if (request.current()) setErr(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '답을 받지 못했습니다.'))
     } finally {
       window.clearTimeout(t)
-      setBusy(false)
+      if (request.current()) setBusy(false)
     }
   }
 
@@ -173,7 +186,12 @@ export default function QA() {
           </Card>
         )}
         {err && <ErrorBox error={err} onRetry={() => ask(q)} />}
-        {res && <QAResult res={res} />}
+        {res && <>
+          <QAResult res={res} />
+          <Link className="text-sm font-semibold text-brand-700 hover:underline" to={`/runs?${new URLSearchParams({ run_id: res.run_id, as_of, city: resultCity })}`}>
+            이 질문의 조사·검토 기록 열기 →
+          </Link>
+        </>}
       </PageBody>
     </>
   )

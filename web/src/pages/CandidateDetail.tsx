@@ -1,6 +1,6 @@
 import { StructuralRisk } from '../components/StructuralRisk'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   api,
   ApiError,
@@ -28,6 +28,7 @@ import { ActionPlanView, CandidateContext, CheckAreasView, DecisionTrace, EventT
 import { ResourcePanel, type JudgementDraft } from '../components/ResourcePanel'
 import { OutcomeForm } from '../components/OutcomeForm'
 import { ObjectionForm } from '../components/ObjectionForm'
+import { UnsavedReviewGuard } from '../components/UnsavedReviewGuard'
 import { ProtectivePanel } from '../components/ProtectivePanel'
 import { Term } from '../components/Term'
 import { Badge, Card, CounterChip, Empty, ErrorBox, HoldNotice, InputStatusBadge, LevelBadge, Loading, RUN_SLOW_TEXT, SelectedBadge, TimeLabelBar, TypeChip , PersonName, RoleNote, useRole } from '../components/ui'
@@ -240,6 +241,8 @@ export function nextAssigned(list: Candidate[], id: string): Candidate | null {
 export default function CandidateDetail() {
   const { id = '' } = useParams()
   const { city, as_of, query } = useFilters()
+  const [params, setParams] = useSearchParams()
+  const pinnedRunId = params.get('run_id')
   const [cand, setCand] = useState<Candidate | null>(null)
   const [list, setList] = useState<Candidate[]>([])
   const [candErr, setCandErr] = useState<ApiError | null>(null)
@@ -301,7 +304,22 @@ export default function CandidateDetail() {
     setCandErr(null)
     setRunsErr(null)
     setStartErr(null)
+    setMonitoringRunId(null)
     const asErr = (e: unknown) => (e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '알 수 없는 오류가 생겼습니다.'))
+    if (pinnedRunId) {
+      api.run(pinnedRunId, { signal }).then((r) => {
+        if (signal.aborted) return
+        const selected = r.candidates.find((c) => c.candidate_id === id && c.city === city)
+        if (r.mode !== 'qa' || r.as_of !== as_of || (!BUSY.has(r.status) && !selected)) {
+          throw new ApiError(409, 'RUN_CONTEXT_MISMATCH', '선택한 조사와 후보·지역·기준일이 다릅니다. 실행 기록에서 다시 열어 주세요.')
+        }
+        setCand(selected ?? null)
+        setList(r.candidates)
+        setRunId(r.run_id)
+        setLookedUp(true)
+      }).catch((e) => { if (!signal.aborted) setRunsErr(asErr(e)) })
+      return () => ac.abort()
+    }
     Promise.all([
       api.candidates(as_of, city, undefined, undefined, { signal }).catch(asErr),
       api.runs(id, 1, { signal }).catch(asErr),
@@ -324,9 +342,9 @@ export default function CandidateDetail() {
       setLookedUp(true)
     })
     return () => ac.abort()
-  }, [id, as_of, city, lookupTick])
+  }, [id, as_of, city, pinnedRunId, lookupTick])
 
-  const candidate = cand ?? run?.candidates.find((c) => c.candidate_id === id) ?? null
+  const candidate = run?.candidates.find((c) => c.candidate_id === id && c.city === city) ?? cand
 
   // 자원: 실행이 있으면 그 실행에 묶인 목록(GET /runs/{id}/resources, 아래), 없으면 전체 자원 조회
   useEffect(() => {
@@ -448,6 +466,7 @@ export default function CandidateDetail() {
       : null
 
   const start = async () => {
+    if (dirty && !window.confirm('저장하지 않은 검토 내용이 있습니다. 새 조사를 시작하시겠습니까?')) return
     setStarting(true)
     setStartErr(null)
     try {
@@ -456,7 +475,7 @@ export default function CandidateDetail() {
         mode: 'qa',
         candidate_id: id,
         as_of,
-        analysis_mode: 'simulated_replay',
+        analysis_mode: run?.analysis_mode ?? 'simulated_replay',
         city: candidate?.city ?? city,
         ...(cand && monitoringRunId ? { monitoring_run_id: monitoringRunId } : {}),
       })
@@ -464,6 +483,11 @@ export default function CandidateDetail() {
       setReport(null)
       setHistory(null)
       setRunId(acc.run_id)
+      const next = new URLSearchParams(params)
+      next.set('run_id', acc.run_id)
+      next.set('city', candidate?.city ?? city)
+      next.set('as_of', as_of)
+      setParams(next, { replace: true })
     } catch (e) {
       setStartErr(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '조사를 시작하지 못했습니다.'))
     } finally {
@@ -627,12 +651,18 @@ export default function CandidateDetail() {
 
   return (
     <>
+      <UnsavedReviewGuard dirty={dirty} />
       <PageHero title="후보 상세" sources={['candidates', 'runs', 'resources']}>
         <Link to={`/candidates${query}`} className="text-sm text-white hover:text-white">
           ← 후보 목록
         </Link>
       </PageHero>
       <PageBody>
+        {run && run.candidates.length > 1 && (
+          <Card title="여러 후보를 포함한 조사">
+            <p className="text-sm text-ink-600">이 조사에는 후보 {run.candidates.length}개가 포함되어 있습니다. 근거·자원 검토와 승인·보류는 조사 전체에 적용됩니다.</p>
+          </Card>
+        )}
         {/* 인쇄 단축키(Ctrl+P)로 찍어도 보고서 한 장만 나가게 */}
         {printSheet && <div className="hidden print:block">{printSheet}</div>}
         <div className="flex flex-col gap-5 print:hidden">

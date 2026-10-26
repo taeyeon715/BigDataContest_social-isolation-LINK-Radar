@@ -121,9 +121,9 @@ export function markGeminiLimited(today: string = todayKST()) {
   }
 }
 
-export async function askGemini(req: ChatRequest): Promise<ChatResult> {
+export async function askGemini(req: ChatRequest, signal?: AbortSignal): Promise<ChatResult> {
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req), signal })
     const d = (await r.json().catch(() => null)) as ChatResult | null
     return d ?? { status: 'error', message: `질문 서버 응답 오류 (HTTP ${r.status})` }
   } catch {

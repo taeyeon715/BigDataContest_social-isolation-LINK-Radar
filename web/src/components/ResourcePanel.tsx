@@ -107,6 +107,11 @@ export function ResourcePanel({
                     행정 창구라 안부·관계 거점 거리에는 넣지 않습니다.
                   </div>
                 )}
+                {/^https?:\/\//i.test(r.source_url) && (
+                  <a href={r.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-semibold text-brand-700 underline">
+                    공식 안내 확인 ↗
+                  </a>
+                )}
               </div>
               <div className="flex flex-wrap gap-1">
                 {resourceFlags(r).map((f) => (
